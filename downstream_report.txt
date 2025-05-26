@@ -1,8 +1,8 @@
 ovos-workshop==3.4.0
+├── ovos-skill-wikipedia==0.8.11a1 [requires: ovos-workshop>=3.4.0a1,<4.0.0]
 ├── ovos-skill-moviemaster==0.0.11 [requires: ovos-workshop>=0.0.11,<4.0.0]
 ├── ovos-skill-fallback-unknown==0.1.6 [requires: ovos-workshop>=0.0.15,<4.0.0]
 ├── ovos-skill-parrot==0.1.20 [requires: ovos-workshop>=0.0.15,<4.0.0]
-├── ovos-skill-wikipedia==0.8.10 [requires: ovos-workshop>=3.4.0a1,<4.0.0]
 ├── ovos-skill-laugh==0.2.3 [requires: ovos-workshop]
 ├── ovos-common-query-pipeline-plugin==1.1.7a1 [requires: ovos-workshop>=0.1.7,<4.0.0]
 │   └── ovos-core==1.4.0a1 [requires: ovos-common-query-pipeline-plugin>=1.0.5,<2.0.0]
