@@ -219,28 +219,34 @@ class ConversationalSkill(OVOSSkill):
     @abc.abstractmethod
     def can_answer(self, message: Message) -> bool:
         """
-        Determines if the skill can handle the given utterances in the specified language in the converse method.
+        Determine if the skill can handle the given utterance during the converse phase.
 
-        Override this method to implement custom logic for assessing whether the skill is capable of answering a query.
+        Override this method to implement custom logic for assessing whether the skill
+        is capable of answering the user's query based on the utterance and session context.
 
-        note: utterance transcriptions are available under message.data["utterances"]
-        session can be obtained via SessionManager.get(message), eg. for session.lang
+        Notes:
+            - Utterance transcriptions are available via `message.data["utterances"]`.
+            - The session (e.g., to access language) can be retrieved using:
+              `session = SessionManager.get(message)`.
+
+        Args:
+            message (Message): The message containing user utterances and metadata.
 
         Returns:
-            True if the skill can handle the query during converse; otherwise, False.
+            bool: True if the skill can handle the query during converse; False otherwise.
         """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def converse(self, message: Message) -> bool:
+    def converse(self, message: Message):
         """
-        Override to handle an utterance before intent parsing while this skill
-        is active. Active skills are called in order of most recently used to
-        least recently used until one handles the converse request. If no skill
-        handles an utterance in `converse`, then the utterance will continue to
-        normal intent parsing.
-        @param message: Message containing user utterances to optionally handle
-        @return: True if the utterance was handled, else False
+        Handle the user's utterance if this skill was selected via `can_answer`.
+
+        This method is called only if `can_answer` returned True and the skill was chosen
+        to handle the user's input during a conversation.
+
+        Args:
+            message (Message): The message containing the user utterances to process.
         """
         raise NotImplementedError
 
