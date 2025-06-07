@@ -244,14 +244,6 @@ class OVOSSkill:
         """
         return self._init_event.is_set()
 
-    @property
-    def stop_is_implemented(self) -> bool:
-        """
-        True if this skill implements a `stop` method
-        """
-        return self.__class__.stop is not OVOSSkill.stop or \
-            self.__class__.stop_session is not OVOSSkill.stop_session
-
     def can_stop(self, message: Message) -> bool:
         """
         Determine whether the skill can be stopped at the current moment.
