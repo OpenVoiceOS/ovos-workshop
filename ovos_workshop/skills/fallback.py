@@ -11,16 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import abc
 import operator
 from typing import Optional, List
 
-from ovos_bus_client import MessageBusClient
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
 from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG
-from ovos_utils.metrics import Stopwatch
 from ovos_utils.skills import get_non_properties
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event
@@ -51,72 +49,24 @@ class FallbackSkill(OVOSSkill):
     # "skill_id": priority (int)  overrides
     fallback_config = Configuration().get("skills", {}).get("fallbacks", {})
 
-    @classmethod
-    def make_intent_failure_handler(cls, bus: MessageBusClient):
-        """
-        Goes through all fallback handlers until one returns True
-        """
-
-        def handler(message):
-            # No hard limit to 100, while not officially supported
-            # mycroft-lib can handle fallback priorities up to 999
-            start, stop = message.data.get('fallback_range', (0, 1000))
-            # indicate fallback handling start
-            LOG.debug('Checking fallbacks in range '
-                      '{} - {}'.format(start, stop))
-            bus.emit(message.forward("mycroft.skill.handler.start",
-                                     data={'handler': "fallback"}))
-
-            stopwatch = Stopwatch()
-            handler_name = None
-            with stopwatch:
-                sorted_handlers = sorted(cls.fallback_handlers.items(),
-                                         key=operator.itemgetter(0))
-                handlers = [f[1] for f in sorted_handlers
-                            if start <= f[0] < stop]
-                for handler in handlers:
-                    try:
-                        if handler(message):
-                            # indicate completion
-                            status = True
-                            handler_name = get_handler_name(handler)
-                            bus.emit(message.forward(
-                                'mycroft.skill.handler.complete',
-                                data={'handler': "fallback",
-                                      "fallback_handler": handler_name}))
-                            break
-                    except Exception:
-                        LOG.exception('Exception in fallback.')
-                else:
-                    status = False
-                    #  indicate completion with exception
-                    warning = 'No fallback could handle intent.'
-                    bus.emit(message.forward('mycroft.skill.handler.complete',
-                                             data={'handler': "fallback",
-                                                   'exception': warning}))
-
-            # return if the utterance was handled to the caller
-            bus.emit(message.response(data={'handled': status}))
-
-            # Send timing metric
-            if message.context.get('ident'):
-                ident = message.context['ident']
-                cls._report_timing(ident, 'fallback_handler', stopwatch,
-                                   {'handler': handler_name})
-
-        return handler
-
     def __init__(self, bus=None, skill_id="", **kwargs):
+        """
+        Initializes the FallbackSkill instance and its fallback handler registry.
+        
+        Args:
+            bus: Optional messagebus instance for event communication.
+            skill_id: Unique identifier for the skill.
+            **kwargs: Additional keyword arguments passed to the superclass.
+        """
         self._fallback_handlers = []
         super().__init__(bus=bus, skill_id=skill_id, **kwargs)
 
     @property
     def priority(self) -> int:
         """
-        Get this skill's minimum priority. Priority is determined as:
-            1) Configured fallback skill priority
-            2) Highest fallback handler priority
-            3) Default `101` (no fallback handlers are registered)
+        Returns the minimum priority value for this skill's fallback handlers.
+        
+        Priority is determined by, in order: a configured override for this skill, the lowest priority among registered fallback handlers, or the default value of 101 if no handlers are present.
         """
         priority_overrides = self.fallback_config.get("fallback_priorities", {})
         if self.skill_id in priority_overrides:
@@ -125,14 +75,19 @@ class FallbackSkill(OVOSSkill):
             return min([p[0] for p in self._fallback_handlers])
         return 101
 
+    @abc.abstractmethod
     def can_answer(self, utterances: List[str], lang: str) -> bool:
         """
-        Check if the skill can answer the particular question. Override this
-        method to validate whether a query can possibly be handled. By default,
-        assumes a skill can answer if it has any registered handlers
-        @param utterances: list of possible transcriptions to parse
-        @param lang: BCP-47 language code associated with utterances
-        @return: True if skill can handle the query
+        Determines if the skill can handle the given utterances in the specified language.
+        
+        Override this method to implement custom logic for assessing whether the skill is capable of answering a query. By default, returns True if any fallback handlers are registered.
+        
+        Args:
+            utterances: List of possible transcriptions to evaluate.
+            lang: BCP-47 language code for the utterances.
+        
+        Returns:
+            True if the skill can handle the query; otherwise, False.
         """
         return len(self._fallback_handlers) > 0
 
