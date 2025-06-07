@@ -244,7 +244,14 @@ class OVOSSkill:
         """
         return self._init_event.is_set()
 
-    @abc.abstractmethod
+    @property
+    def stop_is_implemented(self) -> bool:
+        """
+        True if this skill implements a `stop` method
+        """
+        return self.__class__.stop is not OVOSSkill.stop or \
+            self.__class__.stop_session is not OVOSSkill.stop_session
+
     def can_stop(self, message: Message) -> bool:
         """
         Determine whether the skill can be stopped at the current moment.
@@ -260,7 +267,10 @@ class OVOSSkill:
         Returns:
             bool: True if the skill is currently performing an action that can be stopped; False otherwise.
         """
-        raise NotImplementedError("All skills must implement the can_stop method.")
+        if self.__class__.stop is not OVOSSkill.stop or \
+            self.__class__.stop_session is not OVOSSkill.stop_session:
+            raise NotImplementedError("All skills that implement self.stop or self.stop_session must also implement self.can_stop.")
+        return False # if there isnt a stop method, we can be more lenient and not require can_stop to be implemented
 
     # safe skill_id/bus wrapper properties
     @property
@@ -1151,7 +1161,7 @@ class OVOSSkill:
                   "can_handle": self.can_stop(message)},
             context={"skill_id": self.skill_id}))
 
-    def stop_session(self, session: Session):
+    def stop_session(self, session: Session) -> bool:
         """skill devs can subclass this if their skill is Session aware
         skill should stop any activity related to this session
         this is called before self.stop , if it returns True  the global self.stop won't be called"""
