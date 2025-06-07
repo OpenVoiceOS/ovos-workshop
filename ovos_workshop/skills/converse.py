@@ -239,7 +239,6 @@ class ConversationalSkill(OVOSSkill):
         Override this method to do any optional preparation.
         @param message: `{self.skill_id}.activate` Message
         """
-        raise NotImplementedError
 
     def handle_deactivate(self, message: Message):
         """
@@ -248,7 +247,6 @@ class ConversationalSkill(OVOSSkill):
         Override this method to do any optional cleanup.
         @param message: `{self.skill_id}.deactivate` Message
         """
-        raise NotImplementedError
 
     # converse
     def _calc_intent(self, utterance: str, lang: str, timeout=1.0) -> Optional[Dict[str, str]]:
