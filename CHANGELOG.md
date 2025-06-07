@@ -1,12 +1,12 @@
 # Changelog
 
-## [6.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/6.0.0a1) (2025-06-07)
+## [6.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/6.0.1a1) (2025-06-07)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/5.0.1...6.0.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/6.0.0...6.0.1a1)
 
-**Breaking changes:**
+**Merged pull requests:**
 
-- refactor!: stop [\#344](https://github.com/OpenVoiceOS/ovos-workshop/pull/344) ([JarbasAl](https://github.com/JarbasAl))
+- fix: dont require can\_stop if self.stop is not implemented [\#346](https://github.com/OpenVoiceOS/ovos-workshop/pull/346) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
