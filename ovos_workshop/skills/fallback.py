@@ -78,15 +78,21 @@ class FallbackSkill(OVOSSkill):
     @abc.abstractmethod
     def can_answer(self, message: Message) -> bool:
         """
-        Determines if the skill can handle the given utterances in the specified language.
-        
-        Override this method to implement custom logic for assessing whether the skill is capable of answering a query. By default, returns True if any fallback handlers are registered.
-        
-        note: utterance transcriptions are available under message.data["utterances"]
-        session can be obtained via SessionManager.get(message), eg. for session.lang
+        Determine if the fallback skill is capable of handling the given utterance.
+
+        Override this method to define custom logic for whether the skill can respond
+        to a query when invoked as a fallback.
+
+        Notes:
+            - Utterance transcriptions are available in `message.data["utterances"]`.
+            - The session (e.g., for language detection) can be accessed via:
+              `session = SessionManager.get(message)`.
+
+        Args:
+            message (Message): The message containing the user's utterance and context.
 
         Returns:
-            True if the skill can handle the query; otherwise, False.
+            bool: True if the skill can respond to the query as a fallback; otherwise, False.
         """
         raise NotImplementedError
 

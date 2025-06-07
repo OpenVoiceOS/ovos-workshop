@@ -1,3 +1,4 @@
+import abc
 import binascii
 import datetime
 import json
@@ -243,14 +244,23 @@ class OVOSSkill:
         """
         return self._init_event.is_set()
 
-    @property
-    def stop_is_implemented(self) -> bool:
+    @abc.abstractmethod
+    def can_stop(self, message: Message) -> bool:
         """
-        True if this skill implements a `stop` method
-        """
-        return self.__class__.stop is not OVOSSkill.stop or \
-            self.__class__.stop_session is not OVOSSkill.stop_session
+        Determine whether the skill can be stopped at the current moment.
 
+        If this method returns True, OVOS will call self.stop() when the user
+        issues a command to stop the current activity.
+
+        TIP: you can use SessionManager.get(message) if the skill is session aware
+
+        Args:
+            message (Message): The message context triggering the check.
+
+        Returns:
+            bool: True if the skill is currently performing an action that can be stopped; False otherwise.
+        """
+        raise NotImplementedError("All skills must implement the can_stop method.")
 
     # safe skill_id/bus wrapper properties
     @property
@@ -1131,14 +1141,14 @@ class OVOSSkill:
     def _handle_stop_ack(self, message: Message):
         """
         Inform skills service if we want to handle stop. Individual skills
-        may override the property self.stop_is_implemented to enable or
+        must implement the method self.can_stop to enable or
         disable stop support.
         @param message: `{self.skill_id}.stop.ping` Message
         """
         self.bus.emit(message.reply(
             "skill.stop.pong",
             data={"skill_id": self.skill_id,
-                  "can_handle": self.stop_is_implemented},
+                  "can_handle": self.can_stop(message)},
             context={"skill_id": self.skill_id}))
 
     def stop_session(self, session: Session):
