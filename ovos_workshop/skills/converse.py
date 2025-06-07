@@ -117,13 +117,13 @@ class ConversationalSkill(OVOSSkill):
     def _handle_converse_ack(self, message: Message):
         """
         Inform skills service if we want to handle converse. Individual skills
-        must implement self.can_answer
+        must implement self.can_converse
         @param message: `{self.skill_id}.converse.ping` Message
         """
         self.bus.emit(message.reply(
             "skill.converse.pong",
             data={"skill_id": self.skill_id,
-                  "can_handle": self.can_answer(message)},
+                  "can_handle": self.can_converse(message)},
             context={"skill_id": self.skill_id}))
 
     def _handle_skill_activated(self, message: Message):
