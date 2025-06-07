@@ -16,7 +16,6 @@ from threading import Event, RLock
 from typing import Dict, Callable, List, Optional, Union
 
 from json_database import JsonStorage
-from langcodes import closest_match
 from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
@@ -50,7 +49,6 @@ from ovos_workshop.filesystem import FileSystemAccess
 from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
 from ovos_workshop.resource_files import ResourceFile, CoreResources, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
-from padacioso import IntentContainer
 
 
 def simple_trace(stack_trace: List[str]) -> str:
@@ -149,15 +147,12 @@ class OVOSSkill:
         self.intent_service = IntentServiceInterface()
         self.audio_service = None
         self.intent_layers = IntentLayers()
-        self.converse_matchers = {}
 
         # Skill Public API
         self.public_api: Dict[str, dict] = {}
 
         self._cq_handler = None
         self._cq_callback = None
-
-        self._original_converse = self.converse  # for get_response
 
         self.__responses = {}
         self.__validated_responses = {}
@@ -183,94 +178,6 @@ class OVOSSkill:
         setup instructions.
         """
         return ""
-
-    def handle_activate(self, message: Message):
-        """
-        Called when this skill is considered active by the intent service;
-        converse method will be called with every utterance.
-        Override this method to do any optional preparation.
-        @param message: `{self.skill_id}.activate` Message
-        """
-
-    def handle_deactivate(self, message: Message):
-        """
-        Called when this skill is no longer considered active by the intent
-        service; converse method will not be called until skill is active again.
-        Override this method to do any optional cleanup.
-        @param message: `{self.skill_id}.deactivate` Message
-        """
-
-    def register_converse_intent(self, intent_file, handler):
-        """ converse padacioso intents """
-        name = f'{self.skill_id}.converse:{intent_file}'
-        fuzzy = not self.settings.get("strict_intents", False)
-
-        for lang in self.native_langs:
-            self.converse_matchers[lang] = IntentContainer(fuzz=fuzzy)
-
-            resources = self.load_lang(self.res_dir, lang)
-            resource_file = ResourceFile(resources.types.intent, intent_file)
-            if resource_file.file_path is None:
-                self.log.error(f'Unable to find "{intent_file}"')
-                continue
-            filename = str(resource_file.file_path)
-
-            with open(filename) as f:
-                samples = [l.strip() for l in f.read().split("\n")
-                           if l and not l.startswith("#")]
-
-            self.converse_matchers[lang].add_intent(name, samples)
-
-        self.add_event(name, handler, 'mycroft.skill.handler')
-
-    def _get_closest_lang(self, lang: str) -> Optional[str]:
-        if self.converse_matchers:
-            lang = standardize_lang_tag(lang)
-            closest, score = closest_match(lang, list(self.converse_matchers.keys()))
-            # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-            # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-            # 1- 3 -> These codes indicate a minor regional difference.
-            # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-            if score < 10:
-                return closest
-        return None
-
-    def _handle_converse_intents(self, message):
-        """ called before converse method
-        this gives active skills a chance to parse their own intents and
-        consume the utterance, see conversational_intent decorator for usage
-        """
-        lang = self._get_closest_lang(self.lang)
-        if lang is None:  # no intents registered for this lang
-            return None
-
-        best_score = 0
-        response = None
-
-        for utt in message.data['utterances']:
-            match = self.converse_matchers[self.lang].calc_intent(utt)
-            if match.get("conf", 0) > best_score:
-                best_score = match["conf"]
-                response = message.forward(match["name"], match["entities"])
-
-        if not response or best_score < self.settings.get("min_intent_conf", 0.5):
-            return False
-
-        # send intent event
-        self.bus.emit(response)
-        return True
-
-    def converse(self, message: Optional[Message] = None) -> bool:
-        """
-        Override to handle an utterance before intent parsing while this skill
-        is active. Active skills are called in order of most recently used to
-        least recently used until one handles the converse request. If no skill
-        handles an utterance in `converse`, then the utterance will continue to
-        normal intent parsing.
-        @param message: Message containing user utterances to optionally handle
-        @return: True if the utterance was handled, else False
-        """
-        return False
 
     def stop(self):
         """
@@ -344,13 +251,6 @@ class OVOSSkill:
         return self.__class__.stop is not OVOSSkill.stop or \
             self.__class__.stop_session is not OVOSSkill.stop_session
 
-    @property
-    def converse_is_implemented(self) -> bool:
-        """
-        True if this skill implements a `converse` method
-        """
-        return self.__class__.converse is not OVOSSkill.converse or \
-            self._original_converse != self.converse
 
     # safe skill_id/bus wrapper properties
     @property
@@ -1002,20 +902,12 @@ class OVOSSkill:
                         getattr(method, 'intent_layers').items():
                     self.register_intent_layer(layer_name, intent_files)
 
-            # TODO support for multiple converse handlers (?)
-            if hasattr(method, 'converse'):
-                self.converse = method
-
             # TODO support for multiple common query handlers (?)
             if hasattr(method, 'common_query'):
                 self._cq_handler = method
                 self._cq_callback = method.cq_callback
                 LOG.debug(f"Registering common query handler for: {self.skill_id} - callback: {self._cq_callback}")
                 self.__handle_common_query_ping(Message("ovos.common_query.ping"))
-
-            if hasattr(method, 'converse_intents'):
-                for intent_file in getattr(method, 'converse_intents'):
-                    self.register_converse_intent(intent_file, method)
 
     def bind(self, bus: MessageBusClient):
         """
@@ -1167,20 +1059,13 @@ class OVOSSkill:
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
+        self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
-        self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
-        self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
-        self.add_event(f"{self.skill_id}.activate", self.handle_activate, speak_errors=False)
-        self.add_event(f"{self.skill_id}.deactivate", self.handle_deactivate, speak_errors=False)
-        self.add_event("intent.service.skills.deactivated", self._handle_skill_deactivated, speak_errors=False)
-        self.add_event("intent.service.skills.activated", self._handle_skill_activated, speak_errors=False)
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
         self.add_event('mycroft.skill.disable_intent', self.handle_disable_intent, speak_errors=False)
         self.add_event('mycroft.skill.set_cross_context', self.handle_set_cross_context, speak_errors=False)
         self.add_event('mycroft.skill.remove_cross_context', self.handle_remove_cross_context, speak_errors=False)
         self.add_event('mycroft.skills.settings.changed', self.handle_settings_change, speak_errors=False)
-
-        self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
         self.add_event('question:query', self.__handle_question_query, speak_errors=False)
         self.add_event("ovos.common_query.ping", self.__handle_common_query_ping, speak_errors=False)
@@ -1242,85 +1127,6 @@ class OVOSSkill:
                     self.log.exception("settings change callback failed, "
                                        f"remote changes not handled!: {e}")
             self._start_filewatcher()
-
-    def _handle_skill_activated(self, message: Message):
-        """
-        Intent service activated a skill. If it was this skill,
-        emit a skill activation message.
-        @param message: `intent.service.skills.activated` Message
-        """
-        if message.data.get("skill_id") == self.skill_id:
-            self.bus.emit(message.forward(f"{self.skill_id}.activate"))
-
-    def _handle_skill_deactivated(self, message):
-        """
-        Intent service deactivated a skill. If it was this skill,
-        emit a skill deactivation message.
-        @param message: `intent.service.skills.deactivated` Message
-        """
-        if message.data.get("skill_id") == self.skill_id:
-            self.bus.emit(message.forward(f"{self.skill_id}.deactivate"))
-
-    def _handle_converse_ack(self, message: Message):
-        """
-        Inform skills service if we want to handle converse. Individual skills
-        may override the property self.converse_is_implemented to enable or
-        disable converse support. Note that this does not affect a skill's
-        `active` status.
-        @param message: `{self.skill_id}.converse.ping` Message
-        """
-        self.bus.emit(message.reply(
-            "skill.converse.pong",
-            data={"skill_id": self.skill_id,
-                  "can_handle": self.converse_is_implemented},
-            context={"skill_id": self.skill_id}))
-
-    def _on_timeout(self):
-        """_handle_converse_request timed out and was forcefully killed by ovos-core"""
-        message = dig_for_message()
-        self.bus.emit(message.forward(
-            f"{self.skill_id}.converse.killed",
-            data={"error": "timed out"}))
-
-    @killable_event("ovos.skills.converse.force_timeout",
-                    callback=_on_timeout, check_skill_id=True)
-    def _handle_converse_request(self, message: Message):
-        """
-        If this skill is requested and supports converse, handle the user input
-        with `converse`.
-        @param message: `{self.skill_id}.converse.request` Message
-        """
-        # check if a conversational intent triggered
-        # these are skill specific intents that may trigger instead of converse
-        if self._handle_converse_intents(message):
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": True}))
-            return
-
-        try:
-            # converse can have multiple signatures
-            params = signature(self.converse).parameters
-            kwargs = {"message": message,
-                      "utterances": message.data['utterances'],
-                      "lang": standardize_lang_tag(message.data['lang'])}
-            kwargs = {k: v for k, v in kwargs.items() if k in params}
-
-            result = self.converse(**kwargs)
-
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "result": result}))
-        except (AbortQuestion, AbortEvent):
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "error": "killed",
-                                         "result": False}))
-        except Exception as e:
-            LOG.error(e)
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "error": repr(e),
-                                         "result": False}))
 
     def _handle_stop_ack(self, message: Message):
         """
@@ -2044,7 +1850,6 @@ class OVOSSkill:
         """
         self.__responses = {k: None for k in self.__responses}
         self.__validated_responses = {k: None for k in self.__validated_responses}
-        self.converse = self._original_converse
         message = dig_for_message()
         self.bus.emit(message.forward(f"{self.skill_id}.get_response.killed"))
 
@@ -2433,38 +2238,6 @@ class OVOSSkill:
         self.event_scheduler.cancel_all_repeating_events()
 
     # intent/context skill dev facing utils
-    def activate(self, duration_minutes=None):
-        """
-        Mark this skill as active and push to the top of the active skills list.
-        This enables converse method to be called even without skill being
-        used in last 5 minutes.
-
-        :param duration_minutes: duration in minutes for skill to remain active
-         (-1 for infinite)
-        """
-        if duration_minutes is None:
-            duration_minutes = Configuration().get("converse", {}).get("timeout", 300) / 60  # convert to minutes
-
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-
-        m1 = msg.forward("intent.service.skills.activate",
-                         data={"skill_id": self.skill_id,
-                               "timeout": duration_minutes})
-        self.bus.emit(m1)
-
-    def deactivate(self):
-        """
-        Mark this skill as inactive and remove from the active skills list.
-        This stops converse method from being called.
-        """
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward(f"intent.service.skills.deactivate",
-                                  data={"skill_id": self.skill_id}))
-
     def disable_intent(self, intent_name: str) -> bool:
         """
         Disable a registered intent if it belongs to this skill.
