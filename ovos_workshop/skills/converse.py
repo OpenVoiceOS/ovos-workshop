@@ -59,7 +59,8 @@ class ConversationalSkill(OVOSSkill):
         self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
         self.add_event(f"{self.skill_id}.activate", self.handle_activate, speak_errors=False)
         self.add_event(f"{self.skill_id}.deactivate", self.handle_deactivate, speak_errors=False)
-        self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
+        self.add_event("intent.service.skills.deactivated", self._handle_skill_deactivated, speak_errors=False)
+        self.add_event("intent.service.skills.activated", self._handle_skill_activated, speak_errors=False)
 
     def _register_decorated(self):
         """
@@ -130,6 +131,24 @@ class ConversationalSkill(OVOSSkill):
             data={"skill_id": self.skill_id,
                   "can_handle": True},
             context={"skill_id": self.skill_id}))
+
+    def _handle_skill_activated(self, message: Message):
+        """
+        Intent service activated a skill. If it was this skill,
+        emit a skill activation message.
+        @param message: `intent.service.skills.activated` Message
+        """
+        if message.data.get("skill_id") == self.skill_id:
+            self.bus.emit(message.forward(f"{self.skill_id}.activate"))
+
+    def _handle_skill_deactivated(self, message):
+        """
+        Intent service deactivated a skill. If it was this skill,
+        emit a skill deactivation message.
+        @param message: `intent.service.skills.deactivated` Message
+        """
+        if message.data.get("skill_id") == self.skill_id:
+            self.bus.emit(message.forward(f"{self.skill_id}.deactivate"))
 
     def _on_timeout(self):
         """_handle_converse_request timed out and was forcefully killed by ovos-core"""

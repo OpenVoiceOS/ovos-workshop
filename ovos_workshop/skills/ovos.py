@@ -1059,9 +1059,8 @@ class OVOSSkill:
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
+        self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
-        self.add_event("intent.service.skills.deactivated", self._handle_skill_deactivated, speak_errors=False)
-        self.add_event("intent.service.skills.activated", self._handle_skill_activated, speak_errors=False)
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
         self.add_event('mycroft.skill.disable_intent', self.handle_disable_intent, speak_errors=False)
         self.add_event('mycroft.skill.set_cross_context', self.handle_set_cross_context, speak_errors=False)
@@ -1128,24 +1127,6 @@ class OVOSSkill:
                     self.log.exception("settings change callback failed, "
                                        f"remote changes not handled!: {e}")
             self._start_filewatcher()
-
-    def _handle_skill_activated(self, message: Message):
-        """
-        Intent service activated a skill. If it was this skill,
-        emit a skill activation message.
-        @param message: `intent.service.skills.activated` Message
-        """
-        if message.data.get("skill_id") == self.skill_id:
-            self.bus.emit(message.forward(f"{self.skill_id}.activate"))
-
-    def _handle_skill_deactivated(self, message):
-        """
-        Intent service deactivated a skill. If it was this skill,
-        emit a skill deactivation message.
-        @param message: `intent.service.skills.deactivated` Message
-        """
-        if message.data.get("skill_id") == self.skill_id:
-            self.bus.emit(message.forward(f"{self.skill_id}.deactivate"))
 
     def _handle_stop_ack(self, message: Message):
         """
