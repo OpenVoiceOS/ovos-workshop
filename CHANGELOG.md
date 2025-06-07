@@ -1,24 +1,12 @@
 # Changelog
 
-## [3.4.0a1](https://github.com/OpenVoiceOS/OVOS-workshop/tree/3.4.0a1) (2025-04-03)
+## [4.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/4.0.0a1) (2025-06-07)
 
-[Full Changelog](https://github.com/OpenVoiceOS/OVOS-workshop/compare/3.3.6a1...3.4.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/3.4.0...4.0.0a1)
 
-**Closed issues:**
+**Breaking changes:**
 
-- ERROR - Device needs to be paired to upload settings [\#332](https://github.com/OpenVoiceOS/OVOS-workshop/issues/332)
-
-**Merged pull requests:**
-
-- feat:blacklisted words [\#334](https://github.com/OpenVoiceOS/OVOS-workshop/pull/334) ([JarbasAl](https://github.com/JarbasAl))
-
-## [3.3.6a1](https://github.com/OpenVoiceOS/OVOS-workshop/tree/3.3.6a1) (2025-02-02)
-
-[Full Changelog](https://github.com/OpenVoiceOS/OVOS-workshop/compare/3.3.5...3.3.6a1)
-
-**Merged pull requests:**
-
-- refactor:shared utils [\#329](https://github.com/OpenVoiceOS/OVOS-workshop/pull/329) ([JarbasAl](https://github.com/JarbasAl))
+- refactor!: require fallback skills to implement can\_answer method [\#336](https://github.com/OpenVoiceOS/ovos-workshop/pull/336) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
