@@ -1,12 +1,12 @@
 # Changelog
 
-## [5.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/5.0.1a1) (2025-06-07)
+## [6.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/6.0.0a1) (2025-06-07)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/5.0.0...5.0.1a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/5.0.1...6.0.0a1)
 
-**Merged pull requests:**
+**Breaking changes:**
 
-- fix: can\_answer converse [\#342](https://github.com/OpenVoiceOS/ovos-workshop/pull/342) ([JarbasAl](https://github.com/JarbasAl))
+- refactor!: stop [\#344](https://github.com/OpenVoiceOS/ovos-workshop/pull/344) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
