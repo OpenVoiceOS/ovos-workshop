@@ -1,12 +1,12 @@
 # Changelog
 
-## [6.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/6.0.1a1) (2025-06-07)
+## [7.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.0a1) (2025-06-07)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/6.0.0...6.0.1a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/6.0.1...7.0.0a1)
 
-**Merged pull requests:**
+**Breaking changes:**
 
-- fix: dont require can\_stop if self.stop is not implemented [\#346](https://github.com/OpenVoiceOS/ovos-workshop/pull/346) ([JarbasAl](https://github.com/JarbasAl))
+- fix!: rename can\_answer -\> can\_converse [\#348](https://github.com/OpenVoiceOS/ovos-workshop/pull/348) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
