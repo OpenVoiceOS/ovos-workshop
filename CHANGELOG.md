@@ -1,12 +1,12 @@
 # Changelog
 
-## [4.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/4.0.0a1) (2025-06-07)
+## [5.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/5.0.0a1) (2025-06-07)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/3.4.0...4.0.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/4.0.0...5.0.0a1)
 
 **Breaking changes:**
 
-- refactor!: require fallback skills to implement can\_answer method [\#336](https://github.com/OpenVoiceOS/ovos-workshop/pull/336) ([JarbasAl](https://github.com/JarbasAl))
+- refactor!: split converse\_skill from ovos\_skill [\#339](https://github.com/OpenVoiceOS/ovos-workshop/pull/339) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
