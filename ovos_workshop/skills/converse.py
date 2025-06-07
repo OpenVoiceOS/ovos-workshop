@@ -50,7 +50,7 @@ class ConversationalSkill(OVOSSkill):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward(f"intent.service.skills.deactivate",
+        self.bus.emit(msg.forward("intent.service.skills.deactivate",
                                   data={"skill_id": self.skill_id}))
 
     def _register_system_event_handlers(self):
@@ -74,10 +74,6 @@ class ConversationalSkill(OVOSSkill):
         super()._register_decorated()
         for attr_name in get_non_properties(self):
             method = getattr(self, attr_name)
-
-            # TODO support for multiple converse handlers (?)
-            if hasattr(method, 'converse'):
-                self.converse = method
 
             if hasattr(method, 'converse_intents'):
                 for intent_file in getattr(method, 'converse_intents'):
@@ -210,7 +206,7 @@ class ConversationalSkill(OVOSSkill):
         response = None
 
         for utt in message.data['utterances']:
-            match = self.converse_matchers[self.lang].calc_intent(utt)
+            match = self.converse_matchers[lang].calc_intent(utt)
             if match.get("conf", 0) > best_score:
                 best_score = match["conf"]
                 response = message.forward(match["name"], match["entities"])
