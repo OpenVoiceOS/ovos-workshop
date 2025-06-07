@@ -53,9 +53,13 @@ from ovos_workshop.settings import PrivateSettings
 
 def simple_trace(stack_trace: List[str]) -> str:
     """
-    Generate a simplified traceback.
-    @param stack_trace: Formatted stack trace (each string ends with \n)
-    @return: Stack trace with any empty lines removed and last line removed
+    Generates a simplified traceback string by removing empty lines and the last line from the input stack trace.
+    
+    Args:
+        stack_trace: A list of formatted stack trace lines.
+    
+    Returns:
+        A string containing the cleaned traceback.
     """
     stack_trace = stack_trace[:-1]
     tb = 'Traceback:\n'
@@ -88,16 +92,18 @@ class OVOSSkill:
                  gui: Optional[GUIInterface] = None,
                  skill_id: str = ""):
         """
-        Create an OVOSSkill object.
-        @param name: DEPRECATED skill_name
-        @param bus: MessageBusClient to bind to skill
-        @param resources_dir: optional root resource directory (else defaults to
-            skill `root_dir`
-        @param settings: Optional settings object, else defined in skill config
-            path
-        @param gui: Optional SkillGUI, else one is initialized
-        @param skill_id: Unique ID for this skill
-        """
+                 Initializes an OVOSSkill instance with optional configuration, resources, and interfaces.
+                 
+                 Args:
+                     name: Deprecated skill name; defaults to the class name if not provided.
+                     bus: Optional MessageBusClient to bind the skill for event communication.
+                     resources_dir: Optional path to the root resource directory; defaults to the skill's root directory.
+                     settings: Optional initial settings object; if not provided, settings are loaded from the skill's configuration path.
+                     gui: Optional GUIInterface instance; if not provided, one is initialized.
+                     skill_id: Unique identifier for the skill instance.
+                 
+                 If both `skill_id` and `bus` are provided, the skill is immediately started and initialized.
+                 """
         self.log = LOG  # a dedicated namespace will be assigned in _startup
         self._init_event = Event()
         self.name = name or self.__class__.__name__
@@ -174,15 +180,17 @@ class OVOSSkill:
 
     def get_intro_message(self) -> str:
         """
-        Override to return a string to speak on first run. i.e. for post-install
-        setup instructions.
+        Returns a message to be spoken on the skill's first run.
+        
+        Override this method to provide post-installation setup instructions or an introductory message.
         """
         return ""
 
     def stop(self):
         """
-        Optional method implemented by subclass. Called when system or user
-        requests `stop` to cancel current execution.
+        Stops the skill's current execution when requested.
+        
+        This method should be overridden by subclasses to implement custom stop behavior.
         """
         pass
 
@@ -246,7 +254,10 @@ class OVOSSkill:
     @property
     def stop_is_implemented(self) -> bool:
         """
-        True if this skill implements a `stop` method
+        Indicates whether the skill provides a custom implementation of `stop` or `stop_session`.
+        
+        Returns:
+            True if either `stop` or `stop_session` is overridden in the skill class; otherwise, False.
         """
         return self.__class__.stop is not OVOSSkill.stop or \
             self.__class__.stop_session is not OVOSSkill.stop_session
@@ -879,12 +890,9 @@ class OVOSSkill:
 
     def _register_decorated(self):
         """
-        Register all intent handlers that are decorated with an intent.
-
-        Looks for all functions that have been marked by a decorator
-        and read the intent data from them.  The intent handlers aren't the
-        only decorators used.  Skip properties as calling getattr on them
-        executes the code which may have unintended side effects
+        Registers all decorated intent handlers, intent files, intent layers, and common query handlers for the skill.
+        
+        Scans the skill instance for methods decorated with intent-related decorators and registers them with the appropriate intent or query handling services. Properties are skipped to avoid unintended side effects from their evaluation.
         """
         for attr_name in get_non_properties(self):
             method = getattr(self, attr_name)
@@ -911,8 +919,9 @@ class OVOSSkill:
 
     def bind(self, bus: MessageBusClient):
         """
-        Register MessageBusClient with skill.
-        @param bus: MessageBusClient to bind to skill and internal objects
+        Binds a MessageBusClient to the skill and its internal components.
+        
+        This sets up the skill's event handling, intent service, event scheduler, enclosure, system event handlers, public API, intent layers, audio service, and private settings using the provided message bus.
         """
         if bus:
             self._bus = bus
@@ -1054,7 +1063,7 @@ class OVOSSkill:
 
     def _register_system_event_handlers(self):
         """
-        Register default messagebus event handlers
+        Registers the default set of messagebus event handlers for skill lifecycle, intent management, context, settings, query handling, and homescreen integration.
         """
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
@@ -1140,19 +1149,19 @@ class OVOSSkill:
 
     def _handle_skill_deactivated(self, message):
         """
-        Intent service deactivated a skill. If it was this skill,
-        emit a skill deactivation message.
-        @param message: `intent.service.skills.deactivated` Message
+        Handles skill deactivation events from the intent service.
+        
+        If the deactivation message corresponds to this skill, emits a skill-specific deactivation message on the message bus.
         """
         if message.data.get("skill_id") == self.skill_id:
             self.bus.emit(message.forward(f"{self.skill_id}.deactivate"))
 
     def _handle_stop_ack(self, message: Message):
         """
-        Inform skills service if we want to handle stop. Individual skills
-        may override the property self.stop_is_implemented to enable or
-        disable stop support.
-        @param message: `{self.skill_id}.stop.ping` Message
+        Handles a stop acknowledgment request by replying with whether the skill supports stop handling.
+        
+        Args:
+            message: The stop ping message to respond to.
         """
         self.bus.emit(message.reply(
             "skill.stop.pong",
@@ -1865,7 +1874,7 @@ class OVOSSkill:
 
     def _handle_killed_wait_response(self):
         """
-        Handle "stop" request when getting a response.
+        Handles an external stop signal during a user response wait, clearing pending responses and notifying listeners that the response process was killed.
         """
         self.__responses = {k: None for k in self.__responses}
         self.__validated_responses = {k: None for k in self.__validated_responses}
@@ -2252,20 +2261,20 @@ class OVOSSkill:
 
     def cancel_all_repeating_events(self):
         """
-        Cancel any repeating events started by the skill.
+        Cancels all repeating events scheduled by this skill.
         """
         self.event_scheduler.cancel_all_repeating_events()
 
     # intent/context skill dev facing utils
     def disable_intent(self, intent_name: str) -> bool:
         """
-        Disable a registered intent if it belongs to this skill.
-
+        Disables a registered intent belonging to this skill.
+        
         Args:
-            intent_name (string): name of the intent to be disabled
-
+            intent_name: The name of the intent to disable.
+        
         Returns:
-                bool: True if disabled, False if it wasn't registered
+            True if the intent was successfully disabled, False if it was not registered.
         """
         if intent_name in self.intent_service:
             self.log.info('Disabling intent ' + intent_name)

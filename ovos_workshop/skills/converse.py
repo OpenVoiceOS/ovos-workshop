@@ -18,17 +18,20 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 class ConversationalSkill(OVOSSkill):
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ConversationalSkill and sets up storage for language-specific converse intent matchers.
+        """
         super().__init__(*args, **kwargs)
         self.converse_matchers = {}
 
     def activate(self, duration_minutes=None):
         """
-        Mark this skill as active and push to the top of the active skills list.
-        This enables converse method to be called even without skill being
-        used in last 5 minutes.
-
-        :param duration_minutes: duration in minutes for skill to remain active
-         (-1 for infinite)
+        Activates the skill and sets it as the top active skill for a specified duration.
+        
+        Args:
+            duration_minutes: Number of minutes the skill remains active; -1 for infinite duration. If not provided, uses the configured default.
+        
+        This allows the skill's converse method to be called even if it has not been used recently.
         """
         if duration_minutes is None:
             duration_minutes = Configuration().get("converse", {}).get("timeout", 300) / 60  # convert to minutes
@@ -44,8 +47,9 @@ class ConversationalSkill(OVOSSkill):
 
     def deactivate(self):
         """
-        Mark this skill as inactive and remove from the active skills list.
-        This stops converse method from being called.
+        Deactivates the skill and removes it from the list of active skills.
+        
+        Prevents the skill's converse method from being called until reactivated.
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
@@ -54,6 +58,11 @@ class ConversationalSkill(OVOSSkill):
                                   data={"skill_id": self.skill_id}))
 
     def _register_system_event_handlers(self):
+        """
+        Registers system event handlers for converse and activation-related messages.
+        
+        Adds event listeners for converse ping, converse request, activation, deactivation, and get response events specific to this skill.
+        """
         super()._register_system_event_handlers()
         self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
@@ -63,12 +72,9 @@ class ConversationalSkill(OVOSSkill):
 
     def _register_decorated(self):
         """
-        Register all intent handlers that are decorated with an intent.
-
-        Looks for all functions that have been marked by a decorator
-        and read the intent data from them.  The intent handlers aren't the
-        only decorators used.  Skip properties as calling getattr on them
-        executes the code which may have unintended side effects
+        Registers all decorated intent and converse handlers for the skill.
+        
+        Scans the skill for methods marked with intent or converse decorators, registering them as appropriate. Methods with a `converse` attribute are set as the skill's converse handler, while those with `converse_intents` attributes have their intents registered for conversational matching.
         """
         super()._register_decorated()
         for attr_name in get_non_properties(self):
@@ -83,7 +89,11 @@ class ConversationalSkill(OVOSSkill):
                     self.register_converse_intent(intent_file, method)
 
     def register_converse_intent(self, intent_file, handler):
-        """ converse padacioso intents """
+        """
+        Registers a Padacioso-based converse intent for each supported language.
+        
+        Loads intent samples from resource files for each native language, adds them to the language-specific intent container, and associates the provided handler with the intent event.
+        """
         name = f'{self.skill_id}.converse:{intent_file}'
         fuzzy = not self.settings.get("strict_intents", False)
 
@@ -106,6 +116,15 @@ class ConversationalSkill(OVOSSkill):
         self.add_event(name, handler, 'mycroft.skill.handler')
 
     def _get_closest_lang(self, lang: str) -> Optional[str]:
+        """
+        Finds the closest matching registered language for converse intents.
+        
+        Args:
+            lang: The language code to match.
+        
+        Returns:
+            The closest registered language code if the match score is less than 10, otherwise None.
+        """
         if self.converse_matchers:
             lang = standardize_lang_tag(lang)
             closest, score = closest_match(lang, list(self.converse_matchers.keys()))
@@ -119,11 +138,9 @@ class ConversationalSkill(OVOSSkill):
 
     def _handle_converse_ack(self, message: Message):
         """
-        Inform skills service if we want to handle converse. Individual skills
-        may override the property self.converse_is_implemented to enable or
-        disable converse support. Note that this does not affect a skill's
-        `active` status.
-        @param message: `{self.skill_id}.converse.ping` Message
+        Responds to a converse ping message indicating the skill can handle converse requests.
+        
+        Emits a pong response with `can_handle=True` to inform the skills service of converse support. This does not affect the skill's active status.
         """
         self.bus.emit(message.reply(
             "skill.converse.pong",
@@ -132,7 +149,9 @@ class ConversationalSkill(OVOSSkill):
             context={"skill_id": self.skill_id}))
 
     def _on_timeout(self):
-        """_handle_converse_request timed out and was forcefully killed by ovos-core"""
+        """
+        Handles a timeout event for a converse request by emitting a killed message with a timeout error.
+        """
         message = dig_for_message()
         self.bus.emit(message.forward(
             f"{self.skill_id}.converse.killed",
@@ -142,9 +161,9 @@ class ConversationalSkill(OVOSSkill):
                     callback=_on_timeout, check_skill_id=True)
     def _handle_converse_request(self, message: Message):
         """
-        If this skill is requested and supports converse, handle the user input
-        with `converse`.
-        @param message: `{self.skill_id}.converse.request` Message
+        Handles a converse request by processing user input with skill-specific converse intents or the skill's `converse` method.
+        
+        If a registered converse intent matches, it is handled directly. Otherwise, the skill's `converse` method is called with supported parameters. Emits a response message indicating whether the request was handled or if an error occurred.
         """
         # check if a conversational intent triggered
         # these are skill specific intents that may trigger instead of converse
@@ -179,9 +198,10 @@ class ConversationalSkill(OVOSSkill):
                                          "result": False}))
 
     def _handle_converse_intents(self, message):
-        """ called before converse method
-        this gives active skills a chance to parse their own intents and
-        consume the utterance, see conversational_intent decorator for usage
+        """
+        Attempts to match utterances against registered converse intents for the closest language.
+        
+        If a matching intent is found with confidence above the configured threshold, emits the corresponding intent event and returns True. Returns False if no suitable intent is matched, or None if no intents are registered for the language.
         """
         lang = self._get_closest_lang(self.lang)
         if lang is None:  # no intents registered for this lang
@@ -206,55 +226,58 @@ class ConversationalSkill(OVOSSkill):
     @abc.abstractmethod
     def can_answer(self, utterances: List[str], lang: str) -> bool:
         """
-        Determines if the skill can handle the given utterances in the specified language in the converse method.
-
-        Override this method to implement custom logic for assessing whether the skill is capable of answering a query.
-
-        Args:
-            utterances: List of possible transcriptions to evaluate.
-            lang: BCP-47 language code for the utterances.
-
-        Returns:
-            True if the skill can handle the query during converse; otherwise, False.
+        Determines whether the skill can handle the provided utterances in the specified language during a converse session.
+        
+        Override this method to implement custom logic for assessing if the skill is capable of responding to the given utterances.
         """
         raise NotImplementedError
 
     @abc.abstractmethod
     def converse(self, message: Message) -> bool:
         """
-        Override to handle an utterance before intent parsing while this skill
-        is active. Active skills are called in order of most recently used to
-        least recently used until one handles the converse request. If no skill
-        handles an utterance in `converse`, then the utterance will continue to
-        normal intent parsing.
-        @param message: Message containing user utterances to optionally handle
-        @return: True if the utterance was handled, else False
+        Handles an utterance before normal intent parsing when the skill is active.
+        
+        Override this method to process user utterances during the skill's active period. Return True if the utterance was handled and should not proceed to intent parsing; otherwise, return False.
         """
         raise NotImplementedError
 
     @abc.abstractmethod
     def handle_activate(self, message: Message):
         """
-        Called when this skill is considered active by the intent service;
-        converse method will be called with every utterance.
-        Override this method to do any optional preparation.
-        @param message: `{self.skill_id}.activate` Message
+        Called when the skill is activated by the intent service.
+        
+        Override to perform any preparation needed when the skill becomes active and will receive utterances via the converse method.
         """
         raise NotImplementedError
 
     @abc.abstractmethod
     def handle_deactivate(self, message: Message):
         """
-        Called when this skill is no longer considered active by the intent
-        service; converse method will not be called until skill is active again.
-        Override this method to do any optional cleanup.
-        @param message: `{self.skill_id}.deactivate` Message
+        Handles skill deactivation when it is no longer active.
+        
+        Called when the skill is deactivated by the intent service. Override to perform any necessary cleanup when the skill is no longer active and will not receive converse requests.
+        
+        Args:
+            message: The deactivation message for this skill.
         """
         raise NotImplementedError
 
     # converse
     def _calc_intent(self, utterance: str, lang: str, timeout=1.0) -> Optional[Dict[str, str]]:
-        """helper to check what intent would be selected by ovos-core"""
+        """
+        Queries the intent service to determine which intent would be selected for a given utterance and language.
+        
+        Args:
+            utterance: The user utterance to evaluate.
+            lang: The language code for intent parsing.
+            timeout: Maximum time to wait for a response from the intent service.
+        
+        Returns:
+            A dictionary representing the selected intent, or None if no intent is found.
+        
+        Note:
+            This method does not consider converse, common_query, or fallback intents.
+        """
         # let's see what intent ovos-core will assign to the utterance
         # NOTE: converse, common_query and fallbacks are not included in this check
         response = self.bus.wait_for_response(Message("intent.service.intent.get",
@@ -266,13 +289,19 @@ class ConversationalSkill(OVOSSkill):
         return response.data["intent"]
 
     def skill_will_trigger(self, utterance: str, lang: str, skill_id: Optional[str] = None, timeout=0.8) -> bool:
-        """helper to check if this skill would be selected by ovos-core with the given utterance
-
-        useful in converse method
-            eg. return not self.will_trigger
-
-        this example allows the utterance to be consumed via converse of using ovos-core intent parser
-        ensuring it is always handled by the game skill regardless
+        """
+        Determines if this skill would be triggered by the given utterance and language.
+        
+        Checks if the core intent parser would select this skill for the provided utterance and language. Useful for controlling whether to handle an utterance in the converse method or allow standard intent parsing.
+        
+        Args:
+            utterance: The user utterance to evaluate.
+            lang: The language code to use for intent parsing.
+            skill_id: Optional skill ID to check against; defaults to this skill's ID.
+            timeout: Maximum time in seconds to wait for the intent parser response.
+        
+        Returns:
+            True if the skill would be triggered by the utterance; otherwise, False.
         """
         # determine if an intent from this skill
         # will be selected by ovos-core
