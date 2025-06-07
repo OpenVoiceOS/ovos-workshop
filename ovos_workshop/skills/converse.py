@@ -217,7 +217,7 @@ class ConversationalSkill(OVOSSkill):
         return True
 
     @abc.abstractmethod
-    def can_answer(self, message: Message) -> bool:
+    def can_converse(self, message: Message) -> bool:
         """
         Determine if the skill can handle the given utterance during the converse phase.
 
@@ -240,9 +240,9 @@ class ConversationalSkill(OVOSSkill):
     @abc.abstractmethod
     def converse(self, message: Message):
         """
-        Handle the user's utterance if this skill was selected via `can_answer`.
+        Handle the user's utterance if this skill is active.
 
-        This method is called only if `can_answer` returned True and the skill was chosen
+        This method is called only if `can_converse` returned True and the skill was chosen
         to handle the user's input during a conversation.
 
         Args:
