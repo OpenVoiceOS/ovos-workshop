@@ -219,15 +219,14 @@ class ConversationalSkill(OVOSSkill):
         return True
 
     @abc.abstractmethod
-    def can_answer(self, utterances: List[str], lang: str) -> bool:
+    def can_answer(self, message: Message) -> bool:
         """
         Determines if the skill can handle the given utterances in the specified language in the converse method.
 
         Override this method to implement custom logic for assessing whether the skill is capable of answering a query.
 
-        Args:
-            utterances: List of possible transcriptions to evaluate.
-            lang: BCP-47 language code for the utterances.
+        note: utterance transcriptions are available under message.data["utterances"]
+        session can be obtained via SessionManager.get(message), eg. for session.lang
 
         Returns:
             True if the skill can handle the query during converse; otherwise, False.

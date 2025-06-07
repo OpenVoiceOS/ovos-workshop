@@ -76,20 +76,19 @@ class FallbackSkill(OVOSSkill):
         return 101
 
     @abc.abstractmethod
-    def can_answer(self, utterances: List[str], lang: str) -> bool:
+    def can_answer(self, message: Message) -> bool:
         """
         Determines if the skill can handle the given utterances in the specified language.
         
         Override this method to implement custom logic for assessing whether the skill is capable of answering a query. By default, returns True if any fallback handlers are registered.
         
-        Args:
-            utterances: List of possible transcriptions to evaluate.
-            lang: BCP-47 language code for the utterances.
-        
+        note: utterance transcriptions are available under message.data["utterances"]
+        session can be obtained via SessionManager.get(message), eg. for session.lang
+
         Returns:
             True if the skill can handle the query; otherwise, False.
         """
-        return len(self._fallback_handlers) > 0
+        raise NotImplementedError
 
     def _register_system_event_handlers(self):
         """
