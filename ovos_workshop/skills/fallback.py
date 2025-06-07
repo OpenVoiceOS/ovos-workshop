@@ -50,16 +50,23 @@ class FallbackSkill(OVOSSkill):
     fallback_config = Configuration().get("skills", {}).get("fallbacks", {})
 
     def __init__(self, bus=None, skill_id="", **kwargs):
+        """
+        Initializes the FallbackSkill instance and its fallback handler registry.
+        
+        Args:
+            bus: Optional messagebus instance for event communication.
+            skill_id: Unique identifier for the skill.
+            **kwargs: Additional keyword arguments passed to the superclass.
+        """
         self._fallback_handlers = []
         super().__init__(bus=bus, skill_id=skill_id, **kwargs)
 
     @property
     def priority(self) -> int:
         """
-        Get this skill's minimum priority. Priority is determined as:
-            1) Configured fallback skill priority
-            2) Highest fallback handler priority
-            3) Default `101` (no fallback handlers are registered)
+        Returns the minimum priority value for this skill's fallback handlers.
+        
+        Priority is determined by, in order: a configured override for this skill, the lowest priority among registered fallback handlers, or the default value of 101 if no handlers are present.
         """
         priority_overrides = self.fallback_config.get("fallback_priorities", {})
         if self.skill_id in priority_overrides:
@@ -71,12 +78,16 @@ class FallbackSkill(OVOSSkill):
     @abc.abstractmethod
     def can_answer(self, utterances: List[str], lang: str) -> bool:
         """
-        Check if the skill can answer the particular question. Override this
-        method to validate whether a query can possibly be handled. By default,
-        assumes a skill can answer if it has any registered handlers
-        @param utterances: list of possible transcriptions to parse
-        @param lang: BCP-47 language code associated with utterances
-        @return: True if skill can handle the query
+        Determines if the skill can handle the given utterances in the specified language.
+        
+        Override this method to implement custom logic for assessing whether the skill is capable of answering a query. By default, returns True if any fallback handlers are registered.
+        
+        Args:
+            utterances: List of possible transcriptions to evaluate.
+            lang: BCP-47 language code for the utterances.
+        
+        Returns:
+            True if the skill can handle the query; otherwise, False.
         """
         return len(self._fallback_handlers) > 0
 
