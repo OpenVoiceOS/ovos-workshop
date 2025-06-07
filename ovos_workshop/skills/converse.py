@@ -232,7 +232,6 @@ class ConversationalSkill(OVOSSkill):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def handle_activate(self, message: Message):
         """
         Called when this skill is considered active by the intent service;
@@ -242,7 +241,6 @@ class ConversationalSkill(OVOSSkill):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def handle_deactivate(self, message: Message):
         """
         Called when this skill is no longer considered active by the intent
