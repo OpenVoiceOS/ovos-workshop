@@ -261,34 +261,3 @@ class ConversationalSkill(OVOSSkill):
         Override this method to do any optional cleanup.
         @param message: `{self.skill_id}.deactivate` Message
         """
-
-    # converse
-    def _calc_intent(self, utterance: str, lang: str, timeout=1.0) -> Optional[Dict[str, str]]:
-        """helper to check what intent would be selected by ovos-core"""
-        # let's see what intent ovos-core will assign to the utterance
-        # NOTE: converse, common_query and fallbacks are not included in this check
-        response = self.bus.wait_for_response(Message("intent.service.intent.get",
-                                                      {"utterance": utterance, "lang": lang}),
-                                              "intent.service.intent.reply",
-                                              timeout=timeout)
-        if not response:
-            return None
-        return response.data["intent"]
-
-    def skill_will_trigger(self, utterance: str, lang: str, skill_id: Optional[str] = None, timeout=0.8) -> bool:
-        """helper to check if this skill would be selected by ovos-core with the given utterance
-
-        useful in converse method
-            eg. return not self.will_trigger
-
-        this example allows the utterance to be consumed via converse of using ovos-core intent parser
-        ensuring it is always handled by the game skill regardless
-        """
-        # determine if an intent from this skill
-        # will be selected by ovos-core
-        id_to_check = skill_id or self.skill_id
-        intent = self._calc_intent(utterance, lang, timeout=timeout)
-        if not intent:
-            return False
-        skill_id = intent["skill_id"] if intent else ""
-        return skill_id == id_to_check
