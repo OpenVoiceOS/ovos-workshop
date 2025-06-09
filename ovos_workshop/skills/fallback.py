@@ -110,11 +110,9 @@ class FallbackSkill(OVOSSkill):
         """
         Inform skills service we can handle fallbacks.
         """
-        utts = message.data.get("utterances", [])
-        lang = message.data.get("lang")
         self.bus.emit(message.reply("ovos.skills.fallback.pong",
                                     data={"skill_id": self.skill_id,
-                                          "can_handle": self.can_answer(utts, lang)},
+                                          "can_handle": self.can_answer(message)},
                                     context={"skill_id": self.skill_id}))
 
     def _on_timeout(self):
