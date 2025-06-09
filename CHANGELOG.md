@@ -1,12 +1,12 @@
 # Changelog
 
-## [7.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.1a1) (2025-06-07)
+## [7.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.2a1) (2025-06-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.0...7.0.1a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.1...7.0.2a1)
 
 **Merged pull requests:**
 
-- fix: converse again [\#350](https://github.com/OpenVoiceOS/ovos-workshop/pull/350) ([JarbasAl](https://github.com/JarbasAl))
+- fix: fallbacks [\#352](https://github.com/OpenVoiceOS/ovos-workshop/pull/352) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
