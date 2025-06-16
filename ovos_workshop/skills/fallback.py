@@ -157,6 +157,7 @@ class FallbackSkill(OVOSSkill):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
+        self.bus.emit(message.forward("ovos.utterance.handled"))
 
     def register_fallback(self, handler: callable, priority: int):
         """

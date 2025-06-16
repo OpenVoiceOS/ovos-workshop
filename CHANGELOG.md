@@ -1,12 +1,20 @@
 # Changelog
 
-## [7.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.2a1) (2025-06-09)
+## [7.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.4a1) (2025-06-16)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.1...7.0.2a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.3a1...7.0.4a1)
 
 **Merged pull requests:**
 
-- fix: fallbacks [\#352](https://github.com/OpenVoiceOS/ovos-workshop/pull/352) ([JarbasAl](https://github.com/JarbasAl))
+- fix: converse\_routing [\#356](https://github.com/OpenVoiceOS/ovos-workshop/pull/356) ([JarbasAl](https://github.com/JarbasAl))
+
+## [7.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.3a1) (2025-06-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.2...7.0.3a1)
+
+**Merged pull requests:**
+
+- Update ovos-config requirement from \<2.0.0,\>=0.0.12 to \>=0.0.12,\<3.0.0 in /requirements [\#354](https://github.com/OpenVoiceOS/ovos-workshop/pull/354) ([dependabot[bot]](https://github.com/apps/dependabot))
 
 
 
