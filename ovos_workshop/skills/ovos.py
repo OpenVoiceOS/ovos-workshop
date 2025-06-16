@@ -1224,11 +1224,11 @@ class OVOSSkill:
         try:
             self.shutdown()
         except Exception as e:
-            LOG.error(f'Skill specific shutdown function encountered an error: {e}')
+            LOG.error(f"Skill specific shutdown for '{self.skill_id}' encountered an error: {e}")
         try:
             self.default_shutdown()
         except Exception as e:
-            LOG.error(f'Default shutdown encountered an error: {e}')
+            LOG.error(f"Default shutdown for skill '{self.skill_id}' encountered an error: {e}")
 
     def detach(self):
         """
