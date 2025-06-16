@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.4a1) (2025-06-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.3a1...7.0.4a1)
+
+**Merged pull requests:**
+
+- fix: converse\_routing [\#356](https://github.com/OpenVoiceOS/ovos-workshop/pull/356) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [7.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.3a1) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.2...7.0.3a1)
