@@ -1229,6 +1229,7 @@ class OVOSSkill:
             self.default_shutdown()
         except Exception as e:
             LOG.error(f'Default shutdown encountered an error: {e}')
+
     def detach(self):
         """
         Detach all intents for this skill from the intent_service.
