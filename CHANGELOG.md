@@ -1,12 +1,12 @@
 # Changelog
 
-## [7.0.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.5a1) (2025-06-16)
+## [7.0.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.6a1) (2025-06-16)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.4...7.0.5a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.5...7.0.6a1)
 
 **Merged pull requests:**
 
-- fix: shutdown [\#358](https://github.com/OpenVoiceOS/ovos-workshop/pull/358) ([JarbasAl](https://github.com/JarbasAl))
+- fix: on\_event\_start\_wrapper [\#360](https://github.com/OpenVoiceOS/ovos-workshop/pull/360) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
