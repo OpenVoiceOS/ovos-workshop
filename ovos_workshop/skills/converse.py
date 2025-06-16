@@ -1,6 +1,6 @@
 import abc
 from inspect import signature
-from typing import Dict, Optional, List
+from typing import Optional
 
 from langcodes import closest_match
 from ovos_bus_client.message import Message
@@ -159,11 +159,30 @@ class ConversationalSkill(OVOSSkill):
         with `converse`.
         @param message: `{self.skill_id}.converse.request` Message
         """
+        # NOTE: there was a routing bug before ovos-core 2.0.3 that ovos-workshop depended on
+        try:
+            from ovos_core.version import OVOS_VERSION_MAJOR, OVOS_VERSION_MINOR, OVOS_VERSION_BUILD
+            is_latest = True
+            if (OVOS_VERSION_MAJOR < 2
+                    or (OVOS_VERSION_MAJOR == 2 and OVOS_VERSION_MINOR == 0 and OVOS_VERSION_BUILD < 3)):
+                is_latest = False
+        except:
+            is_latest = True
+
+        if is_latest:
+            # swap source/destination in context (ensure skill emitted messages have correct routing)
+            message = message.reply(message.msg_type, message.data)
+            response_message = message.forward('skill.converse.response',
+                                        {"skill_id": self.skill_id, "result": False})
+        else:
+            response_message = message.reply('skill.converse.response',
+                                        {"skill_id": self.skill_id, "result": False})
+
         # check if a conversational intent triggered
         # these are skill specific intents that may trigger instead of converse
         if self._handle_converse_intents(message):
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": True}))
+            response_message.data["result"] = True
+            self.bus.emit(response_message)
             return
 
         try:
@@ -174,22 +193,16 @@ class ConversationalSkill(OVOSSkill):
                       "lang": standardize_lang_tag(message.data['lang'])}
             kwargs = {k: v for k, v in kwargs.items() if k in params}
 
-            result = self.converse(**kwargs)
+            response_message.data["result"] = self.converse(**kwargs)
 
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "result": result}))
+            self.bus.emit(response_message)
         except (AbortQuestion, AbortEvent):
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "error": "killed",
-                                         "result": False}))
+            response_message.data["error"] = "killed"
+            self.bus.emit(response_message)
         except Exception as e:
             LOG.error(e)
-            self.bus.emit(message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id,
-                                         "error": repr(e),
-                                         "result": False}))
+            response_message.data["error"] =  repr(e)
+            self.bus.emit(response_message)
 
     def _handle_converse_intents(self, message):
         """ called before converse method
