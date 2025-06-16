@@ -160,15 +160,18 @@ class ConversationalSkill(OVOSSkill):
         @param message: `{self.skill_id}.converse.request` Message
         """
         # NOTE: there was a routing bug before ovos-core 2.0.3 that ovos-workshop depended on
+        is_latest = True
         try:
-            from ovos_core.version import OVOS_VERSION_MAJOR, OVOS_VERSION_MINOR, OVOS_VERSION_BUILD
-            is_latest = True
-            if (OVOS_VERSION_MAJOR < 2
-                    or (OVOS_VERSION_MAJOR == 2 and OVOS_VERSION_MINOR == 0 and OVOS_VERSION_BUILD < 3)):
+            from ovos_core.version import (
+                OVOS_VERSION_MAJOR,
+                OVOS_VERSION_MINOR,
+                OVOS_VERSION_BUILD,
+            )
+            if (OVOS_VERSION_MAJOR, OVOS_VERSION_MINOR, OVOS_VERSION_BUILD) < (2, 0, 3):
                 is_latest = False
-        except:
-            is_latest = True
-
+        except ImportError:
+            # Assume latest when ovos-core isn't available (eg. unit-test context)
+            pass
         if is_latest:
             # swap source/destination in context (ensure skill emitted messages have correct routing)
             message = message.reply(message.msg_type, message.data)
