@@ -170,8 +170,9 @@ class ConversationalSkill(OVOSSkill):
             if (OVOS_VERSION_MAJOR, OVOS_VERSION_MINOR, OVOS_VERSION_BUILD) < (2, 0, 3):
                 is_latest = False
         except ImportError:
-            # Assume latest when ovos-core isn't available (eg. unit-test context)
+            # Assume latest when ovos-core isn't available (eg. standalone skills)
             pass
+
         if is_latest:
             # swap source/destination in context (ensure skill emitted messages have correct routing)
             message = message.reply(message.msg_type, message.data)
