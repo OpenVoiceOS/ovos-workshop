@@ -321,13 +321,11 @@ class SkillLoader:
                 self.instance.shutdown()
             except Exception:
                 LOG.exception(f"Error while running skill shutdown() for {self.skill_id}")
-        try:
-            self.instance.default_shutdown()
-        except Exception as e:
-            LOG.exception(f'An error occurred while running skill default_shutdown '
-                          f'{self.skill_id}: {e}')
-        else:
-            LOG.info(f'Skill {self.skill_id} shut down successfully')
+            try:
+                self.instance.default_shutdown()
+            except Exception as e:
+                LOG.exception(f'An error occurred while running skill default_shutdown '
+                              f'{self.skill_id}: {e}')
         del self.instance
         self.instance = None
 
