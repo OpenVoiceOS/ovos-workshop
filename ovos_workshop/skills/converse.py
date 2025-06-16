@@ -182,27 +182,27 @@ class ConversationalSkill(OVOSSkill):
         # these are skill specific intents that may trigger instead of converse
         if self._handle_converse_intents(message):
             response_message.data["result"] = True
-            self.bus.emit(response_message)
-            return
+        else:
+            try:
+                # converse can have multiple signatures
+                params = signature(self.converse).parameters
+                kwargs = {"message": message,
+                          "utterances": message.data['utterances'],
+                          "lang": standardize_lang_tag(message.data['lang'])}
+                kwargs = {k: v for k, v in kwargs.items() if k in params}
 
-        try:
-            # converse can have multiple signatures
-            params = signature(self.converse).parameters
-            kwargs = {"message": message,
-                      "utterances": message.data['utterances'],
-                      "lang": standardize_lang_tag(message.data['lang'])}
-            kwargs = {k: v for k, v in kwargs.items() if k in params}
+                response_message.data["result"] = self.converse(**kwargs)
+            except (AbortQuestion, AbortEvent):
+                response_message.data["error"] = "killed"
+            except Exception as e:
+                LOG.error(e)
+                response_message.data["error"] =  repr(e)
 
-            response_message.data["result"] = self.converse(**kwargs)
-
-            self.bus.emit(response_message)
-        except (AbortQuestion, AbortEvent):
-            response_message.data["error"] = "killed"
-            self.bus.emit(response_message)
-        except Exception as e:
-            LOG.error(e)
-            response_message.data["error"] =  repr(e)
-            self.bus.emit(response_message)
+        self.bus.emit(response_message)
+        if is_latest:
+            self.bus.emit(message.forward("ovos.utterance.handled"))
+        else:
+            self.bus.emit(message.reply("ovos.utterance.handled"))
 
     def _handle_converse_intents(self, message):
         """ called before converse method
