@@ -317,9 +317,14 @@ class SkillLoader:
         Call the shutdown method of the skill being reloaded.
         """
         try:
+            self.instance.shutdown()
+        except Exception as e:
+            LOG.exception(f'An error occurred while running skill shutting method'
+                          f'{self.skill_id}: {e}')
+        try:
             self.instance.default_shutdown()
         except Exception as e:
-            LOG.exception(f'An error occurred while shutting down '
+            LOG.exception(f'An error occurred while running skill default_shutdown '
                           f'{self.skill_id}: {e}')
         else:
             LOG.info(f'Skill {self.skill_id} shut down successfully')
