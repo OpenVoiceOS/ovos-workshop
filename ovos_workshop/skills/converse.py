@@ -162,12 +162,8 @@ class ConversationalSkill(OVOSSkill):
         # NOTE: there was a routing bug before ovos-core 2.0.3 that ovos-workshop depended on
         is_latest = True
         try:
-            from ovos_core.version import (
-                OVOS_VERSION_MAJOR,
-                OVOS_VERSION_MINOR,
-                OVOS_VERSION_BUILD,
-            )
-            if (OVOS_VERSION_MAJOR, OVOS_VERSION_MINOR, OVOS_VERSION_BUILD) < (2, 0, 3):
+            from ovos_core.version import OVOS_VERSION_TUPLE
+            if OVOS_VERSION_TUPLE < (2, 0, 3):
                 is_latest = False
         except ImportError:
             # Assume latest when ovos-core isn't available (eg. standalone skills)
