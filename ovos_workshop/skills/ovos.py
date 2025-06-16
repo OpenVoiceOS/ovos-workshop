@@ -1216,15 +1216,19 @@ class OVOSSkill:
         except Exception as e:
             self.log.error(f"Failed to remove events for {self.skill_id}: {e}")
 
-        try:
-            self.shutdown()
-        except Exception as e:
-            self.log.error(f'Skill specific shutdown function encountered an '
-                           f'error: {e}')
-
         self.bus.emit(
             Message('detach_skill', {'skill_id': self.skill_id},
                     {'skill_id': self.skill_id}))
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception as e:
+            LOG.error(f"Skill specific shutdown for '{self.skill_id}' encountered an error: {e}")
+        try:
+            self.default_shutdown()
+        except Exception as e:
+            LOG.error(f"Default shutdown for skill '{self.skill_id}' encountered an error: {e}")
 
     def detach(self):
         """
