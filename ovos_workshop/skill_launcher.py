@@ -280,7 +280,7 @@ class SkillLoader:
 
     def _unload(self):
         """
-        Remove listeners and stop threads before loading
+        Performs cleanup by stopping file watchers, emitting a skill shutdown event, and shutting down the skill instance.
         """
         if self._watchdog:
             self._watchdog.shutdown()
@@ -289,11 +289,14 @@ class SkillLoader:
         self._execute_instance_shutdown()
 
     def __del__(self):
+        """
+        Ensures the skill is properly unloaded and cleaned up when the SkillLoader object is destroyed.
+        """
         self._unload()
 
     def unload(self):
         """
-        Shutdown and unload the skill instance
+        Shuts down and unloads the skill instance if it is currently loaded.
         """
         if self.instance:
             self._execute_instance_shutdown()
@@ -314,7 +317,9 @@ class SkillLoader:
 
     def _execute_instance_shutdown(self):
         """
-        Call the shutdown method of the skill being reloaded.
+        Invokes shutdown routines on the current skill instance and handles any exceptions.
+        
+        Calls both `shutdown()` and `default_shutdown()` methods on the skill instance if present, logging any exceptions that occur. Cleans up the instance reference after shutdown.
         """
         if self.instance:
             try:
@@ -331,7 +336,7 @@ class SkillLoader:
 
     def _emit_skill_shutdown_event(self):
         """
-        Emit `mycroft.skills.shutdown` to notify the skill is being shutdown
+        Emit a `mycroft.skills.shutdown` message on the bus to signal that the skill is shutting down.
         """
         message = Message("mycroft.skills.shutdown",
                           {"path": self.skill_directory, "id": self.skill_id})
@@ -398,8 +403,13 @@ class SkillLoader:
 
     def _load_skill_source(self) -> ModuleType:
         """
-        Use Python's import library to load a skill's source code.
-        @return: Skill module to instantiate
+        Loads the main skill module from the skill directory using Python's import system.
+        
+        Returns:
+            ModuleType: The loaded skill module.
+        
+        Raises:
+            FileNotFoundError: If the main skill file does not exist in the skill directory.
         """
         main_file_path = os.path.join(self.skill_directory, SKILL_MAIN_MODULE)
         skill_module = None
@@ -412,17 +422,17 @@ class SkillLoader:
                 LOG.exception(f'Failed to load skill: {self.skill_id} ({e})')
         return skill_module
 
-    def _create_skill_instance(self,
-                               skill_module: Optional[ModuleType] = None) -> \
-            bool:
+    def _create_skill_instance(self, skill_module: Optional[ModuleType] = None) -> bool:
         """
-        Create the skill object.
-
-        Arguments:
-            skill_module (module): Module to load from
-
+        Instantiate the skill class or use a legacy skill creation function to create the skill instance.
+       
+        Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. If instantiation fails, falls back to using a deprecated `create_skill` function if available. Returns True if the skill instance was created successfully, otherwise False.
+       
+        Parameters:
+           skill_module (ModuleType, optional): The module from which to load the skill class or creation function.
+       
         Returns:
-            (bool): True if skill was loaded successfully.
+           bool: True if the skill instance was created successfully, False otherwise.
         """
         skill_module = skill_module or self.skill_module
         skill_creator = None
@@ -596,7 +606,9 @@ class SkillContainer:
 
     def run(self):
         """
-        Connect to core and run until KeyboardInterrupt.
+        Connects to the core message bus and runs the skill container until interrupted.
+        
+        Runs the main event loop, waiting for an exit signal or keyboard interruption. Upon exit, ensures the skill is properly unloaded.
         """
         self._connect_to_core()
         try:
@@ -606,16 +618,25 @@ class SkillContainer:
         self.unload()
 
     def unload(self):
+        """
+        Deactivates and unloads the skill if a skill loader is present.
+        """
         if self.skill_loader:
             self.skill_loader.deactivate()
             self.skill_loader._unload()
 
     def __del__(self):
+        """
+        Ensures the skill is properly unloaded when the SkillContainer is destroyed.
+        """
         self.unload()
 
     def _launch_plugin_skill(self):
         """
-        Launch a skill plugin associated with this SkillContainer instance.
+        Launches the skill plugin corresponding to this SkillContainer's skill ID.
+        
+        Raises:
+            ValueError: If the skill ID does not match any available skill plugin.
         """
         plugins = find_skill_plugins()
         if self.skill_id not in plugins:
