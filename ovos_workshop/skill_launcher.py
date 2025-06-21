@@ -285,11 +285,11 @@ class SkillLoader:
         if self._watchdog:
             self._watchdog.shutdown()
             self._watchdog = None
-
-        self._execute_instance_shutdown()
-        if self.config.get("debug", False):
-            self._garbage_collect()
         self._emit_skill_shutdown_event()
+        self._execute_instance_shutdown()
+
+    def __del__(self):
+        self._unload()
 
     def unload(self):
         """
@@ -328,19 +328,6 @@ class SkillLoader:
                               f'{self.skill_id}: {e}')
         del self.instance
         self.instance = None
-
-    def _garbage_collect(self):
-        """
-        Invoke Python garbage collector to remove false references
-        """
-        gc.collect()
-        # Remove two local references that are known
-        refs = sys.getrefcount(self.instance) - 2
-        if refs > 0:
-            LOG.warning(
-                f"After shutdown of {self.skill_id} there are still {refs} "
-                f"references remaining. The skill won't be cleaned from memory."
-            )
 
     def _emit_skill_shutdown_event(self):
         """
@@ -417,7 +404,7 @@ class SkillLoader:
         main_file_path = os.path.join(self.skill_directory, SKILL_MAIN_MODULE)
         skill_module = None
         if not os.path.exists(main_file_path):
-            LOG.error(f'Failed to load {self.skill_id} due to a missing file.')
+            raise FileNotFoundError(f"Failed to load '{self.skill_id}' - expected file: {main_file_path}")
         else:
             try:
                 skill_module = load_skill_module(main_file_path, self.skill_id)
@@ -460,31 +447,12 @@ class SkillLoader:
         if not skill_creator and self.skill_class:
             skill_creator = self.skill_class
 
-        # if the signature supports skill_id and bus pass them
-        # to fully initialize the skill in 1 go
         try:
-            # skills that do will have bus and skill_id available
-            # as soon as they call super()
             self.instance = skill_creator(bus=self.bus,
                                           skill_id=self.skill_id)
         except Exception as e:
-            # most old skills do not expose bus/skill_id kwargs
-            LOG.warning(f"Legacy skill: {e}")
-            self.instance = skill_creator()
-
-        if not self.instance.is_fully_initialized:
-            try:
-                # finish initialization of skill if we didn't manage to inject
-                # skill_id and bus kwargs.
-                # these skills only have skill_id and bus available in initialize,
-                # not in __init__
-                log_deprecation("This initialization is deprecated. Update skill to"
-                                "handle passed `skill_id` and `bus` kwargs",
-                                "0.1.0")
-                self.instance._startup(self.bus, self.skill_id)
-            except Exception as e:
-                LOG.exception(f'Skill __init__ failed with {e}')
-                self.instance = None
+            LOG.exception(f'Skill loading failed with {e}')
+            self.instance = None
 
         return self.instance is not None
 
@@ -635,8 +603,15 @@ class SkillContainer:
             wait_for_exit_signal()
         except KeyboardInterrupt:
             pass
+        self.unload()
+
+    def unload(self):
         if self.skill_loader:
             self.skill_loader.deactivate()
+            self.skill_loader._unload()
+
+    def __del__(self):
+        self.unload()
 
     def _launch_plugin_skill(self):
         """
