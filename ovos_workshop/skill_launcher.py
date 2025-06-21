@@ -410,7 +410,7 @@ class SkillLoader:
         """
         Instantiate the skill class.
        
-        Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. If instantiation fails, falls back to using a deprecated `create_skill` function if available. Returns True if the skill instance was created successfully, otherwise False.
+        Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. Returns True if the skill instance was created successfully, otherwise False.
        
         Parameters:
            skill_module (ModuleType, optional): The module from which to load the skill class or creation function.
