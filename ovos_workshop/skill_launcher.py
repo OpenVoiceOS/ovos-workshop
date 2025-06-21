@@ -422,20 +422,18 @@ class SkillLoader:
                 LOG.exception(f'Failed to load skill: {self.skill_id} ({e})')
         return skill_module
 
-    def _create_skill_instance(self,
-                               skill_module: Optional[ModuleType] = None) -> \
-            bool:
+    def _create_skill_instance(self, skill_module: Optional[ModuleType] = None) -> bool:
         """
-                               Instantiate the skill class or use a legacy skill creation function to create the skill instance.
-                               
-                               Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. If instantiation fails, falls back to using a deprecated `create_skill` function if available. Returns True if the skill instance was created successfully, otherwise False.
-                               
-                               Parameters:
-                                   skill_module (ModuleType, optional): The module from which to load the skill class or creation function.
-                               
-                               Returns:
-                                   bool: True if the skill instance was created successfully, False otherwise.
-                               """
+        Instantiate the skill class or use a legacy skill creation function to create the skill instance.
+       
+        Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. If instantiation fails, falls back to using a deprecated `create_skill` function if available. Returns True if the skill instance was created successfully, otherwise False.
+       
+        Parameters:
+           skill_module (ModuleType, optional): The module from which to load the skill class or creation function.
+       
+        Returns:
+           bool: True if the skill instance was created successfully, False otherwise.
+        """
         skill_module = skill_module or self.skill_module
         skill_creator = None
         if skill_module:
