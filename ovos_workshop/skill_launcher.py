@@ -1,4 +1,3 @@
-import gc
 import os
 import sys
 from os.path import isdir
@@ -13,7 +12,7 @@ from ovos_config.locale import setup_locale
 from ovos_plugin_manager.skills import find_skill_plugins, get_skill_directories
 from ovos_utils import wait_for_exit_signal
 from ovos_utils.file_utils import FileWatcher
-from ovos_utils.log import LOG, log_deprecation
+from ovos_utils.log import LOG
 from ovos_utils.process_utils import RuntimeRequirements
 
 from ovos_workshop.skills.active import ActiveSkill
@@ -22,10 +21,11 @@ from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill
 from ovos_workshop.skills.common_query_skill import CommonQuerySkill
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.game_skill import OVOSGameSkill, ConversationalGameSkill
 
 SKILL_BASE_CLASSES = [
     OVOSSkill, OVOSCommonPlaybackSkill, CommonQuerySkill, ActiveSkill,
-    FallbackSkill, UniversalSkill, UniversalFallback
+    FallbackSkill, UniversalSkill, UniversalFallback, OVOSGameSkill, ConversationalGameSkill
 ]
 
 SKILL_MAIN_MODULE = '__init__.py'
@@ -115,22 +115,6 @@ def get_skill_class(skill_module: ModuleType) -> Optional[callable]:
                         f"{candidates}")
         LOG.debug(f"Loading skill class: {candidates[0]}")
         return candidates[0]
-    return None
-
-
-def get_create_skill_function(skill_module: ModuleType) -> Optional[callable]:
-    """Find create_skill function in skill module.
-
-    Arguments:
-        skill_module (module): module to search for create_skill function
-
-    Returns:
-        (function): Found create_skill function or None.
-    """
-    if hasattr(skill_module, "create_skill") and \
-            callable(skill_module.create_skill):
-        log_deprecation("`create_skill` method is no longer supported", "0.1.0")
-        return skill_module.create_skill
     return None
 
 
@@ -424,7 +408,7 @@ class SkillLoader:
 
     def _create_skill_instance(self, skill_module: Optional[ModuleType] = None) -> bool:
         """
-        Instantiate the skill class or use a legacy skill creation function to create the skill instance.
+        Instantiate the skill class.
        
         Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. If instantiation fails, falls back to using a deprecated `create_skill` function if available. Returns True if the skill instance was created successfully, otherwise False.
        
@@ -435,31 +419,19 @@ class SkillLoader:
            bool: True if the skill instance was created successfully, False otherwise.
         """
         skill_module = skill_module or self.skill_module
-        skill_creator = None
         if skill_module:
-            try:
-                # in skill classes __new__ should fully create the skill object
-                skill_class = get_skill_class(skill_module)
-                self.instance = skill_class(bus=self.bus, skill_id=self.skill_id)
-                return self.instance is not None
-            except Exception as e:
-                LOG.warning(f"Skill load raised exception: {e}")
+            LOG.debug(f"extracting skill class from: '{skill_module}'")
+            skill_class = get_skill_class(skill_module)
+        elif not self.skill_class and self.skill_module:
+            LOG.debug(f"extracting skill class from: '{self.skill_module}'")
+            skill_class = get_skill_class(self.skill_module)
+        else:
+            LOG.debug(f"explicitly provided skill class: '{skill_module}'")
+            skill_class = self.skill_class
 
-            try:
-                # attempt to use old style create_skill function entrypoint
-                skill_creator = get_create_skill_function(skill_module) or \
-                    self.skill_class
-            except Exception as e:
-                LOG.exception(f"Failed to load skill creator: {e}")
-                self.instance = None
-                return False
-
-        if not skill_creator and self.skill_class:
-            skill_creator = self.skill_class
 
         try:
-            self.instance = skill_creator(bus=self.bus,
-                                          skill_id=self.skill_id)
+            self.instance = skill_class(bus=self.bus, skill_id=self.skill_id)
         except Exception as e:
             LOG.exception(f'Skill loading failed with {e}')
             self.instance = None
@@ -665,6 +637,7 @@ def _launch_script():
     Console script entrypoint
     USAGE: ovos-skill-launcher {skill_id} [path/to/my/skill_id]
     """
+    LOG.set_level("DEBUG")
     args_count = len(sys.argv)
     if args_count == 2:
         skill_id = sys.argv[1]
