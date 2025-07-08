@@ -66,6 +66,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                  prev_handler: Optional[Callable[[Optional[Message]], None]] = None,
                  resume_handler: Optional[Callable[[Optional[Message]], None]] = None,
                  **kwargs):
+        """
+        Initialize an OCP-compatible playback skill with optional media types, icon, vocabulary file, and playback control handlers.
+         
+        Parameters:
+            supported_media (List[MediaType], optional): List of media types the skill supports. Defaults to [MediaType.GENERIC].
+            skill_icon (str, optional): Path or URL to the skill's icon.
+            skill_voc_filename (str, optional): Filename for skill alias vocabulary.
+            playback_handler (Callable[[Optional[Message]], None], optional): Handler for playback requests.
+            pause_handler (Callable[[Optional[Message]], None], optional): Handler for pause requests.
+            next_handler (Callable[[Optional[Message]], None], optional): Handler for next track requests.
+            prev_handler (Callable[[Optional[Message]], None], optional): Handler for previous track requests.
+            resume_handler (Callable[[Optional[Message]], None], optional): Handler for resume requests.
+         
+        Initializes internal state for OCP entity recognition, playback control, and skill aliases.
+        """
         self.supported_media = supported_media or [MediaType.GENERIC]
         self.skill_aliases = []
         self.skill_voc_filename = skill_voc_filename
@@ -88,7 +103,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         super().__init__(*args, **kwargs)
 
     def _read_skill_name_voc(self):
-        """read voc file to allow requesting a skill by name"""
+        """
+        Load skill name aliases from a vocabulary file or generate them from the class name if not found.
+        
+        If a vocabulary file is specified, populates `self.skill_aliases` with aliases for each native language. If no aliases are found, generates default aliases by splitting the class name. Deduplicates and sorts aliases by descending string length.
+        """
         if self.skill_voc_filename:
             for lang in self.native_langs:
                 self.skill_aliases += self.voc_list(self.skill_voc_filename, lang)
@@ -174,35 +193,17 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                            "featured_tracks": len(self._featured_handlers) >= 1}))
 
     def ocp_voc_match(self, utterance, lang=None):
-        """uses Aho–Corasick algorithm to match OCP keywords
-        this efficiently matches many keywords against an utterance
-
-        OCP keywords are registered via self.register_ocp_keyword
-
-        example usages
-            print(self.ocp_voc_match("play metallica"))
-            # {'album_name': 'Metallica', 'artist_name': 'Metallica'}
-
-            print(self.ocp_voc_match("play the beatles"))
-            # {'album_name': 'The Beatles', 'series_name': 'The Beatles',
-            # 'artist_name': 'The Beatles', 'movie_name': 'The Beatles'}
-
-            print(self.ocp_voc_match("play rob zombie"))
-            # {'artist_name': 'Rob Zombie', 'album_name': 'Zombie',
-            # 'book_name': 'Zombie', 'game_name': 'Zombie', 'movie_name': 'Zombie'}
-
-            print(self.ocp_voc_match("play horror movie"))
-            # {'film_genre': 'Horror', 'cartoon_genre': 'Horror', 'anime_genre': 'Horror',
-            # 'radio_drama_genre': 'horror', 'video_genre': 'horror',
-            # 'book_genre': 'Horror', 'movie_name': 'Horror Movie'}
-
-            print(self.ocp_voc_match("play science fiction"))
-            #  {'film_genre': 'Science Fiction', 'cartoon_genre': 'Science Fiction',
-            #  'podcast_genre': 'Fiction', 'anime_genre': 'Science Fiction',
-            #  'documentary_genre': 'Science', 'book_genre': 'Science Fiction',
-            #  'artist_name': 'Fiction', 'tv_channel': 'Science',
-            #  'album_name': 'Science Fiction', 'short_film_name': 'Science',
-            #  'book_name': 'Science Fiction', 'movie_name': 'Science Fiction'}
+        """
+        Match registered OCP keywords in an utterance using the Aho–Corasick algorithm.
+        
+        Efficiently identifies and returns the longest matching keyword for each registered label in the given utterance, based on OCP keyword registration for the specified language.
+        
+        Parameters:
+            utterance (str): The input text to search for OCP keyword matches.
+            lang (str, optional): The language code to use for matching. Defaults to the skill's current language.
+        
+        Returns:
+            dict: A mapping of entity labels to the longest matched keyword found in the utterance.
         """
         lang = lang or self.lang
         if lang not in self.ocp_matchers:
@@ -214,6 +215,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         return matches
 
     def _register_ocp_ner(self, label:str, samples: List[str], lang: str = None):
+        """
+        Register a list of sample phrases under a given label for OCP entity recognition using the Aho–Corasick NER matcher.
+        
+        Parameters:
+            label (str): The entity label to associate with the provided samples.
+            samples (List[str]): A list of phrases or keywords to register for the label.
+            lang (str, optional): The language code for registration. If not specified, registers for all native languages.
+        """
         if label not in self._ocp_ents:
             self._ocp_ents[label] = []
         self._ocp_ents[label] += samples
@@ -225,18 +234,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                 self.ocp_matchers[lang].add_word(label, value)
 
     def load_ocp_keyword_from_csv(self, csv_path: str, lang: str = None):
-        """ load entities from a .csv file for usage with self.ocp_voc_match
-        see the ocp_entities.csv datatsets for example files built from wikidata SPARQL queries
-
-        examples contents of csv file
-
-            label,entity
-            film_genre,swashbuckler film
-            film_genre,neo-noir
-            film_genre,actual play film
-            film_genre,alternate history film
-            film_genre,spy film
-            ...
+        """
+        Load OCP entity keywords from a CSV file and register them for entity recognition.
+        
+        The CSV file should have a header and rows in the format: `label,entity`. Each entity is registered under its label for use with OCP keyword matching.
+        
+        Parameters:
+            csv_path (str): Path to the CSV file containing entity definitions.
+            lang (str, optional): Language code for the entities. If not specified, entities are registered for all supported languages.
         """
         with open(csv_path) as f:
             lines = f.read().split("\n")[1:]
@@ -248,7 +253,20 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def export_ocp_keywords_csv(self, csv_path: str = None, lang: str = None,
                                 label: str = None):
-        """ export entities to a .csv file """
+        """
+        Export registered OCP entity samples to a CSV file.
+        
+        Parameters:
+            csv_path (str, optional): Path to save the CSV file. If not provided, a default path is used.
+            lang (str, optional): Language code for the entities to export. Defaults to the skill's language.
+            label (str, optional): If specified, only entities with this label are exported.
+        
+        Returns:
+            str: The path to the exported CSV file.
+        
+        Raises:
+            RuntimeError: If no entities are registered for the specified language.
+        """
         lang = lang or self.lang
         if lang not in self.ocp_matchers:
             raise RuntimeError(f"no entities registered for lang: {lang}")
@@ -266,10 +284,16 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def register_ocp_keyword(self, media_type: MediaType, label: str,
                              samples: List, langs: List[str] = None):
-        """ register strings as native OCP keywords (eg, movie_name, artist_name ...)
-
-        ocp keywords can be efficiently matched with self.ocp_match helper method
-        that uses Aho–Corasick algorithm
+        """
+        Register a set of strings as native OCP keywords for a specific media type and label.
+         
+        This enables efficient keyword matching using the Aho–Corasick algorithm for entity recognition in user utterances. If the number of samples is large (20 or more), the keywords are exported to a CSV file and registered by file path to optimize bus communication; otherwise, samples are sent directly. The registration also informs the OCP system to improve media type disambiguation based on recognized entities.
+         
+        Parameters:
+            media_type (MediaType): The media type associated with the keywords.
+            label (str): The entity label for the keywords (e.g., "movie_name", "artist_name").
+            samples (List): The list of keyword strings to register.
+            langs (List[str], optional): Languages for which to register the keywords. Defaults to the skill's native languages.
         """
         samples = list(set(samples))
         langs = langs or self.native_langs
@@ -301,6 +325,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def deregister_ocp_keyword(self, media_type: MediaType, label: str,
                                langs: List[str] = None):
+        """
+        Deregisters a keyword label for a specific media type from the OCP system.
+       
+        Parameters:
+            media_type (MediaType): The media type associated with the keyword.
+            label (str): The label of the keyword to deregister.
+            langs (List[str], optional): Languages to deregister the keyword for. Defaults to the skill's native languages.
+        """
         langs = langs or self.native_langs
         for l in langs:
             if l in self.ocp_matchers:
@@ -400,6 +432,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     # @killable_event("ovos.common_play.stop", react_to_stop=True)
     def __handle_ocp_play(self, message):
+        """
+        Handles OCP play requests by invoking the registered playback handler and updating the player state.
+        
+        If a playback handler is registered, it is called with the message if accepted, and the player state is set to PLAYING. Logs an error if no playback handler is implemented.
+        """
         self._playing.set()
         self._paused.clear()
         if self.__playback_handler:
@@ -413,6 +450,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                       "implemented")
 
     def __handle_ocp_pause(self, message):
+        """
+        Handles OCP pause requests by invoking the registered pause handler and updating the player state to PAUSED if successful.
+        
+        If no pause handler is implemented, logs an error.
+        """
         self._paused.set()
         if self.__pause_handler:
             params = signature(self.__playback_handler).parameters
@@ -425,6 +467,9 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                       "implemented")
 
     def __handle_ocp_resume(self, message):
+        """
+        Handles OCP resume requests by invoking the registered resume handler and updating the player state to PLAYING if successful. Logs an error if no resume handler is implemented.
+        """
         self._paused.clear()
         if self.__resume_handler:
             params = signature(self.__playback_handler).parameters
@@ -546,6 +591,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                                     {"skill_id": self.skill_id}))
 
     def __handle_ocp_featured(self, message):
+        """
+        Handles requests for featured media by invoking registered featured handlers and emitting a playlist for playback.
+        
+        If no featured media is available, notifies the user accordingly. Otherwise, prepares the results with skill metadata and emits a message to initiate playback.
+        """
         skill_id = message.data["skill_id"]
         if skill_id != self.skill_id:
             return
@@ -572,6 +622,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                                    "playlist": results}))
 
     def default_shutdown(self):
+        """
+        Detach the skill from the OCP framework and perform standard shutdown procedures.
+        
+        Emits a message to notify the OCP system that the skill is being detached, then calls the superclass shutdown method.
+        """
         self.bus.emit(
             Message('ovos.common_play.skills.detach',
                     {"skill_id": self.skill_id}))
