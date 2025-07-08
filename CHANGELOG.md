@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.0.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.8a1) (2025-07-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.7a1...7.0.8a1)
+
+**Merged pull requests:**
+
+- fix: rm \_\_del\_\_ method [\#368](https://github.com/OpenVoiceOS/ovos-workshop/pull/368) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [7.0.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.7a1) (2025-06-21)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.6...7.0.7a1)
