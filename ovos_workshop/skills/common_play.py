@@ -67,21 +67,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                  resume_handler: Optional[Callable[[Optional[Message]], None]] = None,
                  **kwargs):
         """
-                 Initialize an OCP-compatible playback skill with optional media types, icon, vocabulary file, and playback control handlers.
-                 
-                 Parameters:
-                     supported_media (List[MediaType], optional): List of media types the skill supports. Defaults to [MediaType.GENERIC].
-                     skill_icon (str, optional): Path or URL to the skill's icon.
-                     skill_voc_filename (str, optional): Filename for skill alias vocabulary.
-                     playback_handler (Callable[[Optional[Message]], None], optional): Handler for playback requests.
-                     pause_handler (Callable[[Optional[Message]], None], optional): Handler for pause requests.
-                     next_handler (Callable[[Optional[Message]], None], optional): Handler for next track requests.
-                     prev_handler (Callable[[Optional[Message]], None], optional): Handler for previous track requests.
-                     resume_handler (Callable[[Optional[Message]], None], optional): Handler for resume requests.
-                 
-                 Initializes internal state for OCP entity recognition, playback control, and skill aliases.
-                 """
-                 self.supported_media = supported_media or [MediaType.GENERIC]
+        Initialize an OCP-compatible playback skill with optional media types, icon, vocabulary file, and playback control handlers.
+         
+        Parameters:
+            supported_media (List[MediaType], optional): List of media types the skill supports. Defaults to [MediaType.GENERIC].
+            skill_icon (str, optional): Path or URL to the skill's icon.
+            skill_voc_filename (str, optional): Filename for skill alias vocabulary.
+            playback_handler (Callable[[Optional[Message]], None], optional): Handler for playback requests.
+            pause_handler (Callable[[Optional[Message]], None], optional): Handler for pause requests.
+            next_handler (Callable[[Optional[Message]], None], optional): Handler for next track requests.
+            prev_handler (Callable[[Optional[Message]], None], optional): Handler for previous track requests.
+            resume_handler (Callable[[Optional[Message]], None], optional): Handler for resume requests.
+         
+        Initializes internal state for OCP entity recognition, playback control, and skill aliases.
+        """
+        self.supported_media = supported_media or [MediaType.GENERIC]
         self.skill_aliases = []
         self.skill_voc_filename = skill_voc_filename
         self._search_handlers = []  # added via decorators
@@ -254,19 +254,19 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def export_ocp_keywords_csv(self, csv_path: str = None, lang: str = None,
                                 label: str = None):
         """
-                                Export registered OCP entity samples to a CSV file.
-                                
-                                Parameters:
-                                    csv_path (str, optional): Path to save the CSV file. If not provided, a default path is used.
-                                    lang (str, optional): Language code for the entities to export. Defaults to the skill's language.
-                                    label (str, optional): If specified, only entities with this label are exported.
-                                
-                                Returns:
-                                    str: The path to the exported CSV file.
-                                
-                                Raises:
-                                    RuntimeError: If no entities are registered for the specified language.
-                                """
+        Export registered OCP entity samples to a CSV file.
+        
+        Parameters:
+            csv_path (str, optional): Path to save the CSV file. If not provided, a default path is used.
+            lang (str, optional): Language code for the entities to export. Defaults to the skill's language.
+            label (str, optional): If specified, only entities with this label are exported.
+        
+        Returns:
+            str: The path to the exported CSV file.
+        
+        Raises:
+            RuntimeError: If no entities are registered for the specified language.
+        """
         lang = lang or self.lang
         if lang not in self.ocp_matchers:
             raise RuntimeError(f"no entities registered for lang: {lang}")
@@ -285,16 +285,16 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def register_ocp_keyword(self, media_type: MediaType, label: str,
                              samples: List, langs: List[str] = None):
         """
-                             Register a set of strings as native OCP keywords for a specific media type and label.
-                             
-                             This enables efficient keyword matching using the Aho–Corasick algorithm for entity recognition in user utterances. If the number of samples is large (20 or more), the keywords are exported to a CSV file and registered by file path to optimize bus communication; otherwise, samples are sent directly. The registration also informs the OCP system to improve media type disambiguation based on recognized entities.
-                             
-                             Parameters:
-                                 media_type (MediaType): The media type associated with the keywords.
-                                 label (str): The entity label for the keywords (e.g., "movie_name", "artist_name").
-                                 samples (List): The list of keyword strings to register.
-                                 langs (List[str], optional): Languages for which to register the keywords. Defaults to the skill's native languages.
-                             """
+        Register a set of strings as native OCP keywords for a specific media type and label.
+         
+        This enables efficient keyword matching using the Aho–Corasick algorithm for entity recognition in user utterances. If the number of samples is large (20 or more), the keywords are exported to a CSV file and registered by file path to optimize bus communication; otherwise, samples are sent directly. The registration also informs the OCP system to improve media type disambiguation based on recognized entities.
+         
+        Parameters:
+            media_type (MediaType): The media type associated with the keywords.
+            label (str): The entity label for the keywords (e.g., "movie_name", "artist_name").
+            samples (List): The list of keyword strings to register.
+            langs (List[str], optional): Languages for which to register the keywords. Defaults to the skill's native languages.
+        """
         samples = list(set(samples))
         langs = langs or self.native_langs
         for l in langs:
@@ -326,14 +326,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def deregister_ocp_keyword(self, media_type: MediaType, label: str,
                                langs: List[str] = None):
         """
-                               Deregisters a keyword label for a specific media type from the OCP system.
-                               
-                               Parameters:
-                                   media_type (MediaType): The media type associated with the keyword.
-                                   label (str): The label of the keyword to deregister.
-                                   langs (List[str], optional): Languages to deregister the keyword for. Defaults to the skill's native languages.
-                               """
-                               langs = langs or self.native_langs
+        Deregisters a keyword label for a specific media type from the OCP system.
+       
+        Parameters:
+            media_type (MediaType): The media type associated with the keyword.
+            label (str): The label of the keyword to deregister.
+            langs (List[str], optional): Languages to deregister the keyword for. Defaults to the skill's native languages.
+        """
+        langs = langs or self.native_langs
         for l in langs:
             if l in self.ocp_matchers:
                 pass # TODO not yet supported upstream
