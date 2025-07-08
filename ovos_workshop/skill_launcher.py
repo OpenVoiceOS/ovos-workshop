@@ -269,14 +269,11 @@ class SkillLoader:
         if self._watchdog:
             self._watchdog.shutdown()
             self._watchdog = None
-        self._emit_skill_shutdown_event()
+        if self.bus:
+            message = Message("mycroft.skills.shutdown",
+                              {"path": self.skill_directory, "id": self.skill_id})
+            self.bus.emit(message)
         self._execute_instance_shutdown()
-
-    def __del__(self):
-        """
-        Ensures the skill is properly unloaded and cleaned up when the SkillLoader object is destroyed.
-        """
-        self._unload()
 
     def unload(self):
         """
@@ -317,14 +314,6 @@ class SkillLoader:
                               f'{self.skill_id}: {e}')
         del self.instance
         self.instance = None
-
-    def _emit_skill_shutdown_event(self):
-        """
-        Emit a `mycroft.skills.shutdown` message on the bus to signal that the skill is shutting down.
-        """
-        message = Message("mycroft.skills.shutdown",
-                          {"path": self.skill_directory, "id": self.skill_id})
-        self.bus.emit(message)
 
     def _load(self) -> bool:
         """
