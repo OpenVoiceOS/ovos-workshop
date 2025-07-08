@@ -1,13 +1,14 @@
 import os
 from inspect import signature
 from threading import Event
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Dict
 
 from ovos_bus_client import Message
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_utils import camel_case_split
 from ovos_utils.log import LOG
 from ovos_workshop.skills.ovos import OVOSSkill
+from ahocorasick_ner import AhocorasickNER
 
 # backwards compat imports, do not delete, skills import from here
 from ovos_workshop.decorators.ocp import ocp_play, ocp_next, ocp_pause, ocp_resume, ocp_search, \
@@ -82,7 +83,8 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         # TODO new default icon
         self.skill_icon = skill_icon or ""
 
-        self.ocp_matchers = {}
+        self.ocp_matchers: Dict[str, AhocorasickNER] = {}
+        self._ocp_ents: Dict[str, List[str]] = {}
         super().__init__(*args, **kwargs)
 
     def _read_skill_name_voc(self):
@@ -206,10 +208,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         if lang not in self.ocp_matchers:
             return {}
         matches = {}
-        for k, v in self.ocp_matchers[lang].match(utterance):
-            if k not in matches or len(v) > len(matches[k]):
-                matches[k] = v
+        for ent in self.ocp_matchers[lang].tag(utterance):
+            if ent["label"] not in matches or len(ent["word"]) > len(matches[ent["label"]]):
+                matches[ent["label"]] = ent["word"]
         return matches
+
+    def _register_ocp_ner(self, label:str, samples: List[str], lang: str = None):
+        if label not in self._ocp_ents:
+            self._ocp_ents[label] = []
+        self._ocp_ents[label] += samples
+        langs = [lang] if lang else self.native_langs
+        for lang in langs:
+            if lang not in self.ocp_matchers:
+                self.ocp_matchers[lang] = AhocorasickNER()
+            for value in samples:
+                self.ocp_matchers[lang].add_word(label, value)
 
     def load_ocp_keyword_from_csv(self, csv_path: str, lang: str = None):
         """ load entities from a .csv file for usage with self.ocp_voc_match
@@ -225,16 +238,13 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
             film_genre,spy film
             ...
         """
-        from ovos_classifiers.skovos.features import KeywordFeatures
-        if lang is None:
-            for lang in self.native_langs:
-                if lang not in self.ocp_matchers:
-                    self.ocp_matchers[lang] = KeywordFeatures()
-                self.ocp_matchers[lang].load_entities(csv_path)
-        else:
-            if lang not in self.ocp_matchers:
-                self.ocp_matchers[lang] = KeywordFeatures()
-            self.ocp_matchers[lang].load_entities(csv_path)
+        with open(csv_path) as f:
+            lines = f.read().split("\n")[1:]
+            for l in lines:
+                if not l.strip():
+                    continue
+                label, value = l.split(",", 1)
+                self._register_ocp_ner(label, [value])
 
     def export_ocp_keywords_csv(self, csv_path: str = None, lang: str = None,
                                 label: str = None):
@@ -246,7 +256,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         csv_path = csv_path or f"{self.ocp_cache_dir}/{self.skill_id}_{lang}.csv"
         with open(csv_path, "w") as f:
             f.write("label,sample")
-            for ent, samples in self.ocp_matchers[lang].entities.items():
+            for ent, samples in self._ocp_ents.items():
                 if label is not None and label != ent:
                     continue
                 for s in set(samples):
@@ -261,13 +271,10 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         ocp keywords can be efficiently matched with self.ocp_match helper method
         that uses Aho–Corasick algorithm
         """
-        from ovos_classifiers.skovos.features import KeywordFeatures
         samples = list(set(samples))
         langs = langs or self.native_langs
         for l in langs:
-            if l not in self.ocp_matchers:
-                self.ocp_matchers[l] = KeywordFeatures()
-            self.ocp_matchers[l].register_entity(label, samples)
+            self._register_ocp_ner(label, samples, l)
 
         #  if the label is a valid OCP entity known by the classifier it will help
         #  the classifier disambiguate between media_types
@@ -297,7 +304,8 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         langs = langs or self.native_langs
         for l in langs:
             if l in self.ocp_matchers:
-                self.ocp_matchers[l].deregister_entity(label)
+                pass # TODO not yet supported upstream
+                # self.ocp_matchers[l].deregister_entity(label)
 
         self.bus.emit(
             Message('ovos.common_play.deregister_keyword',
@@ -392,7 +400,6 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     # @killable_event("ovos.common_play.stop", react_to_stop=True)
     def __handle_ocp_play(self, message):
-        self.activate()
         self._playing.set()
         self._paused.clear()
         if self.__playback_handler:
@@ -418,7 +425,6 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                       "implemented")
 
     def __handle_ocp_resume(self, message):
-        self.activate()
         self._paused.clear()
         if self.__resume_handler:
             params = signature(self.__playback_handler).parameters
@@ -564,11 +570,6 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                                    "skill_name": self.skill_aliases[0],
                                    "thumbnail": self.skill_icon,
                                    "playlist": results}))
-
-    def _handle_stop(self, message):
-        self._playing.clear()
-        self._paused.clear()
-        super()._handle_stop(message)
 
     def default_shutdown(self):
         self.bus.emit(
