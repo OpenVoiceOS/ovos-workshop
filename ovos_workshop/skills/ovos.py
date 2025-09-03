@@ -1061,25 +1061,33 @@ class OVOSSkill:
 
                 # Extract method signature and return type
                 import inspect
-                signature = inspect.signature(method)
+                sig = inspect.signature(method)
                 schema = None
                 return_schema = None
                 request_class = None
                 try:
                     from pydantic import BaseModel
-                    parameters = signature.parameters
+                    parameters = sig.parameters
 
                     for arg_name, param in parameters.items():
                         if arg_name == 'self':
                             continue
-                        if issubclass(param.annotation, BaseModel):
+                        ann = param.annotation
+                        if isinstance(ann, type) and issubclass(ann, BaseModel):
                             # Get the JSON schema for the BaseModel
-                            schema = param.annotation.model_json_schema()
-                            request_class = param.annotation
+                            try:
+                                schema = ann.model_json_schema()
+                            except AttributeError:
+                                schema = ann.schema()
+                            request_class = ann
                             break
-                    if signature.return_annotation and issubclass(signature.return_annotation, BaseModel):
+                    ra = sig.return_annotation
+                    if isinstance(ra, type) and issubclass(ra, BaseModel):
                         # Get the JSON schema for the return type
-                        return_schema = signature.return_annotation.model_json_schema()
+                        try:
+                            return_schema = ra.model_json_schema()
+                        except AttributeError:
+                            return_schema = ra.schema()
                 except ImportError:
                     # If pydantic is not installed, there is no schema to extract
                     pass
