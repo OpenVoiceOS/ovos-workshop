@@ -415,9 +415,8 @@ class SkillLoader:
             LOG.debug(f"extracting skill class from: '{self.skill_module}'")
             skill_class = get_skill_class(self.skill_module)
         else:
-            LOG.debug(f"explicitly provided skill class: '{skill_module}'")
+            LOG.debug(f"explicitly provided skill class: '{self.skill_class}'")
             skill_class = self.skill_class
-
 
         try:
             self.instance = skill_class(bus=self.bus, skill_id=self.skill_id)
