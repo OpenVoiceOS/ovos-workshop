@@ -1,12 +1,36 @@
 # Changelog
 
-## [7.0.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.6a1) (2025-06-16)
+## [7.0.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.10a1) (2025-11-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.5...7.0.6a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.9a1...7.0.10a1)
 
 **Merged pull requests:**
 
-- fix: on\_event\_start\_wrapper [\#360](https://github.com/OpenVoiceOS/ovos-workshop/pull/360) ([JarbasAl](https://github.com/JarbasAl))
+- fix: deprecations, imports, unittests [\#373](https://github.com/OpenVoiceOS/ovos-workshop/pull/373) ([JarbasAl](https://github.com/JarbasAl))
+
+## [7.0.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.9a1) (2025-07-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.8a1...7.0.9a1)
+
+**Merged pull requests:**
+
+- fix: ocp skills [\#365](https://github.com/OpenVoiceOS/ovos-workshop/pull/365) ([JarbasAl](https://github.com/JarbasAl))
+
+## [7.0.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.8a1) (2025-07-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.7a1...7.0.8a1)
+
+**Merged pull requests:**
+
+- fix: rm \_\_del\_\_ method [\#368](https://github.com/OpenVoiceOS/ovos-workshop/pull/368) ([JarbasAl](https://github.com/JarbasAl))
+
+## [7.0.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.7a1) (2025-06-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.6...7.0.7a1)
+
+**Merged pull requests:**
+
+- refactor/remove the compatibility layer with MycroftSkill in the skill launcher [\#362](https://github.com/OpenVoiceOS/ovos-workshop/pull/362) ([JarbasAl](https://github.com/JarbasAl))
 
 
 

@@ -25,6 +25,7 @@ class V2FallbackSkill(FallbackSkill):
 
 class TestFallbackSkillV2(TestCase):
     fallback_skill = FallbackSkill(FakeBus(), "test_fallback_v2")
+    fallback_skill.can_answer = lambda message: False
 
     def test_class_inheritance(self):
         from ovos_workshop.skills.ovos import OVOSSkill
@@ -59,8 +60,7 @@ class TestFallbackSkillV2(TestCase):
         FallbackSkill.fallback_config = {}
 
     def test_can_answer(self):
-        self.assertFalse(self.fallback_skill.can_answer([""], "en-US"))
-        # TODO
+        self.assertFalse(self.fallback_skill.can_answer(Message("")))
 
     def test_register_system_event_handlers(self):
         self.assertTrue(any(["ovos.skills.fallback.ping" in tup

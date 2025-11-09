@@ -1,4 +1,3 @@
-import gc
 import os
 import sys
 from os.path import isdir
@@ -13,7 +12,7 @@ from ovos_config.locale import setup_locale
 from ovos_plugin_manager.skills import find_skill_plugins, get_skill_directories
 from ovos_utils import wait_for_exit_signal
 from ovos_utils.file_utils import FileWatcher
-from ovos_utils.log import LOG, log_deprecation
+from ovos_utils.log import LOG
 from ovos_utils.process_utils import RuntimeRequirements
 
 from ovos_workshop.skills.active import ActiveSkill
@@ -22,10 +21,11 @@ from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill
 from ovos_workshop.skills.common_query_skill import CommonQuerySkill
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.game_skill import OVOSGameSkill, ConversationalGameSkill
 
 SKILL_BASE_CLASSES = [
     OVOSSkill, OVOSCommonPlaybackSkill, CommonQuerySkill, ActiveSkill,
-    FallbackSkill, UniversalSkill, UniversalFallback
+    FallbackSkill, UniversalSkill, UniversalFallback, OVOSGameSkill, ConversationalGameSkill
 ]
 
 SKILL_MAIN_MODULE = '__init__.py'
@@ -115,22 +115,6 @@ def get_skill_class(skill_module: ModuleType) -> Optional[callable]:
                         f"{candidates}")
         LOG.debug(f"Loading skill class: {candidates[0]}")
         return candidates[0]
-    return None
-
-
-def get_create_skill_function(skill_module: ModuleType) -> Optional[callable]:
-    """Find create_skill function in skill module.
-
-    Arguments:
-        skill_module (module): module to search for create_skill function
-
-    Returns:
-        (function): Found create_skill function or None.
-    """
-    if hasattr(skill_module, "create_skill") and \
-            callable(skill_module.create_skill):
-        log_deprecation("`create_skill` method is no longer supported", "0.1.0")
-        return skill_module.create_skill
     return None
 
 
@@ -280,20 +264,20 @@ class SkillLoader:
 
     def _unload(self):
         """
-        Remove listeners and stop threads before loading
+        Performs cleanup by stopping file watchers, emitting a skill shutdown event, and shutting down the skill instance.
         """
         if self._watchdog:
             self._watchdog.shutdown()
             self._watchdog = None
-
+        if self.bus:
+            message = Message("mycroft.skills.shutdown",
+                              {"path": self.skill_directory, "id": self.skill_id})
+            self.bus.emit(message)
         self._execute_instance_shutdown()
-        if self.config.get("debug", False):
-            self._garbage_collect()
-        self._emit_skill_shutdown_event()
 
     def unload(self):
         """
-        Shutdown and unload the skill instance
+        Shuts down and unloads the skill instance if it is currently loaded.
         """
         if self.instance:
             self._execute_instance_shutdown()
@@ -314,7 +298,9 @@ class SkillLoader:
 
     def _execute_instance_shutdown(self):
         """
-        Call the shutdown method of the skill being reloaded.
+        Invokes shutdown routines on the current skill instance and handles any exceptions.
+        
+        Calls both `shutdown()` and `default_shutdown()` methods on the skill instance if present, logging any exceptions that occur. Cleans up the instance reference after shutdown.
         """
         if self.instance:
             try:
@@ -328,27 +314,6 @@ class SkillLoader:
                               f'{self.skill_id}: {e}')
         del self.instance
         self.instance = None
-
-    def _garbage_collect(self):
-        """
-        Invoke Python garbage collector to remove false references
-        """
-        gc.collect()
-        # Remove two local references that are known
-        refs = sys.getrefcount(self.instance) - 2
-        if refs > 0:
-            LOG.warning(
-                f"After shutdown of {self.skill_id} there are still {refs} "
-                f"references remaining. The skill won't be cleaned from memory."
-            )
-
-    def _emit_skill_shutdown_event(self):
-        """
-        Emit `mycroft.skills.shutdown` to notify the skill is being shutdown
-        """
-        message = Message("mycroft.skills.shutdown",
-                          {"path": self.skill_directory, "id": self.skill_id})
-        self.bus.emit(message)
 
     def _load(self) -> bool:
         """
@@ -411,13 +376,18 @@ class SkillLoader:
 
     def _load_skill_source(self) -> ModuleType:
         """
-        Use Python's import library to load a skill's source code.
-        @return: Skill module to instantiate
+        Loads the main skill module from the skill directory using Python's import system.
+        
+        Returns:
+            ModuleType: The loaded skill module.
+        
+        Raises:
+            FileNotFoundError: If the main skill file does not exist in the skill directory.
         """
         main_file_path = os.path.join(self.skill_directory, SKILL_MAIN_MODULE)
         skill_module = None
         if not os.path.exists(main_file_path):
-            LOG.error(f'Failed to load {self.skill_id} due to a missing file.')
+            raise FileNotFoundError(f"Failed to load '{self.skill_id}' - expected file: {main_file_path}")
         else:
             try:
                 skill_module = load_skill_module(main_file_path, self.skill_id)
@@ -425,66 +395,34 @@ class SkillLoader:
                 LOG.exception(f'Failed to load skill: {self.skill_id} ({e})')
         return skill_module
 
-    def _create_skill_instance(self,
-                               skill_module: Optional[ModuleType] = None) -> \
-            bool:
+    def _create_skill_instance(self, skill_module: Optional[ModuleType] = None) -> bool:
         """
-        Create the skill object.
-
-        Arguments:
-            skill_module (module): Module to load from
-
+        Instantiate the skill class.
+       
+        Attempts to create the skill instance from the provided module or the loader's skill module. If a suitable skill class is found, it is instantiated with the message bus and skill ID. Returns True if the skill instance was created successfully, otherwise False.
+       
+        Parameters:
+           skill_module (ModuleType, optional): The module from which to load the skill class or creation function.
+       
         Returns:
-            (bool): True if skill was loaded successfully.
+           bool: True if the skill instance was created successfully, False otherwise.
         """
         skill_module = skill_module or self.skill_module
-        skill_creator = None
         if skill_module:
-            try:
-                # in skill classes __new__ should fully create the skill object
-                skill_class = get_skill_class(skill_module)
-                self.instance = skill_class(bus=self.bus, skill_id=self.skill_id)
-                return self.instance is not None
-            except Exception as e:
-                LOG.warning(f"Skill load raised exception: {e}")
+            LOG.debug(f"extracting skill class from: '{skill_module}'")
+            skill_class = get_skill_class(skill_module)
+        elif not self.skill_class and self.skill_module:
+            LOG.debug(f"extracting skill class from: '{self.skill_module}'")
+            skill_class = get_skill_class(self.skill_module)
+        else:
+            LOG.debug(f"explicitly provided skill class: '{self.skill_class}'")
+            skill_class = self.skill_class
 
-            try:
-                # attempt to use old style create_skill function entrypoint
-                skill_creator = get_create_skill_function(skill_module) or \
-                    self.skill_class
-            except Exception as e:
-                LOG.exception(f"Failed to load skill creator: {e}")
-                self.instance = None
-                return False
-
-        if not skill_creator and self.skill_class:
-            skill_creator = self.skill_class
-
-        # if the signature supports skill_id and bus pass them
-        # to fully initialize the skill in 1 go
         try:
-            # skills that do will have bus and skill_id available
-            # as soon as they call super()
-            self.instance = skill_creator(bus=self.bus,
-                                          skill_id=self.skill_id)
+            self.instance = skill_class(bus=self.bus, skill_id=self.skill_id)
         except Exception as e:
-            # most old skills do not expose bus/skill_id kwargs
-            LOG.warning(f"Legacy skill: {e}")
-            self.instance = skill_creator()
-
-        if not self.instance.is_fully_initialized:
-            try:
-                # finish initialization of skill if we didn't manage to inject
-                # skill_id and bus kwargs.
-                # these skills only have skill_id and bus available in initialize,
-                # not in __init__
-                log_deprecation("This initialization is deprecated. Update skill to"
-                                "handle passed `skill_id` and `bus` kwargs",
-                                "0.1.0")
-                self.instance._startup(self.bus, self.skill_id)
-            except Exception as e:
-                LOG.exception(f'Skill __init__ failed with {e}')
-                self.instance = None
+            LOG.exception(f'Skill loading failed with {e}')
+            self.instance = None
 
         return self.instance is not None
 
@@ -628,19 +566,37 @@ class SkillContainer:
 
     def run(self):
         """
-        Connect to core and run until KeyboardInterrupt.
+        Connects to the core message bus and runs the skill container until interrupted.
+        
+        Runs the main event loop, waiting for an exit signal or keyboard interruption. Upon exit, ensures the skill is properly unloaded.
         """
         self._connect_to_core()
         try:
             wait_for_exit_signal()
         except KeyboardInterrupt:
             pass
+        self.unload()
+
+    def unload(self):
+        """
+        Deactivates and unloads the skill if a skill loader is present.
+        """
         if self.skill_loader:
             self.skill_loader.deactivate()
+            self.skill_loader._unload()
+
+    def __del__(self):
+        """
+        Ensures the skill is properly unloaded when the SkillContainer is destroyed.
+        """
+        self.unload()
 
     def _launch_plugin_skill(self):
         """
-        Launch a skill plugin associated with this SkillContainer instance.
+        Launches the skill plugin corresponding to this SkillContainer's skill ID.
+        
+        Raises:
+            ValueError: If the skill ID does not match any available skill plugin.
         """
         plugins = find_skill_plugins()
         if self.skill_id not in plugins:
@@ -669,6 +625,7 @@ def _launch_script():
     Console script entrypoint
     USAGE: ovos-skill-launcher {skill_id} [path/to/my/skill_id]
     """
+    LOG.set_level("DEBUG")
     args_count = len(sys.argv)
     if args_count == 2:
         skill_id = sys.argv[1]

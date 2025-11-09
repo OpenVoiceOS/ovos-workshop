@@ -32,8 +32,8 @@ from ovos_bus_client.util import get_message_lang
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
-from ovos_utils.events import EventContainer, EventSchedulerInterface
-from ovos_utils.events import get_handler_name, create_wrapper
+from ovos_bus_client.apis.events import EventSchedulerInterface
+from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
@@ -243,6 +243,11 @@ class OVOSSkill:
         """
         return self._init_event.is_set()
 
+    @property
+    def _stop_is_implemented(self) -> bool:
+        return self.__class__.stop is not OVOSSkill.stop or \
+            self.__class__.stop_session is not OVOSSkill.stop_session
+
     def can_stop(self, message: Message) -> bool:
         """
         Determine whether the skill can be stopped at the current moment.
@@ -258,8 +263,7 @@ class OVOSSkill:
         Returns:
             bool: True if the skill is currently performing an action that can be stopped; False otherwise.
         """
-        if self.__class__.stop is not OVOSSkill.stop or \
-            self.__class__.stop_session is not OVOSSkill.stop_session:
+        if self._stop_is_implemented:
             raise NotImplementedError("All skills that implement self.stop or self.stop_session must also implement self.can_stop.")
         return False # if there isnt a stop method, we can be more lenient and not require can_stop to be implemented
 
@@ -477,10 +481,8 @@ class OVOSSkill:
         Get the timezone code, such as 'America/Los_Angeles'
         This info may come from Session, eg, injected by a voice satellite
         """
-        loc = self.location
-        if type(loc) is dict and loc['timezone']:
-            return loc['timezone']['code']
-        return None
+        sess = SessionManager.get()
+        return sess.timezone
 
     @property
     def lang(self) -> str:
