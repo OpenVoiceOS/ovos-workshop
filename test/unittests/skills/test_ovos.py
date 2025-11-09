@@ -45,12 +45,10 @@ class TestOVOSSkill(unittest.TestCase):
         from ovos_bus_client.apis.ocp import OCPInterface
         self.assertIsInstance(self.skill.private_settings, dict)
         self.assertIsInstance(self.skill._threads, list)
-        self.assertIsNotNone(self.skill._original_converse)
         self.assertIsInstance(self.skill.intent_layers, IntentLayers)
         self.assertIsInstance(self.skill.audio_service, OCPInterface)
         self.assertTrue(self.skill.is_fully_initialized)
-        self.assertFalse(self.skill.stop_is_implemented)
-        self.assertFalse(self.skill.converse_is_implemented)
+        self.assertFalse(self.skill._stop_is_implemented)
         self.assertIsInstance(self.skill.core_lang, str)
         self.assertIsInstance(self.skill.secondary_langs, list)
         self.assertIsInstance(self.skill.native_langs, list)

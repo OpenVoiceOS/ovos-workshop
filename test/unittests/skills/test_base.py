@@ -27,7 +27,8 @@ class TestOVOSSkill(unittest.TestCase):
 
     def test_00_skill_init(self):
         from ovos_workshop.skills.ovos import SkillGUI
-        from ovos_utils.events import EventContainer, EventSchedulerInterface
+        from ovos_bus_client.apis.events import EventSchedulerInterface
+        from ovos_utils.events import EventContainer
         from ovos_workshop.intents import IntentServiceInterface
         from ovos_utils.process_utils import RuntimeRequirements
         from ovos_bus_client.apis.enclosure import EnclosureAPI
@@ -72,8 +73,7 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIsInstance(self.skill.alphanumeric_skill_id, str)
         self.assertIsInstance(self.skill.resources, SkillResources)
         self.assertEqual(self.skill.resources.language, self.skill.lang)
-        self.assertFalse(self.skill.stop_is_implemented)
-        self.assertFalse(self.skill.converse_is_implemented)
+        self.assertFalse(self.skill._stop_is_implemented)
 
     def test_handle_first_run(self):
         # TODO
@@ -211,34 +211,6 @@ class TestOVOSSkill(unittest.TestCase):
     def test_get_intro_message(self):
         self.assertIsInstance(self.skill.get_intro_message(), str)
         self.assertFalse(self.skill.get_intro_message())
-
-    def test_handle_skill_activated(self):
-        # TODO
-        pass
-
-    def test_handle_skill_deactivated(self):
-        # TODO
-        pass
-
-    def test_activate(self):
-        # TODO
-        pass
-
-    def test_deactivate(self):
-        # TODO
-        pass
-
-    def test_handle_converse_ack(self):
-        # TODO
-        pass
-
-    def test_handle_converse_request(self):
-        # TODO
-        pass
-
-    def test_converse(self):
-        # TODO
-        self.assertFalse(self.skill.converse())
 
     # TODO port get_response methods per #69
 
@@ -483,8 +455,6 @@ class TestOVOSSkill(unittest.TestCase):
 
         test_skill.event_scheduler.shutdown.assert_called_once()
         test_skill.events.clear.assert_called_once()
-
-        test_skill.shutdown.assert_called_once()
 
         from ovos_bus_client import Message
         self.assertIsInstance(message, Message)

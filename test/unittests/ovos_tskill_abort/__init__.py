@@ -1,18 +1,18 @@
 from ovos_workshop.decorators import killable_intent
-from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.converse import ConversationalSkill
 from ovos_workshop.decorators import intent_handler
 from time import sleep
 
 
-class TestAbortSkill(OVOSSkill):
+class TestAbortSkill(ConversationalSkill):
     """
     send "mycroft.skills.abort_question" and confirm only get_response is aborted
     send "mycroft.skills.abort_execution" and confirm the full intent is aborted, except intent3
     send "my.own.abort.msg" and confirm intent3 is aborted
     say "stop" and confirm all intents are aborted
     """
-    def __init__(self):
-        super(TestAbortSkill, self).__init__("KillableSkill")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.my_special_var = "default"
         self.stop_called = False
 

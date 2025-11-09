@@ -1,7 +1,7 @@
-from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.converse import ConversationalSkill
 
 
-class ActiveSkill(OVOSSkill):
+class ActiveSkill(ConversationalSkill):
     def bind(self, bus):
         super(ActiveSkill, self).bind(bus)
         if bus:
