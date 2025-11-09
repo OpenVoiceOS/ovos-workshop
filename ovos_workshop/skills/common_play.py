@@ -8,7 +8,10 @@ from ovos_config.locations import get_xdg_cache_save_path
 from ovos_utils import camel_case_split
 from ovos_utils.log import LOG
 from ovos_workshop.skills.ovos import OVOSSkill
-from ahocorasick_ner import AhocorasickNER
+try:
+    from ahocorasick_ner import AhocorasickNER
+except ImportError:
+    AhocorasickNER = None  # optional dependency
 
 # backwards compat imports, do not delete, skills import from here
 from ovos_workshop.decorators.ocp import ocp_play, ocp_next, ocp_pause, ocp_resume, ocp_search, \
@@ -223,6 +226,9 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
             samples (List[str]): A list of phrases or keywords to register for the label.
             lang (str, optional): The language code for registration. If not specified, registers for all native languages.
         """
+        if AhocorasickNER is None:
+            raise ImportError("can not register ocp keywords, AhocorasickNER is not installed, 'pip install ahocorasick_ner'")
+
         if label not in self._ocp_ents:
             self._ocp_ents[label] = []
         self._ocp_ents[label] += samples
