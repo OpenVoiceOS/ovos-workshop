@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.0.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.10a1) (2025-11-09)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.9a1...7.0.10a1)
+
+**Merged pull requests:**
+
+- fix: deprecations, imports, unittests [\#373](https://github.com/OpenVoiceOS/ovos-workshop/pull/373) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [7.0.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.9a1) (2025-07-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.8a1...7.0.9a1)
