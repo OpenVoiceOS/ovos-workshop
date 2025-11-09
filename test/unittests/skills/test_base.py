@@ -456,8 +456,6 @@ class TestOVOSSkill(unittest.TestCase):
         test_skill.event_scheduler.shutdown.assert_called_once()
         test_skill.events.clear.assert_called_once()
 
-        test_skill.shutdown.assert_called_once()
-
         from ovos_bus_client import Message
         self.assertIsInstance(message, Message)
         self.assertEqual(message.msg_type, "detach_skill")

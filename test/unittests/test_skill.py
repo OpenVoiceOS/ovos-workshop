@@ -97,13 +97,14 @@ class TestSkill(unittest.TestCase):
         for event in default_skill:
             self.assertTrue(event in registered_events)
 
-        default_ovos = [f"{self.skill.skill_id}.converse.ping",
+        # because its a ConversationalSkill class
+        converse_ovos = [f"{self.skill.skill_id}.converse.ping",
                         f"{self.skill.skill_id}.converse.request",
                         "intent.service.skills.activated",
                         "intent.service.skills.deactivated",
                         f"{self.skill.skill_id}.activate",
                         f"{self.skill.skill_id}.deactivate"]
-        for event in default_ovos:
+        for event in converse_ovos:
             self.assertTrue(event in registered_events)
 
     @unittest.skip("Mocks are causing issues, rewrite test")
