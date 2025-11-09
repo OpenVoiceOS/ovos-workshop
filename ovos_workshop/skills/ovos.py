@@ -32,8 +32,8 @@ from ovos_bus_client.util import get_message_lang
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
-from ovos_utils.events import EventContainer, EventSchedulerInterface
-from ovos_utils.events import get_handler_name, create_wrapper
+from ovos_bus_client.apis.events import EventSchedulerInterface
+from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
@@ -477,10 +477,8 @@ class OVOSSkill:
         Get the timezone code, such as 'America/Los_Angeles'
         This info may come from Session, eg, injected by a voice satellite
         """
-        loc = self.location
-        if type(loc) is dict and loc['timezone']:
-            return loc['timezone']['code']
-        return None
+        sess = SessionManager.get()
+        return sess.timezone
 
     @property
     def lang(self) -> str:
