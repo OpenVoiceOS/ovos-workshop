@@ -243,6 +243,11 @@ class OVOSSkill:
         """
         return self._init_event.is_set()
 
+    @property
+    def _stop_is_implemented(self) -> bool:
+        return self.__class__.stop is not OVOSSkill.stop or \
+            self.__class__.stop_session is not OVOSSkill.stop_session
+
     def can_stop(self, message: Message) -> bool:
         """
         Determine whether the skill can be stopped at the current moment.
@@ -258,8 +263,7 @@ class OVOSSkill:
         Returns:
             bool: True if the skill is currently performing an action that can be stopped; False otherwise.
         """
-        if self.__class__.stop is not OVOSSkill.stop or \
-            self.__class__.stop_session is not OVOSSkill.stop_session:
+        if self._stop_is_implemented:
             raise NotImplementedError("All skills that implement self.stop or self.stop_session must also implement self.can_stop.")
         return False # if there isnt a stop method, we can be more lenient and not require can_stop to be implemented
 

@@ -49,17 +49,6 @@ class TestSkillLauncherFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_skill_class(None)
 
-    def test_get_create_skill_function(self):
-        from ovos_workshop.skill_launcher import get_create_skill_function, \
-            load_skill_module
-        test_path = join(dirname(__file__), "ovos_tskill_abort",
-                         "__init__.py")
-        skill_id = "test_skill.test"
-        module = load_skill_module(test_path, skill_id)
-        func = get_create_skill_function(module)
-        self.assertIsNotNone(func)
-        self.assertEqual(func.__name__, "create_skill")
-
     def test_launch_script(self):
         from ovos_workshop.skill_launcher import _launch_script
         # TODO

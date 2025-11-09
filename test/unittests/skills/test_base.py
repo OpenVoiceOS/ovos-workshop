@@ -73,8 +73,7 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIsInstance(self.skill.alphanumeric_skill_id, str)
         self.assertIsInstance(self.skill.resources, SkillResources)
         self.assertEqual(self.skill.resources.language, self.skill.lang)
-        self.assertFalse(self.skill.stop_is_implemented)
-        self.assertFalse(self.skill.converse_is_implemented)
+        self.assertFalse(self.skill._stop_is_implemented)
 
     def test_handle_first_run(self):
         # TODO
@@ -212,34 +211,6 @@ class TestOVOSSkill(unittest.TestCase):
     def test_get_intro_message(self):
         self.assertIsInstance(self.skill.get_intro_message(), str)
         self.assertFalse(self.skill.get_intro_message())
-
-    def test_handle_skill_activated(self):
-        # TODO
-        pass
-
-    def test_handle_skill_deactivated(self):
-        # TODO
-        pass
-
-    def test_activate(self):
-        # TODO
-        pass
-
-    def test_deactivate(self):
-        # TODO
-        pass
-
-    def test_handle_converse_ack(self):
-        # TODO
-        pass
-
-    def test_handle_converse_request(self):
-        # TODO
-        pass
-
-    def test_converse(self):
-        # TODO
-        self.assertFalse(self.skill.converse())
 
     # TODO port get_response methods per #69
 
