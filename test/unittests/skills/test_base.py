@@ -27,7 +27,8 @@ class TestOVOSSkill(unittest.TestCase):
 
     def test_00_skill_init(self):
         from ovos_workshop.skills.ovos import SkillGUI
-        from ovos_utils.events import EventContainer, EventSchedulerInterface
+        from ovos_bus_client.apis.events import EventSchedulerInterface
+        from ovos_utils.events import EventContainer
         from ovos_workshop.intents import IntentServiceInterface
         from ovos_utils.process_utils import RuntimeRequirements
         from ovos_bus_client.apis.enclosure import EnclosureAPI
