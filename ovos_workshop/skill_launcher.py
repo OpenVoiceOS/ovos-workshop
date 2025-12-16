@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from os.path import isdir
 from inspect import isclass
 from types import ModuleType
@@ -534,20 +535,26 @@ class SkillContainer:
             self.bus.run_in_thread()
             self.bus.connected_event.wait()
 
-        LOG.debug("checking skills service status")
-        response = self.bus.wait_for_response(
-            Message(f'mycroft.skills.is_ready',
-                    context={"source": "workshop", "destination": "skills"}))
-        if response and response.data['status']:
-            LOG.info("connected to core")
-            self.load_skill()
-        else:
-            LOG.warning("Skills service not ready yet. Load on ready event.")
-
         self.bus.on("mycroft.ready", self.load_skill)
         self.bus.on("skillmanager.activate", self.do_load)
         self.bus.on("skillmanager.deactivate", self.do_unload)
         self.bus.on("skillmanager.keep", self.do_unload)
+
+        def wait_for_core(t=1):
+            LOG.debug("checking skills service status")
+            response = self.bus.wait_for_response(
+                Message('mycroft.skills.is_ready',
+                        context={"source": self.skill_id, "destination": "skills"}))
+            if response is not None and response.data.get('status'):
+                LOG.info("connected to core")
+                self.load_skill()
+                return
+
+            LOG.warning(f"ovos-core not yet ready. Waiting {t} seconds until next skill loading attempt")
+            threading.Event().wait(t)
+            wait_for_core(min(60, t*2))
+
+        wait_for_core()
 
     def load_skill(self, message: Optional[Message] = None):
         """
@@ -635,6 +642,10 @@ def _launch_script():
         skill_id = sys.argv[1]
         skill_directory = sys.argv[2]
         skill = SkillContainer(skill_id, skill_directory)
+    elif os.environ.get("SKILL_ID"):
+        # allow launching without args if env var is set, might be useful for containers
+        skill_id = os.environ["SKILL_ID"]
+        skill = SkillContainer(skill_id)
     else:
         print("USAGE: ovos-skill-launcher {skill_id} [path/to/my/skill_id]")
         raise SystemExit(2)
@@ -642,3 +653,5 @@ def _launch_script():
     skill.run()
 
 
+if __name__ == "__main__":
+    _launch_script()
