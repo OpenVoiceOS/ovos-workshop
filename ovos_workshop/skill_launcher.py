@@ -549,11 +549,8 @@ class SkillContainer:
                 LOG.info("connected to core")
                 self.load_skill()
                 return
-            else:
-                LOG.warning("Skills service not yet ready. Waiting to load skill")
 
-            # wait and recheck with back-off
-            LOG.debug(f"waiting {t} seconds until next skill loading attempt")
+            LOG.warning(f"ovos-core not yet ready. Waiting {t} seconds until next skill loading attempt")
             threading.Event().wait(t)
             wait_for_core(min(60, t*2))
 
