@@ -543,14 +543,17 @@ class SkillContainer:
         def wait_for_core(t=1):
             LOG.debug("checking skills service status")
             response = self.bus.wait_for_response(
-                Message('mycroft.skills.is_ready',
-                        context={"source": self.skill_id, "destination": "skills"}))
-            if response is not None and response.data.get('status'):
+                Message(f'mycroft.skills.is_ready',
+                        context={"source": "workshop", "destination": "skills"}))
+            if response and response.data['status']:
                 LOG.info("connected to core")
                 self.load_skill()
                 return
+            else:
+                LOG.warning("Skills service not yet ready. Waiting to load skill")
 
-            LOG.warning(f"ovos-core not yet ready. Waiting {t} seconds until next skill loading attempt")
+            # wait and recheck with back-off
+            LOG.debug(f"waiting {t} seconds until next skill loading attempt")
             threading.Event().wait(t)
             wait_for_core(min(60, t*2))
 
