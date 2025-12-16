@@ -543,9 +543,9 @@ class SkillContainer:
         def wait_for_core(t=1):
             LOG.debug("checking skills service status")
             response = self.bus.wait_for_response(
-                Message(f'mycroft.skills.is_ready',
-                        context={"source": "workshop", "destination": "skills"}))
-            if response and response.data['status']:
+                Message('mycroft.skills.is_ready',
+                        context={"source": self.skill_id, "destination": "skills"}))
+            if response is not None and response.data.get('status'):
                 LOG.info("connected to core")
                 self.load_skill()
                 return
