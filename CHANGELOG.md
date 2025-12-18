@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a2) (2025-12-18)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a1...8.0.1a2)
+
+**Merged pull requests:**
+
+- chore: Configure Renovate [\#377](https://github.com/OpenVoiceOS/ovos-workshop/pull/377) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [8.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a1) (2025-12-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.0...8.0.1a1)
