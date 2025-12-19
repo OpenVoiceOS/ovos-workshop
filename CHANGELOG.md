@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a3) (2025-12-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a2...8.0.1a3)
+
+**Merged pull requests:**
+
+- chore\(deps\): update dependency python to 3.14 [\#378](https://github.com/OpenVoiceOS/ovos-workshop/pull/378) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [8.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a2) (2025-12-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a1...8.0.1a2)
