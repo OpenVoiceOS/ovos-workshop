@@ -37,7 +37,7 @@ jobs:
         pytest --cov=./ovos_workshop --cov-report xml test/unittests
         pytest --cov-append --cov=ovos_workshop --cov-report xml test/end2end
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         directory: ./coverage/reports/
