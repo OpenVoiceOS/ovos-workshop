@@ -1,5 +1,14 @@
 # Changelog
 
+## [8.0.1a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a4) (2025-12-27)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a3...8.0.1a4)
+
+**Merged pull requests:**
+
+- chore\(deps\): update actions/setup-python action to v6 [\#382](https://github.com/OpenVoiceOS/ovos-workshop/pull/382) ([renovate[bot]](https://github.com/apps/renovate))
+- chore\(deps\): update actions/checkout action to v6 [\#379](https://github.com/OpenVoiceOS/ovos-workshop/pull/379) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [8.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a3) (2025-12-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a2...8.0.1a3)
