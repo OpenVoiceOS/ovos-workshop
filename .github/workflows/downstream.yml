@@ -3,9 +3,7 @@ name: Track Downstream Dependencies
 on:
   push:
     branches: [dev]
-  schedule:
-    - cron: "0 0 * * *"  # Runs daily at midnight UTC
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:  
 
 env:
   TARGET_PACKAGE: "ovos-workshop"  # Set the package to track here
@@ -33,7 +31,7 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           pip install build wheel
-          pip install -r constraints-alpha.txt
+          pip install -r constraints-alpha.txt --no-deps
           pip install pipdeptree
 
       - name: Find downstream dependencies
