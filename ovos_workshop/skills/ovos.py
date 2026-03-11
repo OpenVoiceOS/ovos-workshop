@@ -594,7 +594,7 @@ class OVOSSkill:
                         self.intent_service.register_adapt_keyword(
                             vocab_type, entity, aliases, lang)
 
-    def load_regex_files(self, root_directory=None):
+    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
         """ Load regex files found under the skill directory."""
         root_directory = root_directory or self.res_dir
         for lang in self.native_langs:
@@ -605,7 +605,7 @@ class OVOSSkill:
                     self.intent_service.register_adapt_regex(regex, lang)
 
     def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None):
+                      lang: Optional[str] = None) -> Optional[str]:
         """
         Find a resource file.
 
@@ -638,7 +638,7 @@ class OVOSSkill:
                        f"'{lang}' not found in skill")
 
     # skill object setup
-    def _handle_first_run(self):
+    def _handle_first_run(self) -> None:
         """
         The very first time a skill is run, speak a provided intro_message.
         """
@@ -649,7 +649,7 @@ class OVOSSkill:
             # it is backwards compatible
             self.speak_dialog(intro)
 
-    def _check_for_first_run(self):
+    def _check_for_first_run(self) -> None:
         """
         Determine if this is the very first time a skill is run by looking for
         `__mycroft_skill_firstrun` in skill settings.
@@ -661,19 +661,19 @@ class OVOSSkill:
             self.settings["__mycroft_skill_firstrun"] = False
             self.settings.store()
 
-    def on_ready_status(self):
+    def on_ready_status(self) -> None:
         LOG.info(f'{self.skill_id} is ready.')
 
-    def on_error_status(self, e='Unknown'):
+    def on_error_status(self, e: str = 'Unknown') -> None:
         LOG.exception(f'{self.skill_id} initialization failed')
 
-    def on_stopping_status(self):
+    def on_stopping_status(self) -> None:
         LOG.info(f'{self.skill_id} is shutting down...')
 
-    def on_alive_status(self):
+    def on_alive_status(self) -> None:
         LOG.debug(f'{self.skill_id} is alive.')
 
-    def on_started_status(self):
+    def on_started_status(self) -> None:
         LOG.debug(f'{self.skill_id} started.')
 
     def _startup(self, bus: MessageBusClient, skill_id: str = ""):
@@ -805,7 +805,7 @@ class OVOSSkill:
         # account for isolated setups where skills might not share a filesystem with core
         return self.settings.get("monitor_own_settings", False)
 
-    def _handle_settings_changed(self, message):
+    def _handle_settings_changed(self, message: Message) -> None:
         """external signal to reload skill settings"""
         skill_id = message.data.get("skill_id", "")
         if skill_id == self.skill_id:
@@ -963,7 +963,7 @@ class OVOSSkill:
         try:
             answer, confidence = self._cq_handler(search_phrase, lang) or (None, 0)
             LOG.debug(f"Common QA {self.skill_id} result: {answer}")
-        except:
+        except Exception:
             LOG.exception(f"Failed to get answer from {self._cq_handler}")
 
         if answer and confidence >= 0.5:
@@ -1213,11 +1213,11 @@ class OVOSSkill:
                 if hasattr(intent_file, "build"):
                     try:
                         intent_file = intent_file.build()
-                    except:
-                        pass
+                    except Exception as e:
+                        LOG.warning(f"Failed to build intent {intent_file}: {e}")
                 try:
                     name = intent_file.name
-                except:
+                except AttributeError:
                     name = f'{self.skill_id}:{intent_file}'
 
             self.intent_layers.update_layer(layer_name, [name])
@@ -1447,8 +1447,8 @@ class OVOSSkill:
         if hasattr(intent_parser, "build"):
             try:
                 intent_parser = intent_parser.build()
-            except:
-                pass
+            except Exception as e:
+                LOG.warning(f"Failed to build intent parser {intent_parser}: {e}")
 
         # Default to the handler's function name if none given
         is_anonymous = not intent_parser.name
@@ -1598,7 +1598,7 @@ class OVOSSkill:
             sess.is_speaking = True
             SessionManager.wait_while_speaking(timeout, sess)
 
-    def __handle_get_response(self, message):
+    def __handle_get_response(self, message: Message) -> None:
         """
         Handle the response message to a previous get_response / speak call
         sent from the intent service
@@ -1806,7 +1806,7 @@ class OVOSSkill:
 
         return reprompt_speak
 
-    def _handle_killed_wait_response(self):
+    def _handle_killed_wait_response(self) -> None:
         """
         Handle "stop" request when getting a response.
         """

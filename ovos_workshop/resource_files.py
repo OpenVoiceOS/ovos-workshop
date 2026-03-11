@@ -86,7 +86,7 @@ def locate_lang_directories(lang: str, skill_directory: str,
                 if folder.is_dir():
                     try:
                         score = tag_distance(lang, folder.name)
-                    except:  # not a valid language code
+                    except Exception:  # not a valid language code
                         continue
                     # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
                     # 0 -> These codes represent the same language, possibly after filling in values and normalizing.

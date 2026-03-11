@@ -13,7 +13,7 @@
 # limitations under the License.
 import abc
 import operator
-from typing import Optional, List
+from typing import Callable, Optional, List
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
@@ -159,7 +159,7 @@ class FallbackSkill(OVOSSkill):
             data={"result": status, "fallback_handler": handler_name}))
         self.bus.emit(message.forward("ovos.utterance.handled"))
 
-    def register_fallback(self, handler: callable, priority: int):
+    def register_fallback(self, handler: Callable, priority: int) -> None:
         """
         Register a fallback handler and add a messagebus handler to call it on
         any fallback request.
