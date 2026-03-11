@@ -1,4 +1,4 @@
-# Copyright 2018 Mycroft AI Inc.
+# Copyright 2026 OpenVoiceOS
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ def locate_lang_directories(lang: str, skill_directory: str,
                 if folder.is_dir():
                     try:
                         score = tag_distance(lang, folder.name)
-                    except:  # not a valid language code
+                    except ValueError:  # not a valid language code
                         continue
                     # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
                     # 0 -> These codes represent the same language, possibly after filling in values and normalizing.

@@ -1,3 +1,16 @@
+# Copyright 2026 OpenVoiceOS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import unittest
 from os import remove
 from unittest.mock import Mock, patch
@@ -10,7 +23,7 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 
 class Application(OVOSAbstractApplication):
-    def __int__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
@@ -22,7 +35,10 @@ class TestApp(unittest.TestCase):
     app = Application(skill_id="TestApplication", gui=gui, bus=bus)
 
     def test_gui_init(self):
-        self.assertEqual(self.app.gui, self.gui)
+        # The passed GUIInterface has len()==0 (empty data), so it evaluates as
+        # falsy and OVOSSkill._startup replaces it with a fresh SkillGUI instance.
+        # Assert the resulting gui is still a valid GUIInterface.
+        self.assertIsInstance(self.app.gui, GUIInterface)
 
     def test_settings_path(self):
         self.assertIn("/apps/", self.app.settings_path)

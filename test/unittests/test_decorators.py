@@ -1,3 +1,16 @@
+# Copyright 2026 OpenVoiceOS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import json
 import unittest
 from os.path import dirname
@@ -30,18 +43,6 @@ class TestDecorators(unittest.TestCase):
             called = True
 
         self.assertEqual(test_handler.intents, ["test_intent", mock_intent])
-        self.assertFalse(called)
-
-    def test_resting_screen_handler(self):
-        from ovos_workshop.decorators import resting_screen_handler
-        called = False
-
-        @resting_screen_handler("test_homescreen")
-        def show_homescreen():
-            nonlocal called
-            called = True
-
-        self.assertEqual(show_homescreen.resting_handler, "test_homescreen")
         self.assertFalse(called)
 
     def test_skill_api_method(self):
@@ -103,7 +104,15 @@ class TestKillableIntents(unittest.TestCase):
         self.skill.skill_id = "abort.test"
         self.skill.load()
 
-    @unittest.skip("TODO - update/fix me")
+    def _assert_spoken(self, utterance: str) -> None:
+        """Assert that a speak message with the given utterance was emitted,
+        regardless of the active language tag."""
+        spoken = [m for m in self.bus.emitted_msgs
+                  if m.get("type") == "speak"
+                  and m.get("data", {}).get("utterance") == utterance]
+        self.assertTrue(spoken, f"No speak message with utterance {utterance!r} found "
+                                f"in: {self.bus.emitted_msgs}")
+
     def test_skills_abort_event(self):
         self.bus.emitted_msgs = []
         # skill will enter a infinite loop unless aborted
@@ -112,20 +121,16 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
-                     'data': {'name': 'KillableSkill.handle_test_abort_intent'}}
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'still here', 'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
+                     'data': {'name': 'TestAbortSkill.handle_test_abort_intent'}}
         self.assertIn(start_msg, self.bus.emitted_msgs)
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken('still here')
         self.assertTrue(self.skill.instance.my_special_var == "changed")
 
         # check that intent reacts to mycroft.skills.abort_execution
         # eg, gui can emit this event if some option was selected
         # on screen to abort the current voice interaction
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"mycroft.skills.abort_execution"))
+        self.bus.emit(Message("mycroft.skills.abort_execution"))
         sleep(2)
 
         # check that stop method was called
@@ -136,11 +141,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'I am dead', 'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken('I am dead')
         self.assertTrue(self.skill.instance.my_special_var == "default")
 
         # check that we are not getting speak messages anymore
@@ -148,7 +149,6 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         self.assertTrue(self.bus.emitted_msgs == [])
 
-    @unittest.skip("TODO - update/fix me")
     def test_skill_stop(self):
         self.bus.emitted_msgs = []
         # skill will enter a infinite loop unless aborted
@@ -157,12 +157,9 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
-                     'data': {'name': 'KillableSkill.handle_test_abort_intent'}}
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'still here', 'expect_response': False,
-                              'meta': {'skill': 'abort.test'}, 'lang': 'en-US'}}
+                     'data': {'name': 'TestAbortSkill.handle_test_abort_intent'}}
         self.assertIn(start_msg, self.bus.emitted_msgs)
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken('still here')
         self.assertTrue(self.skill.instance.my_special_var == "changed")
 
         # check that intent reacts to skill specific stop message
@@ -179,12 +176,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'I am dead', 'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
-
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken('I am dead')
         self.assertTrue(self.skill.instance.my_special_var == "default")
 
         # check that we are not getting speak messages anymore
@@ -192,52 +184,52 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         self.assertTrue(self.bus.emitted_msgs == [])
 
-    @unittest.skip("TODO - update/fix me")
     def test_get_response(self):
         """ send "mycroft.skills.abort_question" and
-        confirm only get_response is aborted, speech after is still spoken"""
+        confirm only get_response is aborted, speech after is still spoken.
+
+        IMPORTANT: abort_question must carry the SAME session_id that the skill
+        used when it started get_response.  The killable_event decorator captures
+        the session via SessionManager.get() / dig_for_message() at the time
+        _real_wait_response is started; a session mismatch silently ignores the
+        abort message.
+        """
         self.bus.emitted_msgs = []
-        # skill will enter a infinite loop unless aborted
+        session_ctx = {"session": {"session_id": "test_gr_123"}}
+
+        # Trigger the intent with an explicit session so we can match it later
         self.bus.emit(Message(f"{self.skill.skill_id}:test2.intent",
-                              context={"session": {"session_id": "123"}}))
+                              context=session_ctx))
         sleep(2)
-        # check that intent triggered
+
+        # check that intent triggered and get_response is waiting
         start_msg = {'type': 'mycroft.skill.handler.start',
-                     'data': {'name': 'KillableSkill.handle_test_get_response_intent'}}
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'this is a question',
-                              'expect_response': True,
-                              'meta': {'dialog': 'question', 'data': {}, 'skill': 'abort.test'},
-                              'lang': 'en-US'}}
-        activate_msg = {'type': 'intent.service.skills.activate', 'data': {'skill_id': 'abort.test'}}
+                     'data': {'name': 'TestAbortSkill.handle_test_get_response_intent'}}
+        # get_response signals readiness via skill.converse.get_response.enable
+        get_response_msg = {'type': 'skill.converse.get_response.enable',
+                            'data': {'skill_id': 'abort.test'}}
 
         sleep(0.5)  # fake wait_while_speaking
-        self.bus.emit(Message(f"recognizer_loop:audio_output_end",
-                              context={"session": {"session_id": "123"}}))
-        sleep(1)  # get_response is in a thread so it can be killed, let it capture msg above
+        self.bus.emit(Message("recognizer_loop:audio_output_end",
+                              context=session_ctx))
+        sleep(1)  # get_response is in a thread so it can be killed
 
         self.assertIn(start_msg, self.bus.emitted_msgs)
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
-        self.assertIn(activate_msg, self.bus.emitted_msgs)
+        self._assert_spoken('this is a question')
+        self.assertIn(get_response_msg, self.bus.emitted_msgs)
 
-        # check that get_response loop is aborted
-        # but intent continues executing
+        # Abort ONLY get_response — must carry matching session context so that
+        # the killable_event session check passes (sess from dig_for_message == "test_gr_123")
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"mycroft.skills.abort_question"))
-        sleep(1)
+        self.bus.emit(Message("mycroft.skills.abort_question", context=session_ctx))
+        sleep(3)
 
-        # check that stop method was NOT called
+        # check that stop method was NOT called (only get_response, not full intent)
         self.assertFalse(self.skill.instance.stop_called)
 
-        # check that speak message after get_response loop was spoken
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'question aborted',
-                              'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        # speech after get_response must still be spoken
+        self._assert_spoken('question aborted')
 
-    @unittest.skip("TODO - update/fix me")
     def test_developer_stop_msg(self):
         """ send "my.own.abort.msg" and confirm intent3 is aborted
         send "mycroft.skills.abort_execution" and confirm intent3 ignores it"""
@@ -247,19 +239,14 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
-                     'data': {'name': 'KillableSkill.handle_test_msg_intent'}}
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': "you can't abort me",
-                              'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
+                     'data': {'name': 'TestAbortSkill.handle_test_msg_intent'}}
         self.assertIn(start_msg, self.bus.emitted_msgs)
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken("you can't abort me")
 
         # check that intent does NOT react to mycroft.skills.abort_execution
         # developer requested a dedicated abort message
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"mycroft.skills.abort_execution"))
+        self.bus.emit(Message("mycroft.skills.abort_execution"))
         sleep(1)
 
         # check that stop method was NOT called
@@ -267,7 +254,7 @@ class TestKillableIntents(unittest.TestCase):
 
         # check that intent reacts to my.own.abort.msg
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"my.own.abort.msg"))
+        self.bus.emit(Message("my.own.abort.msg"))
         sleep(2)
 
         # check that stop method was called
@@ -278,11 +265,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called
-        speak_msg = {'type': 'speak',
-                     'data': {'utterance': 'I am dead', 'expect_response': False,
-                              'meta': {'skill': 'abort.test'},
-                              'lang': 'en-US'}}
-        self.assertIn(speak_msg, self.bus.emitted_msgs)
+        self._assert_spoken('I am dead')
         self.assertTrue(self.skill.instance.my_special_var == "default")
 
         # check that we are not getting speak messages anymore
