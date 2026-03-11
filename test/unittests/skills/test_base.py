@@ -238,14 +238,6 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
-    def test_handle_collect_resting(self):
-        # TODO
-        pass
-
-    def test_register_resting_screen(self):
-        # TODO
-        pass
-
     def test_register_decorated(self):
         # TODO
         pass

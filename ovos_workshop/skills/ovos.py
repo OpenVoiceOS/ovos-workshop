@@ -24,7 +24,7 @@ from ovos_yes_no_solver import YesNoSolver
 
 from ovos_bus_client import MessageBusClient
 from ovos_bus_client.apis.enclosure import EnclosureAPI
-from ovos_bus_client.apis.gui import GUIInterface
+from ovos_gui_api_client import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
@@ -35,7 +35,6 @@ from ovos_utils.dialog import MustacheDialogRenderer
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
-from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
@@ -720,7 +719,6 @@ class OVOSSkill:
             self._register_skill_json()
             self._register_decorated()
             self._register_app_launcher()
-            self.register_resting_screen()
 
             self.status.set_started()
             # run skill developer initialization code
@@ -818,7 +816,6 @@ class OVOSSkill:
         Set up the SkillGUI for this skill and connect relevant bus events.
         """
         self.gui = SkillGUI(self)
-        self.gui.setup_default_handlers()
 
     def register_homescreen_app(self, icon: str, name: str, event: str):
         """the icon file MUST be located under 'gui' subfolder"""
@@ -840,44 +837,6 @@ class OVOSSkill:
                                "icon": shared_path,
                                "name": name,
                                "event": event}))
-
-    def register_resting_screen(self):
-        """
-        Registers resting screen from the resting_screen_handler decorator.
-
-        This only allows one screen and if two is registered only one
-        will be used.
-        """
-        for attr_name in get_non_properties(self):
-            handler = getattr(self, attr_name)
-            if hasattr(handler, 'resting_handler'):
-                resting_name = handler.resting_handler
-                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
-
-                def register(message=None, name=resting_name):
-                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
-                    self.bus.emit(Message("homescreen.manager.add",
-                                          {"name": name, "id": self.skill_id}))
-
-                register()  # initial registering
-
-                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
-
-                def wrapper(message, cb=handler):
-                    if message.data["homescreen_id"] == self.skill_id:
-                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
-                        cb(message)
-
-                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
-
-                def shutdown_handler(message):
-                    if message.data["id"] == self.skill_id:
-                        msg = message.forward("homescreen.manager.remove",
-                                              {"id": self.skill_id})
-                        self.bus.emit(msg)
-
-                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
-                break  # TODO - if multiple decorators are used what do? this is not deterministic
 
     def _start_filewatcher(self):
         """
@@ -1204,7 +1163,7 @@ class OVOSSkill:
 
         try:
             # Clear skill from gui
-            if self.gui:
+            if self.gui is not None:
                 self.gui.shutdown()
         except Exception as e:
             self.log.error(f"Failed to shutdown gui for {self.skill_id}: {e}")
@@ -2391,12 +2350,9 @@ class SkillGUI(GUIInterface):
         Wraps `GUIInterface` for use with a skill.
         """
         self._skill = skill
-        skill_id = skill.skill_id
-        bus = skill.bus
-        config = skill.config_core.get('gui')
-        ui_directories = get_ui_directories(skill.root_dir)
-        GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config,
-                              ui_directories=ui_directories)
+        GUIInterface.__init__(self, skill_id=skill.skill_id,
+                              bus=skill.bus,
+                              config=skill.config_core.get('gui'))
 
 
 def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:

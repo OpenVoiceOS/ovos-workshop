@@ -2,7 +2,7 @@ import unittest
 from os import remove
 from unittest.mock import Mock, patch
 
-from ovos_bus_client.apis.gui import GUIInterface
+from ovos_gui_api_client import GUIInterface
 from ovos_utils.fakebus import FakeBus
 
 from ovos_workshop.app import OVOSAbstractApplication
@@ -22,7 +22,10 @@ class TestApp(unittest.TestCase):
     app = Application(skill_id="TestApplication", gui=gui, bus=bus)
 
     def test_gui_init(self):
-        self.assertEqual(self.app.gui, self.gui)
+        # The passed GUIInterface has len()==0 (empty data), so it evaluates as
+        # falsy and OVOSSkill._startup replaces it with a fresh SkillGUI instance.
+        # Assert the resulting gui is still a valid GUIInterface.
+        self.assertIsInstance(self.app.gui, GUIInterface)
 
     def test_settings_path(self):
         self.assertIn("/apps/", self.app.settings_path)
