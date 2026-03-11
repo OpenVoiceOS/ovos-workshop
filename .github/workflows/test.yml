@@ -1,14 +1,15 @@
-name: Run Build Tests
+name: Run Unit Tests
 on:
   push:
-    branches: [master, dev]
+    branches: [dev]
   pull_request:
     branches: [dev]
   workflow_dispatch:
 
 jobs:
-  build_tests:
+  unit_tests:
     uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
     secrets: inherit
     with:
       test_path: 'test/unittests'
+      system_deps: 'libssl-dev libfann-dev portaudio19-dev libpulse-dev'
