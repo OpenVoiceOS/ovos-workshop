@@ -1,0 +1,14 @@
+name: Run Build Tests
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  build_tests:
+    uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
+    secrets: inherit
+    with:
+      test_path: 'test/unittests'
