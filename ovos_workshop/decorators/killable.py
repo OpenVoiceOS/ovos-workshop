@@ -59,7 +59,17 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
         @wraps(func)
         def call_function(*args, **kwargs):
             skill = args[0]
-            t = create_killable_daemon(func, args, kwargs, autostart=False)
+
+            # Wrap func so AbortEvent exits the thread cleanly rather than
+            # propagating as an unhandled thread exception (which pytest ≥3.11
+            # treats as a test failure via its threadexception plugin).
+            def _guarded(*a, **kw):
+                try:
+                    func(*a, **kw)
+                except AbortEvent:
+                    pass  # intentional kill — not an error
+
+            t = create_killable_daemon(_guarded, args, kwargs, autostart=False)
             sess = SessionManager.get()
 
             def abort(m: Message):
