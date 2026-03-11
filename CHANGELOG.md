@@ -1,5 +1,14 @@
 # Changelog
 
+## [8.0.1a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a5) (2026-03-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a4...8.0.1a5)
+
+**Merged pull requests:**
+
+- Tests docs automations [\#386](https://github.com/OpenVoiceOS/ovos-workshop/pull/386) ([JarbasAl](https://github.com/JarbasAl))
+- Add French workshop locale resources [\#385](https://github.com/OpenVoiceOS/ovos-workshop/pull/385) ([goldyfruit](https://github.com/goldyfruit))
+
 ## [8.0.1a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a4) (2025-12-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a3...8.0.1a4)
