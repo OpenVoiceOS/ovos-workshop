@@ -23,7 +23,7 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 
 class Application(OVOSAbstractApplication):
-    def __int__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 

@@ -74,6 +74,7 @@ class TestIntentLayers(unittest.TestCase):
         layers = self._make_layers()
         # Should not raise — just logs debug
         layers.activate_layer("nonexistent")
+        self.assertFalse(layers.is_active("nonexistent"))
 
     def test_deactivate_layer_marks_inactive(self) -> None:
         layers = self._make_layers("test.skill")

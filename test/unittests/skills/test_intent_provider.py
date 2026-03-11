@@ -22,9 +22,13 @@ class TestBaseIntentEngine(unittest.TestCase):
 
     def test_import_raises_deprecation_warning(self) -> None:
         """Importing intent_provider emits DeprecationWarning (module-level)."""
-        # The module may already be cached; verify the warning was issued by
-        # checking that the module is importable and contains expected classes.
-        import ovos_workshop.skills.intent_provider as ip
+        import sys
+        # Remove from cache so the module-level warning fires again
+        sys.modules.pop("ovos_workshop.skills.intent_provider", None)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            import ovos_workshop.skills.intent_provider as ip  # noqa: F401
+        self.assertTrue(any(issubclass(w.category, DeprecationWarning) for w in caught))
         self.assertTrue(hasattr(ip, "BaseIntentEngine"))
         self.assertTrue(hasattr(ip, "IntentEngineSkill"))
 

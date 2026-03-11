@@ -50,7 +50,7 @@ class TestConversationalSkillInit(unittest.TestCase):
 
     def test_converse_matchers_initialized(self) -> None:
         """converse_matchers attribute is initialized as empty dict."""
-        self.assertIsInstance(self.skill.converse_matchers, dict)
+        self.assertEqual(self.skill.converse_matchers, {})
 
     def test_skill_id_set(self) -> None:
         self.assertEqual(self.skill.skill_id, "converse.test")

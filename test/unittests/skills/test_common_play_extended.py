@@ -44,14 +44,22 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
 
     def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
+        self._orig_config_home = os.environ.get("XDG_CONFIG_HOME")
+        self._orig_cache_home = os.environ.get("XDG_CACHE_HOME")
         os.environ["XDG_CONFIG_HOME"] = self.tmp
         os.environ["XDG_CACHE_HOME"] = self.tmp
         self.bus = FakeBus()
         self.skill = _SimplePlaybackSkill.get(self.bus)
 
     def tearDown(self) -> None:
-        os.environ.pop("XDG_CONFIG_HOME", None)
-        os.environ.pop("XDG_CACHE_HOME", None)
+        if self._orig_config_home is not None:
+            os.environ["XDG_CONFIG_HOME"] = self._orig_config_home
+        else:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        if self._orig_cache_home is not None:
+            os.environ["XDG_CACHE_HOME"] = self._orig_cache_home
+        else:
+            os.environ.pop("XDG_CACHE_HOME", None)
 
     def test_skill_instantiates(self) -> None:
         from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill
@@ -65,10 +73,10 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
         self.assertIsInstance(self.skill.skill_aliases, list)
 
     def test_ocp_cache_dir_property(self) -> None:
-        """ocp_cache_dir returns a path string ending with /OCP."""
+        """ocp_cache_dir returns a path string whose final component is OCP."""
         cache_dir = self.skill.ocp_cache_dir
         self.assertIsInstance(cache_dir, str)
-        self.assertTrue(cache_dir.endswith("/OCP") or "OCP" in cache_dir)
+        self.assertEqual(os.path.basename(cache_dir), "OCP")
 
     def test_ocp_cache_dir_created(self) -> None:
         """ocp_cache_dir creates the directory on access."""
@@ -95,6 +103,7 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
         initial_count = len(self.skill.supported_media)
         self.skill.register_media_type(MediaType.VIDEO)
         self.assertIn(MediaType.VIDEO, self.skill.supported_media)
+        self.assertEqual(len(self.skill.supported_media), initial_count + 1)
 
     def test_ocp_voc_match_no_matchers(self) -> None:
         """ocp_voc_match returns empty dict when no matchers registered."""

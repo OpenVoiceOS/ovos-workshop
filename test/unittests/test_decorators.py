@@ -130,7 +130,7 @@ class TestKillableIntents(unittest.TestCase):
         # eg, gui can emit this event if some option was selected
         # on screen to abort the current voice interaction
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"mycroft.skills.abort_execution"))
+        self.bus.emit(Message("mycroft.skills.abort_execution"))
         sleep(2)
 
         # check that stop method was called
@@ -246,7 +246,7 @@ class TestKillableIntents(unittest.TestCase):
         # check that intent does NOT react to mycroft.skills.abort_execution
         # developer requested a dedicated abort message
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"mycroft.skills.abort_execution"))
+        self.bus.emit(Message("mycroft.skills.abort_execution"))
         sleep(1)
 
         # check that stop method was NOT called
@@ -254,7 +254,7 @@ class TestKillableIntents(unittest.TestCase):
 
         # check that intent reacts to my.own.abort.msg
         self.bus.emitted_msgs = []
-        self.bus.emit(Message(f"my.own.abort.msg"))
+        self.bus.emit(Message("my.own.abort.msg"))
         sleep(2)
 
         # check that stop method was called
