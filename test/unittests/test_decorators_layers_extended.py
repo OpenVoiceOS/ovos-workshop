@@ -13,7 +13,7 @@
 # limitations under the License.
 """Extended tests for ovos_workshop/decorators/layers.py — IntentLayers and decorators."""
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestIntentLayers(unittest.TestCase):

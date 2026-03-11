@@ -13,6 +13,7 @@
 # limitations under the License.
 """Extended tests for ovos_workshop/resource_files.py."""
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,6 +28,10 @@ class TestLocateLangDirectories(unittest.TestCase):
         locale_dir = Path(self.tmp, "locale", "en-us")
         locale_dir.mkdir(parents=True)
         (locale_dir / "hello.dialog").write_text("hello\n")
+
+    def tearDown(self) -> None:
+        if self.tmp and os.path.exists(self.tmp):
+            shutil.rmtree(self.tmp)
 
     def test_finds_exact_lang_match(self) -> None:
         from ovos_workshop.resource_files import locate_lang_directories
@@ -53,6 +58,10 @@ class TestLocateBaseDirectories(unittest.TestCase):
         locale_dir = Path(self.tmp, "locale")
         locale_dir.mkdir(parents=True)
 
+    def tearDown(self) -> None:
+        if self.tmp and os.path.exists(self.tmp):
+            shutil.rmtree(self.tmp)
+
     def test_finds_locale_dir(self) -> None:
         from ovos_workshop.resource_files import locate_base_directories
         dirs = locate_base_directories(self.tmp)
@@ -61,8 +70,12 @@ class TestLocateBaseDirectories(unittest.TestCase):
     def test_no_crash_when_no_dirs(self) -> None:
         from ovos_workshop.resource_files import locate_base_directories
         # no locale dir — should return empty list
-        dirs = locate_base_directories(tempfile.mkdtemp())
-        self.assertIsInstance(dirs, list)
+        tmp = tempfile.mkdtemp()
+        try:
+            dirs = locate_base_directories(tmp)
+            self.assertIsInstance(dirs, list)
+        finally:
+            shutil.rmtree(tmp)
 
 
 class TestResourceType(unittest.TestCase):
@@ -94,14 +107,21 @@ class TestResourceType(unittest.TestCase):
         from ovos_workshop.resource_files import ResourceType
         rt = ResourceType("dialog", ".dialog")  # no language
         tmp = tempfile.mkdtemp()
-        rt.locate_base_directory(tmp)
-        # Should not raise; base_directory may be None if no dir found
+        try:
+            rt.locate_base_directory(tmp)
+            # Should not raise; base_directory may be None if no dir found
+        finally:
+            shutil.rmtree(tmp)
 
     def test_locate_lang_directories_empty_without_language(self) -> None:
         from ovos_workshop.resource_files import ResourceType
         rt = ResourceType("dialog", ".dialog")  # no language
-        result = rt.locate_lang_directories(tempfile.mkdtemp())
-        self.assertEqual(result, [])
+        tmp = tempfile.mkdtemp()
+        try:
+            result = rt.locate_lang_directories(tmp)
+            self.assertEqual(result, [])
+        finally:
+            shutil.rmtree(tmp)
 
 
 class TestSkillResources(unittest.TestCase):
@@ -114,6 +134,10 @@ class TestSkillResources(unittest.TestCase):
         locale_dir.mkdir(parents=True)
         (locale_dir / "hello.dialog").write_text("Hello world\nHi there\n")
         (locale_dir / "greet.voc").write_text("hello\nhi\n")
+
+    def tearDown(self) -> None:
+        if self.tmp and os.path.exists(self.tmp):
+            shutil.rmtree(self.tmp)
 
     def test_instantiation(self) -> None:
         from ovos_workshop.resource_files import SkillResources
@@ -164,6 +188,10 @@ class TestDialogFile(unittest.TestCase):
         locale_dir = Path(self.tmp, "locale", "en-us")
         locale_dir.mkdir(parents=True)
         (locale_dir / "test.dialog").write_text("Hello {name}\nHi there\n")
+
+    def tearDown(self) -> None:
+        if self.tmp and os.path.exists(self.tmp):
+            shutil.rmtree(self.tmp)
 
     def test_load_without_data(self) -> None:
         from ovos_workshop.resource_files import DialogFile, SkillResources

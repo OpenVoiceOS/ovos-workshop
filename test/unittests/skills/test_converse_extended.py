@@ -14,7 +14,7 @@
 """Extended tests for ovos_workshop/skills/converse.py — ConversationalSkill."""
 import json
 import unittest
-from unittest.mock import patch
+
 
 from ovos_bus_client.message import Message
 from ovos_utils.fakebus import FakeBus
@@ -46,7 +46,6 @@ class TestConversationalSkillInit(unittest.TestCase):
         self.skill = _ConcreteConversationalSkill(skill_id="converse.test", bus=self.bus)
 
     def test_is_conversational_skill(self) -> None:
-        from ovos_workshop.skills.converse import ConversationalSkill
         self.assertIsInstance(self.skill, ConversationalSkill)
 
     def test_converse_matchers_initialized(self) -> None:
