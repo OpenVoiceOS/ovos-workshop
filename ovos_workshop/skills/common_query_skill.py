@@ -174,7 +174,7 @@ class CommonQuerySkill(OVOSSkill):
         """
         try:
             result = self.CQS_match_query_phrase(search_phrase)
-        except Exception:
+        except:
             LOG.exception(f"error matching {search_phrase} with {self.skill_id}")
             result = None
         return result

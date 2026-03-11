@@ -24,7 +24,7 @@ from ovos_yes_no_solver import YesNoSolver
 
 from ovos_bus_client import MessageBusClient
 from ovos_bus_client.apis.enclosure import EnclosureAPI
-from ovos_gui_api_client import GUIInterface
+from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
@@ -35,6 +35,7 @@ from ovos_utils.dialog import MustacheDialogRenderer
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
+from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
@@ -594,7 +595,7 @@ class OVOSSkill:
                         self.intent_service.register_adapt_keyword(
                             vocab_type, entity, aliases, lang)
 
-    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
+    def load_regex_files(self, root_directory=None):
         """ Load regex files found under the skill directory."""
         root_directory = root_directory or self.res_dir
         for lang in self.native_langs:
@@ -605,7 +606,7 @@ class OVOSSkill:
                     self.intent_service.register_adapt_regex(regex, lang)
 
     def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None) -> Optional[str]:
+                      lang: Optional[str] = None):
         """
         Find a resource file.
 
@@ -638,7 +639,7 @@ class OVOSSkill:
                        f"'{lang}' not found in skill")
 
     # skill object setup
-    def _handle_first_run(self) -> None:
+    def _handle_first_run(self):
         """
         The very first time a skill is run, speak a provided intro_message.
         """
@@ -649,7 +650,7 @@ class OVOSSkill:
             # it is backwards compatible
             self.speak_dialog(intro)
 
-    def _check_for_first_run(self) -> None:
+    def _check_for_first_run(self):
         """
         Determine if this is the very first time a skill is run by looking for
         `__mycroft_skill_firstrun` in skill settings.
@@ -661,19 +662,19 @@ class OVOSSkill:
             self.settings["__mycroft_skill_firstrun"] = False
             self.settings.store()
 
-    def on_ready_status(self) -> None:
+    def on_ready_status(self):
         LOG.info(f'{self.skill_id} is ready.')
 
-    def on_error_status(self, e: str = 'Unknown') -> None:
+    def on_error_status(self, e='Unknown'):
         LOG.exception(f'{self.skill_id} initialization failed')
 
-    def on_stopping_status(self) -> None:
+    def on_stopping_status(self):
         LOG.info(f'{self.skill_id} is shutting down...')
 
-    def on_alive_status(self) -> None:
+    def on_alive_status(self):
         LOG.debug(f'{self.skill_id} is alive.')
 
-    def on_started_status(self) -> None:
+    def on_started_status(self):
         LOG.debug(f'{self.skill_id} started.')
 
     def _startup(self, bus: MessageBusClient, skill_id: str = ""):
@@ -719,6 +720,7 @@ class OVOSSkill:
             self._register_skill_json()
             self._register_decorated()
             self._register_app_launcher()
+            self.register_resting_screen()
 
             self.status.set_started()
             # run skill developer initialization code
@@ -805,7 +807,7 @@ class OVOSSkill:
         # account for isolated setups where skills might not share a filesystem with core
         return self.settings.get("monitor_own_settings", False)
 
-    def _handle_settings_changed(self, message: Message) -> None:
+    def _handle_settings_changed(self, message):
         """external signal to reload skill settings"""
         skill_id = message.data.get("skill_id", "")
         if skill_id == self.skill_id:
@@ -816,6 +818,7 @@ class OVOSSkill:
         Set up the SkillGUI for this skill and connect relevant bus events.
         """
         self.gui = SkillGUI(self)
+        self.gui.setup_default_handlers()
 
     def register_homescreen_app(self, icon: str, name: str, event: str):
         """the icon file MUST be located under 'gui' subfolder"""
@@ -837,6 +840,44 @@ class OVOSSkill:
                                "icon": shared_path,
                                "name": name,
                                "event": event}))
+
+    def register_resting_screen(self):
+        """
+        Registers resting screen from the resting_screen_handler decorator.
+
+        This only allows one screen and if two is registered only one
+        will be used.
+        """
+        for attr_name in get_non_properties(self):
+            handler = getattr(self, attr_name)
+            if hasattr(handler, 'resting_handler'):
+                resting_name = handler.resting_handler
+                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
+
+                def register(message=None, name=resting_name):
+                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
+                    self.bus.emit(Message("homescreen.manager.add",
+                                          {"name": name, "id": self.skill_id}))
+
+                register()  # initial registering
+
+                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
+
+                def wrapper(message, cb=handler):
+                    if message.data["homescreen_id"] == self.skill_id:
+                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
+                        cb(message)
+
+                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
+
+                def shutdown_handler(message):
+                    if message.data["id"] == self.skill_id:
+                        msg = message.forward("homescreen.manager.remove",
+                                              {"id": self.skill_id})
+                        self.bus.emit(msg)
+
+                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
+                break  # TODO - if multiple decorators are used what do? this is not deterministic
 
     def _start_filewatcher(self):
         """
@@ -963,7 +1004,7 @@ class OVOSSkill:
         try:
             answer, confidence = self._cq_handler(search_phrase, lang) or (None, 0)
             LOG.debug(f"Common QA {self.skill_id} result: {answer}")
-        except Exception:
+        except:
             LOG.exception(f"Failed to get answer from {self._cq_handler}")
 
         if answer and confidence >= 0.5:
@@ -1163,7 +1204,7 @@ class OVOSSkill:
 
         try:
             # Clear skill from gui
-            if self.gui is not None:
+            if self.gui:
                 self.gui.shutdown()
         except Exception as e:
             self.log.error(f"Failed to shutdown gui for {self.skill_id}: {e}")
@@ -1213,11 +1254,11 @@ class OVOSSkill:
                 if hasattr(intent_file, "build"):
                     try:
                         intent_file = intent_file.build()
-                    except Exception as e:
-                        LOG.warning(f"Failed to build intent {intent_file}: {e}")
+                    except:
+                        pass
                 try:
                     name = intent_file.name
-                except AttributeError:
+                except:
                     name = f'{self.skill_id}:{intent_file}'
 
             self.intent_layers.update_layer(layer_name, [name])
@@ -1447,8 +1488,8 @@ class OVOSSkill:
         if hasattr(intent_parser, "build"):
             try:
                 intent_parser = intent_parser.build()
-            except Exception as e:
-                LOG.warning(f"Failed to build intent parser {intent_parser}: {e}")
+            except:
+                pass
 
         # Default to the handler's function name if none given
         is_anonymous = not intent_parser.name
@@ -1598,7 +1639,7 @@ class OVOSSkill:
             sess.is_speaking = True
             SessionManager.wait_while_speaking(timeout, sess)
 
-    def __handle_get_response(self, message: Message) -> None:
+    def __handle_get_response(self, message):
         """
         Handle the response message to a previous get_response / speak call
         sent from the intent service
@@ -1806,7 +1847,7 @@ class OVOSSkill:
 
         return reprompt_speak
 
-    def _handle_killed_wait_response(self) -> None:
+    def _handle_killed_wait_response(self):
         """
         Handle "stop" request when getting a response.
         """
@@ -2350,9 +2391,12 @@ class SkillGUI(GUIInterface):
         Wraps `GUIInterface` for use with a skill.
         """
         self._skill = skill
-        GUIInterface.__init__(self, skill_id=skill.skill_id,
-                              bus=skill.bus,
-                              config=skill.config_core.get('gui'))
+        skill_id = skill.skill_id
+        bus = skill.bus
+        config = skill.config_core.get('gui')
+        ui_directories = get_ui_directories(skill.root_dir)
+        GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config,
+                              ui_directories=ui_directories)
 
 
 def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
