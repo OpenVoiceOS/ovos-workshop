@@ -15,7 +15,7 @@ pip install ovos-workshop
 For development (editable install):
 
 ```bash
-uv pip install -e ovos-workshop/
+uv pip install -e .
 ```
 
 ---
@@ -29,7 +29,7 @@ Open an issue on the GitHub repository. Ensure you are targeting the `dev` branc
 ## How do I run tests?
 
 ```bash
-uv run pytest ovos-workshop/test/ --cov=ovos_workshop
+uv run pytest test/ --cov=ovos_workshop
 ```
 
 ---

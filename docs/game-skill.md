@@ -8,7 +8,7 @@
 
 ## Class Hierarchy
 
-```
+```text
 OVOSSkill
 └── OVOSCommonPlaybackSkill
     └── OVOSGameSkill                  # abstract — OCP-integrated game loop
