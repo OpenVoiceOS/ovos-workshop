@@ -4,20 +4,17 @@
 
 ### Changes
 - Reverted accidental GUI client refactor that introduced dependency on unpublished `ovos-gui-api-client`.
-- Restored `GUIInterface` imports from `ovos_bus_client`.
+- Restored `GUIInterface` imports from `ovos_bus_client` in `ovos_workshop/app.py`, `ovos_workshop/skills/ovos.py` and `test/unittests/test_abstract_app.py`.
 - Restored `IdleDisplaySkill` implementation and related decorators.
 - Completed migration to `pyproject.toml` (without `ovos-gui-api-client`).
+- Applied Apache 2.0 license headers with "Copyright 2026 OpenVoiceOS" to all files added or modified in this PR.
 
 ### AI Transparency Report
 - **AI Model**: Gemini 2.0 Flash
-- **Actions Taken**: Reverted code changes in `ovos_workshop/` but kept the `pyproject.toml` migration (manually removing the unpublished dependency).
-- **Oversight**: Verified that `ovos_bus_client` is used for GUI and unpublished packages are removed.
+- **Actions Taken**: Reverted code changes in `ovos_workshop/` and tests but kept the `pyproject.toml` migration (manually removing the unpublished dependency). Batch updated license headers.
+- **Oversight**: Verified that `ovos_bus_client` is used for GUI and unpublished packages are removed. Verified headers in source files.
 
 ---
 
 ## [2026-03-10] — Comprehensive documentation expansion
-
-### Changes
-- Created `docs/app.md` — full reference for `OVOSAbstractApplication` with source citations, `_dedicated_bus`, `settings_path`, `default_shutdown`, `get_language_dir`, `clear_intents`, and a minimal code example.
-- Created `docs/game-skill.md` — full reference for `OVOSGameSkill` and `ConversationalGameSkill` including all abstract methods, properties (`is_playing`, `is_paused`), `stop_game()`, `calc_intent()`, auto-save behaviour, and a complete example.
 ...
