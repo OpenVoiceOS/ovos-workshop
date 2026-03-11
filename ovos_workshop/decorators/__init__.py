@@ -74,23 +74,6 @@ def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = N
     return real_decorator
 
 
-def resting_screen_handler(name: str):
-    """
-    Decorator for adding a method as a resting screen handler to optionally
-    be shown on screen when device enters idle mode.
-    @param name: Name of the restring screen to register
-    """
-
-    def real_decorator(func):
-        # Store the resting information inside the function
-        # This will be used later in register_resting_screen
-        if not hasattr(func, 'resting_handler'):
-            func.resting_handler = name
-        return func
-
-    return real_decorator
-
-
 def skill_api_method(func: callable):
     """
     Decorator for adding a method to the skill's public api. Methods with this

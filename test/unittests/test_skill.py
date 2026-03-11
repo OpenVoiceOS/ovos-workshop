@@ -107,34 +107,6 @@ class TestSkill(unittest.TestCase):
         for event in converse_ovos:
             self.assertTrue(event in registered_events)
 
-    @unittest.skip("Mocks are causing issues, rewrite test")
-    def test_stop(self):
-        # TODO - someone figure this one out
-        # 2025-01-09 19:17:20.473 - abort.test - ERROR - Type is not JSON serializable: Mock
-        # Traceback (most recent call last):
-        #   File "/home/miro/PycharmProjects/OVOS/ovos-utils/ovos_utils/events.py", line 78, in wrapper
-        #     handler(message)
-        #   File "/home/miro/PycharmProjects/OVOS/ovos-workshop/ovos_workshop/skills/ovos.py", line 1357, in _handle_session_stop
-        #     self.bus.emit(message.reply(f"{self.skill_id}.stop.response", data))
-        #   File "/home/miro/PycharmProjects/OVOS/ovos-utils/ovos_utils/fakebus.py", line 48, in emit
-        #     self.ee.emit("message", message.serialize())
-        #   File "/home/miro/PycharmProjects/OVOS/ovos-bus-client/ovos_bus_client/message.py", line 83, in serialize
-        #     msg = orjson.dumps({'type': self.msg_type, 'data': data, 'context': ctxt}).decode("utf-8")
-        # TypeError: Type is not JSON serializable: Mock
-
-        skill = self.skill.instance
-        handle_stop = Mock()
-        real_stop = skill.stop
-        skill.stop = Mock()
-        self.bus.once(f"{self.skill.skill_id}.stop", handle_stop)
-        self.bus.emit(Message("mycroft.stop"))
-        handle_stop.assert_called_once()
-        self.assertEqual(handle_stop.call_args[0][0].context['skill_id'],
-                         skill.skill_id)
-        skill.stop.assert_called_once()
-
-        skill.stop = real_stop
-
     def tearDown(self) -> None:
         self.skill.unload()
 
