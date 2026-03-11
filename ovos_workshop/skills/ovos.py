@@ -679,7 +679,7 @@ class OVOSSkill:
         LOG.info(f'{self.skill_id} is ready.')
 
     def on_error_status(self, e: str = 'Unknown') -> None:
-        LOG.exception(f'{self.skill_id} initialization failed')
+        LOG.exception(f'{self.skill_id} initialization failed: {e}')
 
     def on_stopping_status(self) -> None:
         LOG.info(f'{self.skill_id} is shutting down...')
