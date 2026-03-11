@@ -1187,7 +1187,7 @@ class OVOSSkill:
         self.bus.emit(message.reply(f"{self.skill_id}.stop.response", data))
 
     def default_shutdown(self):
-        """
+        \"\"\"
         Parent function called internally to shut down everything.
         1) Call skill.stop() to allow skill to clean up any active processes
         2) Store skill settings and remove file watchers
@@ -1195,8 +1195,9 @@ class OVOSSkill:
         4) Shutdown the event_scheduler and remove any pending events
         5) Call skill.shutdown() to allow skill to do any other shutdown tasks
         6) Emit `detach_skill` Message to notify skill is shut down
-        """
-        self.status.set_stopping()
+        \"\"\"
+        if hasattr(self, 'status'):
+            self.status.set_stopping()
         try:
             # Allow skill to handle `stop` actions before shutting things down
             self.stop()
