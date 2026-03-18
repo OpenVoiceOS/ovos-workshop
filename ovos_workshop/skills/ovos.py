@@ -1928,6 +1928,47 @@ class OVOSSkill:
                                                             'snd/acknowledge.mp3')
         self.play_audio(audio_file, instant=True)
 
+    def _get_yesno_engine(self) -> Optional[object]:
+        """Load the configured YesNoEngine plugin, with per-skill override support.
+
+        Checks settings.json first, then mycroft.conf skills.ask_yesno_plugin.
+        Returns None if no plugin is configured, preserving built-in fallback behavior.
+        """
+        plugin_name = (self.settings.get("ask_yesno_plugin") or
+                       self.config_core.get("skills", {}).get("ask_yesno_plugin"))
+        if not plugin_name:
+            return None
+        cache_key = f"__yesno_engine_{plugin_name}"
+        if not hasattr(self, cache_key):
+            try:
+                from ovos_plugin_manager.agents import load_yesno_plugin
+                cls = load_yesno_plugin(plugin_name)
+                setattr(self, cache_key, cls())
+            except Exception as e:
+                LOG.error(f"Failed to load YesNo plugin '{plugin_name}': {e}")
+                setattr(self, cache_key, None)
+        return getattr(self, cache_key)
+
+    def _get_selection_engine(self) -> Optional[object]:
+        """Load the configured OptionMatcherEngine plugin, with per-skill override support.
+
+        Checks settings.json first, then mycroft.conf skills.ask_selection_plugin,
+        defaulting to ovos-option-matcher-fuzzy-plugin when neither is set.
+        """
+        plugin_name = (self.settings.get("ask_selection_plugin") or
+                       self.config_core.get("skills", {}).get("ask_selection_plugin") or
+                       "ovos-option-matcher-fuzzy-plugin")
+        cache_key = f"__selection_engine_{plugin_name}"
+        if not hasattr(self, cache_key):
+            try:
+                from ovos_plugin_manager.agents import load_option_matcher_plugin
+                cls = load_option_matcher_plugin(plugin_name)
+                setattr(self, cache_key, cls())
+            except Exception as e:
+                LOG.error(f"Failed to load selection plugin '{plugin_name}': {e}")
+                setattr(self, cache_key, None)
+        return getattr(self, cache_key)
+
     def ask_yesno(self, prompt: str,
                   data: Optional[dict] = None) -> Optional[str]:
         """
@@ -1939,7 +1980,11 @@ class OVOSSkill:
             'no', including a response of None.
         """
         resp = self.get_response(dialog=prompt, data=data)
-        answer = YesNoSolver().match_yes_or_no(resp, lang=self.lang) if resp else resp
+        engine = self._get_yesno_engine()
+        if engine is not None:
+            answer = engine.yes_or_no(question=prompt, response=resp, lang=self.lang) if resp else None
+        else:
+            answer = YesNoSolver().match_yes_or_no(resp, lang=self.lang) if resp else resp
         if answer is True:
             return "yes"
         elif answer is False:
@@ -1990,17 +2035,13 @@ class OVOSSkill:
         resp = self.get_response(dialog=dialog, data=data, num_retries=num_retries)
 
         if resp:
-            match, score = match_one(resp, options)
-            if score < min_conf:
-                if self.voc_match(resp, 'last'):
-                    resp = options[-1]
-                else:
-                    num = extract_number(resp, ordinals=True, lang=self.lang)
+            engine = self._get_selection_engine()
+            if engine is not None:
+                try:
+                    resp = engine.match_option(utterance=resp, options=options, lang=self.lang)
+                except Exception as e:
+                    LOG.error(f"OptionMatcher plugin failed: {e}")
                     resp = None
-                    if num and num <= len(options):
-                        resp = options[num - 1]
-            else:
-                resp = match
         return resp
 
     def voc_list(self, voc_filename: str,
