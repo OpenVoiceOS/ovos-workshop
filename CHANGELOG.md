@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.2a1) (2026-04-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a5...8.0.2a1)
+
+**Merged pull requests:**
+
+- fix\(i18n\): normalize locale folders to canonical BCP-47 [\#392](https://github.com/OpenVoiceOS/ovos-workshop/pull/392) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [8.0.1a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a5) (2026-03-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a4...8.0.1a5)
