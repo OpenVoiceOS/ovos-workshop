@@ -13,7 +13,6 @@
 # limitations under the License.
 import binascii
 import datetime
-import json
 import os
 import re
 import shutil
@@ -29,45 +28,42 @@ from threading import Event, RLock
 from typing import Dict, Callable, List, Optional, Union
 
 from json_database import JsonStorage
-from ovos_config.config import Configuration
-from ovos_config.locations import get_xdg_cache_save_path
-from ovos_config.locations import get_xdg_config_save_path
-from ovos_number_parser import pronounce_number, extract_number
-from ovos_yes_no_solver import YesNoSolver
-
 from ovos_bus_client import MessageBusClient
 from ovos_bus_client.apis.enclosure import EnclosureAPI
+from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
+from ovos_config.config import Configuration
+from ovos_config.locations import get_xdg_cache_save_path
+from ovos_config.locations import get_xdg_config_save_path
+from ovos_number_parser import pronounce_number
+from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
+from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
+from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
-from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
-from ovos_utils.parse import match_one
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
+from ovos_yes_no import HeuristicYesNoEngine
+
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
 from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
-from ovos_workshop.resource_files import ResourceFile, CoreResources, find_resource, SkillResources
+from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
-from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
-from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
-from ovos_yes_no_solver import YesNoSolver
-from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
-
 
 
 class OVOSSkill:
@@ -1950,7 +1946,7 @@ class OVOSSkill:
             except Exception as e:
                 LOG.error(f"Failed to load YesNo plugin '{plugin_name}': {e}")
                 setattr(self, cache_key, None)
-        return getattr(self, cache_key) or YesNoSolver()
+        return getattr(self, cache_key) or HeuristicYesNoEngine()
 
     def _get_selection_engine(self) -> OptionMatcherEngine:
         """Load the configured OptionMatcherEngine plugin, with per-skill override support.
