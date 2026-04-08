@@ -11,20 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Ovoscope end-to-end tests for ask_yesno and ask_selection.
-
-These tests require ovoscope + ovos-core and are skipped when those
-packages are not installed (e.g. in the default CI build matrix).
-To run locally:
-    pip install ovoscope ovos-core
-    pytest test/unittests/test_ask_e2e.py -v
-"""
+"""Ovoscope end-to-end tests for ask_yesno and ask_selection."""
 import threading
 import unittest
-
-import pytest
-
-ovoscope = pytest.importorskip("ovoscope")
 
 from ovos_bus_client.message import Message
 from ovos_bus_client.session import SessionManager, Session
