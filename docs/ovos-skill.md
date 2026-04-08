@@ -120,6 +120,8 @@ choice = self.ask_selection(["A", "B", "C"], "Pick one")
 
 `get_response` suspends the converse channel for this skill until the user responds or a timeout is hit. Raise `AbortQuestion` to cancel gracefully.
 
+`ask_yesno` and `ask_selection` are backed by pluggable engine plugins. The active plugin can be set per-skill via `settings.json` (`ask_yesno_plugin`, `ask_selection_plugin`) or system-wide in `mycroft.conf` under the `skills` block. Defaults are `ovos-solver-yes-no-plugin` and `ovos-option-matcher-fuzzy-plugin`, both installed as runtime dependencies. See [skill-interaction.md](skill-interaction.md) for full configuration reference.
+
 ## Intent Registration
 
 ```python

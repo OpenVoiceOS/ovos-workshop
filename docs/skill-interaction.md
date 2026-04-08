@@ -77,10 +77,9 @@ else:
 ### How it works internally
 
 1. `get_response(dialog=prompt, data=data)` — speaks the prompt, records user reply.
-2. `_get_yesno_engine()` — loads the configured `YesNoEngine` plugin (if any).
-3. If a plugin is loaded: `engine.yes_or_no(question=prompt, response=resp, lang=self.lang)` → `True`, `False`, or `None`.
-4. If no plugin: `YesNoSolver().match_yes_or_no(resp, lang=self.lang)` (built-in fallback, always available).
-5. `True` → `"yes"`, `False` → `"no"`, `None`/unmatched → raw response.
+2. `_get_yesno_engine()` — resolves the plugin name (settings → mycroft.conf → `ovos-solver-yes-no-plugin`), loads it once, and caches it. Falls back to `HeuristicYesNoEngine` if loading fails. `OVOSSkill._get_yesno_engine` — `ovos_workshop/skills/ovos.py:1932`
+3. `engine.yes_or_no(question=prompt, response=resp, lang=self.lang)` → `True`, `False`, or `None`.
+4. `True` → `"yes"`, `False` → `"no"`, `None`/unmatched → raw response. `OVOSSkill.ask_yesno` — `ovos_workshop/skills/ovos.py:1970`
 
 ---
 
@@ -170,8 +169,8 @@ if choice is None:
 1. Validates `options` (raises `ValueError` if not a list; returns immediately for 0 or 1 items).
 2. Speaks options (as list or numbered menu based on `numeric`).
 3. `get_response(dialog=dialog, data=data, num_retries=num_retries)` — speaks optional follow-up dialog, records reply.
-4. `_get_selection_engine()` — loads the configured `OptionMatcherEngine` plugin.
-5. `engine.match_option(utterance=resp, options=options, lang=self.lang)` — resolves response to a slot.
+4. `_get_selection_engine()` — resolves the plugin name (settings → mycroft.conf → `ovos-option-matcher-fuzzy-plugin`), loads it once, and caches it. Falls back to `FuzzyOptionMatcherPlugin` if loading fails. Sets `engine.config["min_conf"] = min_conf` before calling. `OVOSSkill._get_selection_engine` — `ovos_workshop/skills/ovos.py:1951`
+5. `engine.match_option(utterance=resp, options=options, lang=self.lang)` — resolves response to a slot. `OVOSSkill.ask_selection` — `ovos_workshop/skills/ovos.py:1990`
 6. If the engine raises or returns `None`, `ask_selection` returns `None`.
 
 ---
@@ -184,7 +183,8 @@ Both methods are backed by pluggable agent engines discovered and loaded via [ov
 
 **Plugin type**: `YesNoEngine` (`opm.agents.yesno`)
 **Config key**: `ask_yesno_plugin`
-**Built-in fallback**: `ovos-solver-yes-no-plugin` (always available, no config needed)
+**Default plugin**: `ovos-solver-yes-no-plugin`
+**Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load)
 
 `YesNoEngine` plugins implement:
 
@@ -235,7 +235,7 @@ def match_option(self, utterance: str, options: List[str], lang: Optional[str] =
 }
 ```
 
-`ask_yesno_plugin` defaults to `None` (built-in `YesNoSolver` used). `ask_selection_plugin` defaults to `ovos-option-matcher-fuzzy-plugin`.
+`ask_yesno_plugin` defaults to `ovos-solver-yes-no-plugin`. `ask_selection_plugin` defaults to `ovos-option-matcher-fuzzy-plugin`. Both packages are installed as runtime dependencies of `ovos-workshop`.
 
 ### Per-skill override — `settings.json`
 
@@ -341,9 +341,9 @@ Activate system-wide:
 |----------|-----------------|---------------------|
 | User says nothing (timeout) | `None` | `None` |
 | User response unclassifiable | raw transcript string | `None` |
-| Plugin fails to load | falls back to `YesNoSolver` | `None` |
-| Plugin raises at runtime | falls back to `YesNoSolver` | `None` |
-| No plugin configured | `YesNoSolver` used | default fuzzy plugin used |
+| Plugin fails to load | falls back to `HeuristicYesNoEngine` | falls back to `FuzzyOptionMatcherPlugin` |
+| Plugin raises at runtime | falls back to `HeuristicYesNoEngine` | `None` |
+| No plugin configured | `ovos-solver-yes-no-plugin` used | `ovos-option-matcher-fuzzy-plugin` used |
 
 `ask_selection` is intentionally strict: any failure returns `None` rather than guessing. Always handle the `None` case in your skill.
 
