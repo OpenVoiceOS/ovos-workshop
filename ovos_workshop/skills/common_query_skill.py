@@ -174,7 +174,7 @@ class CommonQuerySkill(OVOSSkill):
         @param lang: language of `phrase`, else defaults to `self.lang`
         @return: cleaned `phrase` with extra words removed
         """
-        lang = (lang or self.lang).split("-")[0]
+        lang = lang or self.lang
         phrase = ' ' + phrase + ' '
         for word in self._translated_noise_words.get(lang, []):
             mtch = ' ' + word + ' '
