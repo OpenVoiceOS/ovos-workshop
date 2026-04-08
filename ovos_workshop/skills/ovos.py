@@ -2031,6 +2031,7 @@ class OVOSSkill:
 
         if resp:
             engine = self._get_selection_engine()
+            engine.config["min_conf"] = min_conf
             try:
                 resp = engine.match_option(utterance=resp, options=options, lang=self.lang)
             except Exception as e:
