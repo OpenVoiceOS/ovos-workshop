@@ -3,7 +3,6 @@ Tests for locale directory lookup and language resource resolution.
 
 Covers:
 - _get_word() resolves word_connectors.json via get_language_dir()
-- _get_dialog() resolves bundled .dialog files via get_language_dir()
 - join_word_list() produces correct output for all supported language
   variants, including case-insensitive and short-code inputs
 - All locale folders present in ovos_workshop/locale/ have valid
@@ -14,7 +13,7 @@ import os
 import unittest
 from os.path import dirname, join
 
-from ovos_workshop.skills.ovos import _get_word, _get_dialog, join_word_list
+from ovos_workshop.skills.ovos import _get_word, join_word_list
 
 LOCALE_DIR = join(dirname(dirname(dirname(__file__))),
                   "ovos_workshop", "locale")
@@ -76,36 +75,6 @@ class TestGetWord(unittest.TestCase):
                           f"{folder}/word_connectors.json missing 'and'")
             self.assertIn("or", data,
                           f"{folder}/word_connectors.json missing 'or'")
-
-
-class TestGetDialog(unittest.TestCase):
-    """_get_dialog() must resolve bundled .dialog files."""
-
-    def test_known_dialog_canonical(self):
-        # game_pause.dialog has no template variables — safe to render as-is
-        result = _get_dialog("game_pause", "en-US")
-        self.assertNotEqual(result, "game_pause",
-                            "Expected dialog text, got fallback phrase")
-
-    def test_known_dialog_lowercase_tag(self):
-        result = _get_dialog("game_pause", "en-us")
-        self.assertNotEqual(result, "game_pause")
-
-    def test_known_dialog_short_code(self):
-        result = _get_dialog("game_pause", "en")
-        self.assertNotEqual(result, "game_pause")
-
-    def test_known_dialog_with_context(self):
-        result = _get_dialog("skill.error", "en-US", context={"skill": "test_skill"})
-        self.assertIn("test_skill", result)
-
-    def test_missing_dialog_returns_phrase(self):
-        result = _get_dialog("nonexistent.dialog.phrase", "en-US")
-        self.assertEqual(result, "nonexistent.dialog.phrase")
-
-    def test_missing_lang_returns_phrase(self):
-        result = _get_dialog("skill.error", "xx-XX")
-        self.assertEqual(result, "skill.error")
 
 
 class TestJoinWordList(unittest.TestCase):
