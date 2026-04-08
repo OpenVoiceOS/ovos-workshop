@@ -37,16 +37,19 @@ def _make_skill(settings=None, config_skills=None):
 class TestGetYesnoEngine(unittest.TestCase):
     """Tests for OVOSSkill._get_yesno_engine()."""
 
-    def test_no_plugin_configured_returns_none(self):
+    def test_no_plugin_configured_returns_heuristic(self):
+        """With no plugin configured, falls back to HeuristicYesNoEngine."""
+        from ovos_yes_no import HeuristicYesNoEngine
         skill = _make_skill()
-        self.assertIsNone(skill._get_yesno_engine())
+        engine = skill._get_yesno_engine()
+        self.assertIsInstance(engine, HeuristicYesNoEngine)
 
     def test_config_core_plugin_loaded(self):
         skill = _make_skill(config_skills={"ask_yesno_plugin": "fake-yesno-plugin"})
         mock_cls = MagicMock()
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
-        with patch("ovos_plugin_manager.agents.load_yesno_plugin", return_value=mock_cls):
+        with patch("ovos_workshop.skills.ovos.load_yesno_plugin", return_value=mock_cls):
             engine = skill._get_yesno_engine()
         self.assertIs(engine, mock_instance)
 
@@ -56,20 +59,22 @@ class TestGetYesnoEngine(unittest.TestCase):
             config_skills={"ask_yesno_plugin": "config-plugin"},
         )
         mock_cls = MagicMock()
-        with patch("ovos_plugin_manager.agents.load_yesno_plugin", return_value=mock_cls) as mock_load:
+        with patch("ovos_workshop.skills.ovos.load_yesno_plugin", return_value=mock_cls) as mock_load:
             skill._get_yesno_engine()
         mock_load.assert_called_once_with("settings-plugin")
 
-    def test_plugin_load_failure_returns_none(self):
+    def test_plugin_load_failure_returns_heuristic(self):
+        """On load failure, falls back to HeuristicYesNoEngine."""
+        from ovos_yes_no import HeuristicYesNoEngine
         skill = _make_skill(config_skills={"ask_yesno_plugin": "bad-plugin"})
-        with patch("ovos_plugin_manager.agents.load_yesno_plugin", side_effect=Exception("oops")):
+        with patch("ovos_workshop.skills.ovos.load_yesno_plugin", side_effect=Exception("oops")):
             engine = skill._get_yesno_engine()
-        self.assertIsNone(engine)
+        self.assertIsInstance(engine, HeuristicYesNoEngine)
 
     def test_engine_cached_across_calls(self):
         skill = _make_skill(config_skills={"ask_yesno_plugin": "fake-plugin"})
         mock_cls = MagicMock()
-        with patch("ovos_plugin_manager.agents.load_yesno_plugin", return_value=mock_cls) as mock_load:
+        with patch("ovos_workshop.skills.ovos.load_yesno_plugin", return_value=mock_cls) as mock_load:
             skill._get_yesno_engine()
             skill._get_yesno_engine()
         mock_load.assert_called_once()
@@ -82,7 +87,7 @@ class TestGetSelectionEngine(unittest.TestCase):
         """When no plugin is configured, ovos-option-matcher-fuzzy-plugin is used."""
         skill = _make_skill()
         mock_cls = MagicMock()
-        with patch("ovos_plugin_manager.agents.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
+        with patch("ovos_workshop.skills.ovos.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
             skill._get_selection_engine()
         mock_load.assert_called_once_with("ovos-option-matcher-fuzzy-plugin")
 
@@ -91,7 +96,7 @@ class TestGetSelectionEngine(unittest.TestCase):
         mock_cls = MagicMock()
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
-        with patch("ovos_plugin_manager.agents.load_option_matcher_plugin", return_value=mock_cls):
+        with patch("ovos_workshop.skills.ovos.load_option_matcher_plugin", return_value=mock_cls):
             engine = skill._get_selection_engine()
         self.assertIs(engine, mock_instance)
 
@@ -101,15 +106,17 @@ class TestGetSelectionEngine(unittest.TestCase):
             config_skills={"ask_selection_plugin": "config-option-matcher"},
         )
         mock_cls = MagicMock()
-        with patch("ovos_plugin_manager.agents.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
+        with patch("ovos_workshop.skills.ovos.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
             skill._get_selection_engine()
         mock_load.assert_called_once_with("settings-option-matcher")
 
-    def test_plugin_load_failure_returns_none(self):
+    def test_plugin_load_failure_returns_fuzzy_fallback(self):
+        """On load failure, falls back to FuzzyOptionMatcherPlugin."""
+        from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
         skill = _make_skill(config_skills={"ask_selection_plugin": "bad-plugin"})
-        with patch("ovos_plugin_manager.agents.load_option_matcher_plugin", side_effect=Exception("fail")):
+        with patch("ovos_workshop.skills.ovos.load_option_matcher_plugin", side_effect=Exception("fail")):
             engine = skill._get_selection_engine()
-        self.assertIsNone(engine)
+        self.assertIsInstance(engine, FuzzyOptionMatcherPlugin)
 
 
 class TestAskYesno(unittest.TestCase):
@@ -120,30 +127,27 @@ class TestAskYesno(unittest.TestCase):
         skill.get_response = MagicMock(return_value=response)
         return skill
 
-    def test_no_plugin_uses_yesno_solver_yes(self):
+    def test_no_plugin_uses_heuristic_engine_yes(self):
         skill = self._make_skill_with_response("yeah sure")
-        with patch("ovos_workshop.skills.ovos.YesNoSolver") as mock_solver_cls:
-            mock_solver = MagicMock()
-            mock_solver.match_yes_or_no.return_value = True
-            mock_solver_cls.return_value = mock_solver
+        mock_engine = MagicMock()
+        mock_engine.yes_or_no.return_value = True
+        with patch.object(skill, "_get_yesno_engine", return_value=mock_engine):
             result = skill.ask_yesno("Do you want tea?")
         self.assertEqual(result, "yes")
 
-    def test_no_plugin_uses_yesno_solver_no(self):
+    def test_no_plugin_uses_heuristic_engine_no(self):
         skill = self._make_skill_with_response("nope")
-        with patch("ovos_workshop.skills.ovos.YesNoSolver") as mock_solver_cls:
-            mock_solver = MagicMock()
-            mock_solver.match_yes_or_no.return_value = False
-            mock_solver_cls.return_value = mock_solver
+        mock_engine = MagicMock()
+        mock_engine.yes_or_no.return_value = False
+        with patch.object(skill, "_get_yesno_engine", return_value=mock_engine):
             result = skill.ask_yesno("Do you want tea?")
         self.assertEqual(result, "no")
 
     def test_no_plugin_unmatched_returns_raw_resp(self):
         skill = self._make_skill_with_response("maybe later")
-        with patch("ovos_workshop.skills.ovos.YesNoSolver") as mock_solver_cls:
-            mock_solver = MagicMock()
-            mock_solver.match_yes_or_no.return_value = None
-            mock_solver_cls.return_value = mock_solver
+        mock_engine = MagicMock()
+        mock_engine.yes_or_no.return_value = None
+        with patch.object(skill, "_get_yesno_engine", return_value=mock_engine):
             result = skill.ask_yesno("Do you want tea?")
         self.assertEqual(result, "maybe later")
 
@@ -255,7 +259,7 @@ class TestAskSelection(unittest.TestCase):
         mock_instance = MagicMock()
         mock_instance.match_option.return_value = "alpha"
         mock_cls.return_value = mock_instance
-        with patch("ovos_plugin_manager.agents.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
+        with patch("ovos_workshop.skills.ovos.load_option_matcher_plugin", return_value=mock_cls) as mock_load:
             skill.ask_selection(options, numeric=True)
         mock_load.assert_called_once_with("my-custom-option-matcher")
 
