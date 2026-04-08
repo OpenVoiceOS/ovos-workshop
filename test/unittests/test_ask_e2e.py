@@ -40,7 +40,7 @@ class AskYesNoSkill(OVOSSkill):
         self.add_event("test.ask.yesno", self.handle_yesno)
 
     def handle_yesno(self, message: Message):
-        answer = self.ask_yesno("do you want tea", message=message)
+        answer = self.ask_yesno("do you want tea")
         self.bus.emit(message.forward("test.yesno.result", {"answer": answer}))
         self.bus.emit(message.forward("ovos.utterance.handled"))
 
@@ -53,7 +53,7 @@ class AskSelectionSkill(OVOSSkill):
 
     def handle_selection(self, message: Message):
         options = message.data.get("options", ["alpha", "beta", "gamma"])
-        answer = self.ask_selection(options, numeric=True, message=message)
+        answer = self.ask_selection(options, numeric=True)
         self.bus.emit(message.forward("test.selection.result", {"answer": answer}))
         self.bus.emit(message.forward("ovos.utterance.handled"))
 
