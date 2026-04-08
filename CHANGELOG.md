@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a1) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.3a1...8.0.4a1)
+
+**Merged pull requests:**
+
+- fix: update locale lookups and tests after BCP-47 folder rename [\#395](https://github.com/OpenVoiceOS/ovos-workshop/pull/395) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [8.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.3a1) (2026-04-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.2a1...8.0.3a1)
