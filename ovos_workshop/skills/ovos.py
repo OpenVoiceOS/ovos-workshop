@@ -62,20 +62,7 @@ from ovos_workshop.filesystem import FileSystemAccess
 from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
 from ovos_workshop.resource_files import ResourceFile, CoreResources, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
-
-
-def simple_trace(stack_trace: List[str]) -> str:
-    """
-    Generate a simplified traceback.
-    @param stack_trace: Formatted stack trace (each string ends with \n)
-    @return: Stack trace with any empty lines removed and last line removed
-    """
-    stack_trace = stack_trace[:-1]
-    tb = 'Traceback:\n'
-    for line in stack_trace:
-        if line.strip():
-            tb += line
-    return tb
+from ovos_workshop.skills.util import join_word_list, simple_trace
 
 
 class OVOSSkill:
@@ -2402,7 +2389,10 @@ class OVOSSkill:
 class SkillGUI(GUIInterface):
     def __init__(self, skill: OVOSSkill):
         """
-        Wraps `GUIInterface` for use with a skill.
+        Initialize a SkillGUI that connects a skill to the GUI framework.
+        
+        Parameters:
+        	skill (OVOSSkill): The skill instance whose GUI should be managed. The constructor initializes the underlying GUIInterface using the skill's id, message bus, GUI configuration, and UI directories.
         """
         self._skill = skill
         skill_id = skill.skill_id
@@ -2413,123 +2403,5 @@ class SkillGUI(GUIInterface):
                               ui_directories=ui_directories)
 
 
-def _get_word(lang, connector):
-    """ Helper to get word translations
-
-    Args:
-        lang (str, optional): an optional BCP-47 language code, if omitted
-                              the default language will be used.
-
-    Returns:
-        str: translated version of resource name
-    """
-    data = CoreResources(lang).load_json_file("word_connectors")
-    if connector in data:
-        return data[connector]
-    LOG.warning(f"untranslated word connector '{connector}' for lang: {lang}")
-    return ", "
-
-
-def join_word_list(items: List[str], connector: str, sep: str, lang: str) -> str:
-    """ Join a list into a phrase using the given connector word
-
-    Examples:
-        join_word_list([1,2,3], "or") ->  "1, 2 or 3"
-        join_word_list([1,2,3], "and") ->  "1, 2 and 3"
-        join_word_list([1,2,3], "and", ";") ->  "1; 2 and 3"
-
-    Args:
-        items (array): items to be joined
-        connector (str): connecting word (resource name), like "and" or "or"
-        sep (str, optional): separator character, default = ","
-        lang (str, optional): an optional BCP-47 language code, if omitted
-                              the default language will be used.
-    Returns:
-        str: the connected list phrase
-    """
-    if lang.startswith("it"):
-        return _join_word_list_it(items, connector, sep)
-    elif lang.startswith("es"):
-        return _join_word_list_es(items, connector, sep)
-
-    cons = {
-        "and": _get_word(lang, "and"),
-        "or": _get_word(lang, "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-    return (sep.join(str(item) for item in items[:-1]) +
-            " " + cons[connector] +
-            " " + items[-1])
-
-
-def _join_word_list_it(items: List[str], connector: str, sep: str = ",") -> str:
-    cons = {
-        "and": _get_word("it", "and"),
-        "or": _get_word("it", "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-
-    final_connector = cons[connector]
-    if len(items) > 2:
-        joined_string = sep.join(item for item in items[:-1])
-    else:
-        joined_string = items[0]
-
-    # Check for euphonic transformation cases for "e" and "o"
-    if cons[connector] == "e" and items[-1][0].lower() == "e":
-        final_connector = "ed"
-    elif cons[connector] == "o" and items[-1][0].lower() == "o":
-        final_connector = "od"
-    return f"{joined_string} {final_connector} {items[-1]}"
-
-
-def _join_word_list_es(items: List[str], connector: str, sep: str = ",") -> str:
-    cons = {
-        "and": _get_word("es", "and"),
-        "or": _get_word("es", "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-
-    final_connector = cons[connector]
-    if len(items) > 2:
-        joined_string = sep.join(item for item in items[:-1])
-    else:
-        joined_string = items[0]
-
-    # Check for euphonic transformation cases for "y"
-    w = items[-1].lower().lstrip("h").replace("ó", "o").replace("í", "i").replace("á", "a")
-    if not any([w.startswith("io"), w.startswith("ia"), w.startswith("ie")]):
-        # When following word starts by (H)IA, (H)IE or (H)IO, then usual Y preposition is used
-        if cons[connector] == "y" and w[0] == "i":
-            final_connector = "e"
-        # Check for euphonic transformation cases for "o"
-        if cons[connector] == "o" and w[0] == "o":
-            final_connector = "u"
-
-    return f"{joined_string} {final_connector} {items[-1]}"
 
 
