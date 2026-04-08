@@ -2451,15 +2451,23 @@ def _get_word(lang, connector):
     Returns:
         str: translated version of resource name
     """
-    lang = standardize_lang_tag(lang).split("-")[0]
-    res_file = f"{dirname(dirname(__file__))}/locale/{lang}" \
-               f"/word_connectors.json"
-    if not os.path.isfile(res_file):
-        LOG.warning(f"untranslated file: {res_file}")
-        return ", "
-    with open(res_file) as f:
-        w = json.load(f)[connector]
-    return w
+    lang_full = standardize_lang_tag(lang)
+    lang_short = lang_full.split("-")[0]
+    locale_dir = dirname(dirname(__file__)) + "/locale"
+    for candidate in [lang_full, lang_short]:
+        res_file = f"{locale_dir}/{candidate}/word_connectors.json"
+        if os.path.isfile(res_file):
+            with open(res_file) as f:
+                return json.load(f)[connector]
+    # fall back to any locale folder that starts with the language code
+    for folder in os.listdir(locale_dir):
+        if folder.startswith(lang_short + "-"):
+            res_file = f"{locale_dir}/{folder}/word_connectors.json"
+            if os.path.isfile(res_file):
+                with open(res_file) as f:
+                    return json.load(f)[connector]
+    LOG.warning(f"untranslated file: locale/{lang_full}/word_connectors.json")
+    return ", "
 
 
 def join_word_list(items: List[str], connector: str, sep: str, lang: str) -> str:

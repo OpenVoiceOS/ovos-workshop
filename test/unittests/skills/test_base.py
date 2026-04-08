@@ -292,8 +292,8 @@ class TestOVOSSkill(unittest.TestCase):
         skill._lang_resources = dict()
         skill.intent_service = Mock()
         skill.res_dir = join(dirname(__file__), "test_locale")
-        en_intent_file = join(skill.res_dir, "locale", "en-us", "time.intent")
-        uk_intent_file = join(skill.res_dir, "locale", "uk-ua", "time.intent")
+        en_intent_file = join(skill.res_dir, "locale", "en-US", "time.intent")
+        uk_intent_file = join(skill.res_dir, "locale", "uk-UA", "time.intent")
 
         # No secondary languages
         skill.config_core["lang"] = "en-US"
@@ -318,8 +318,8 @@ class TestOVOSSkill(unittest.TestCase):
         skill._lang_resources = dict()
         skill.intent_service = Mock()
         skill.res_dir = join(dirname(__file__), "test_locale")
-        en_file = join(skill.res_dir, "locale", "en-us", "dow.entity")
-        uk_file = join(skill.res_dir, "locale", "uk-ua", "dow.entity")
+        en_file = join(skill.res_dir, "locale", "en-US", "dow.entity")
+        uk_file = join(skill.res_dir, "locale", "uk-UA", "dow.entity")
 
         # No secondary languages
         skill.config_core["lang"] = "en-US"
@@ -331,7 +331,7 @@ class TestOVOSSkill(unittest.TestCase):
 
         # With secondary language
         skill.intent_service.register_padatious_entity.reset_mock()
-        skill.config_core["secondary_langs"] = ["en-US", "uk-ua"]
+        skill.config_core["secondary_langs"] = ["en-US", "uk-UA"]
         skill.register_entity_file("dow")
         self.assertEqual(
             skill.intent_service.register_padatious_entity.call_count, 2)
