@@ -1,5 +1,19 @@
 # Changelog
 
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+
+**Merged pull requests:**
+
+- Update actions/setup-python action to v6 [\#402](https://github.com/OpenVoiceOS/ovos-workshop/pull/402) ([renovate[bot]](https://github.com/apps/renovate))
+- Update actions/checkout action to v6 [\#401](https://github.com/OpenVoiceOS/ovos-workshop/pull/401) ([renovate[bot]](https://github.com/apps/renovate))
+- chore: remove deprecated class flagged for removal in 4.0.0 [\#400](https://github.com/OpenVoiceOS/ovos-workshop/pull/400) ([JarbasAl](https://github.com/JarbasAl))
+
+## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a1...8.0.4a2)
+
 ## [8.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a1) (2026-04-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.3a1...8.0.4a1)
