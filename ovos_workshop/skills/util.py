@@ -23,13 +23,14 @@ from ovos_workshop.resource_files import CoreResources
 
 
 def simple_trace(stack_trace: List[str]) -> str:
-    """Generate a simplified traceback.
-
-    Args:
-        stack_trace: Formatted stack trace (each string ends with \\n)
-
+    """
+    Builds a simplified traceback string by dropping the last input line and removing empty lines.
+    
+    Parameters:
+        stack_trace (List[str]): Formatted traceback lines where each line ends with '\n'.
+    
     Returns:
-        Stack trace with any empty lines removed and last line removed
+        str: A string beginning with "Traceback:\n" followed by the non-empty lines from `stack_trace` excluding its final element.
     """
     stack_trace = stack_trace[:-1]
     tb = 'Traceback:\n'
@@ -99,15 +100,21 @@ def _normalize_word(word: str, rules: dict) -> str:
 
 
 def _apply_euphony(connector: str, next_word: str, rules: dict) -> str:
-    """Apply euphony transformation to connector based on rules.
-
-    Args:
-        connector: The connector word (e.g., "e", "y", "o")
-        next_word: The word following the connector
-        rules: The euphony rules dict
-
+    """
+    Conditionally transform a connector word according to euphony rules based on the following word.
+    
+    Parameters:
+        connector (str): The connector word to potentially transform (e.g., "and", "or").
+        next_word (str): The word that follows the connector, used to evaluate euphony conditions.
+        rules (dict): Euphony rules dictionary with a "rules" list. Each rule may include:
+            - "connector": connector string the rule applies to
+            - "condition": one of "starts_with_vowel", "starts_with_letter", "starts_with_any_except"
+            - "replace_with": replacement connector to use when the rule matches
+            - "vowels"/"letters": lists of characters used for matching
+            - "excluded_patterns": list of prefixes to exclude for "starts_with_any_except"
+    
     Returns:
-        Potentially transformed connector word
+        str: The replacement connector from a matching rule, or the original `connector` if no rule applies.
     """
     if not next_word or not rules:
         return connector

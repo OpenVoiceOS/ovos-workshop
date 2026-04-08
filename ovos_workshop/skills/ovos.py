@@ -2389,7 +2389,10 @@ class OVOSSkill:
 class SkillGUI(GUIInterface):
     def __init__(self, skill: OVOSSkill):
         """
-        Wraps `GUIInterface` for use with a skill.
+        Initialize a SkillGUI that connects a skill to the GUI framework.
+        
+        Parameters:
+        	skill (OVOSSkill): The skill instance whose GUI should be managed. The constructor initializes the underlying GUIInterface using the skill's id, message bus, GUI configuration, and UI directories.
         """
         self._skill = skill
         skill_id = skill.skill_id
