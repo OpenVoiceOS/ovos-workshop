@@ -1,4 +1,4 @@
-name: Run Build Tests
+name: Run Ovoscope E2E Tests
 on:
   push:
     branches: [master, dev]
@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_tests:
+  ovoscope_tests:
     uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
     secrets: inherit
     with:
-      test_path: 'test/unittests'
+      test_path: 'test/ovoscope'
+      install_extras: 'test'
