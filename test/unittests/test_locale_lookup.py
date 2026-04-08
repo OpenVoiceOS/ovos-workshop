@@ -2,18 +2,23 @@
 Tests for locale directory lookup and language resource resolution.
 
 Covers:
-- _get_word() resolves word_connectors.json via get_language_dir()
+- _get_word() resolves word_connectors.json via CoreResources
 - join_word_list() produces correct output for all supported language
   variants, including case-insensitive and short-code inputs
 - All locale folders present in ovos_workshop/locale/ have valid
   word_connectors.json with "and"/"or" keys
+- Euphony rules loaded from JSON config produce correct transformations
+- util.py helpers: simple_trace, normalize_word, apply_euphony
 """
 import json
 import os
 import unittest
 from os.path import dirname, join
 
-from ovos_workshop.skills.ovos import _get_word, join_word_list
+from ovos_workshop.skills.util import (
+    _get_word, join_word_list, simple_trace,
+    _normalize_word, _apply_euphony, _load_euphony_rules
+)
 
 LOCALE_DIR = join(dirname(dirname(dirname(__file__))),
                   "ovos_workshop", "locale")
@@ -157,6 +162,211 @@ class TestJoinWordList(unittest.TestCase):
         self.assertEqual(
             join_word_list(["chien", "chat"], "and", ",", "fr-FR"),
             "chien et chat")
+
+
+class TestSimpleTrace(unittest.TestCase):
+    """simple_trace() formatting."""
+
+    def test_removes_last_line(self):
+        tb = simple_trace(["File x\n", "  foo()\n", "Error\n"])
+        self.assertIn("File x", tb)
+        self.assertIn("foo()", tb)
+        self.assertNotIn("Error", tb)
+
+    def test_skips_blank_lines(self):
+        tb = simple_trace(["line1\n", "\n", "line2\n", "last\n"])
+        self.assertNotIn("\n\n", tb)
+
+    def test_starts_with_traceback(self):
+        tb = simple_trace(["a\n", "b\n"])
+        self.assertTrue(tb.startswith("Traceback:\n"))
+
+
+class TestNormalizeWord(unittest.TestCase):
+    """_normalize_word() applies language-specific normalization."""
+
+    def test_strip_leading_h(self):
+        rules = {"normalize": {"strip_leading_h": True}}
+        self.assertEqual(_normalize_word("hombre", rules), "ombre")
+
+    def test_replace_accents(self):
+        rules = {"normalize": {"replace_accents": {"ó": "o", "í": "i"}}}
+        self.assertEqual(_normalize_word("ídolo", rules), "idolo")
+
+    def test_both_normalize_steps(self):
+        rules = {"normalize": {"strip_leading_h": True, "replace_accents": {"í": "i"}}}
+        self.assertEqual(_normalize_word("híbrido", rules), "ibrido")
+
+    def test_empty_normalize(self):
+        rules = {"normalize": {}}
+        self.assertEqual(_normalize_word("hello", rules), "hello")
+
+    def test_empty_word(self):
+        rules = {"normalize": {"strip_leading_h": True}}
+        self.assertEqual(_normalize_word("", rules), "")
+
+
+class TestApplyEuphony(unittest.TestCase):
+    """_apply_euphony() rule engine tests."""
+
+    def test_starts_with_vowel_match(self):
+        rules = {"normalize": {}, "rules": [
+            {"connector": "e", "condition": "starts_with_vowel",
+             "vowels": ["e"], "replace_with": "ed"}
+        ]}
+        self.assertEqual(_apply_euphony("e", "estate", rules), "ed")
+
+    def test_starts_with_vowel_no_match(self):
+        rules = {"normalize": {}, "rules": [
+            {"connector": "e", "condition": "starts_with_vowel",
+             "vowels": ["e"], "replace_with": "ed"}
+        ]}
+        self.assertEqual(_apply_euphony("e", "montagna", rules), "e")
+
+    def test_starts_with_any_except_applies(self):
+        rules = {"normalize": {"strip_leading_h": True,
+                                "replace_accents": {"í": "i"}},
+                 "rules": [
+            {"connector": "y", "condition": "starts_with_any_except",
+             "letters": ["i"], "excluded_patterns": ["io", "ia", "ie"],
+             "replace_with": "e"}
+        ]}
+        self.assertEqual(_apply_euphony("y", "Irene", rules), "e")
+
+    def test_starts_with_any_except_excluded(self):
+        """Should NOT transform y→e before 'hielo' (diphthong ie)."""
+        rules = {"normalize": {"strip_leading_h": True},
+                 "rules": [
+            {"connector": "y", "condition": "starts_with_any_except",
+             "letters": ["i"], "excluded_patterns": ["io", "ia", "ie"],
+             "replace_with": "e"}
+        ]}
+        self.assertEqual(_apply_euphony("y", "hielo", rules), "y")
+
+    def test_no_rules_returns_connector(self):
+        self.assertEqual(_apply_euphony("and", "word", {}), "and")
+        self.assertEqual(_apply_euphony("and", "word", None), "and")
+
+    def test_empty_next_word(self):
+        rules = {"rules": [{"connector": "e", "condition": "starts_with_vowel",
+                             "vowels": ["e"], "replace_with": "ed"}]}
+        self.assertEqual(_apply_euphony("e", "", rules), "e")
+
+    def test_wrong_connector_skipped(self):
+        rules = {"normalize": {}, "rules": [
+            {"connector": "o", "condition": "starts_with_vowel",
+             "vowels": ["o"], "replace_with": "od"}
+        ]}
+        self.assertEqual(_apply_euphony("e", "oceano", rules), "e")
+
+
+class TestEuphonyJsonSchema(unittest.TestCase):
+    """All euphony.json files must have valid structure."""
+
+    def test_all_euphony_files_valid(self):
+        for folder in os.listdir(LOCALE_DIR):
+            path = join(LOCALE_DIR, folder, "euphony.json")
+            if not os.path.isfile(path):
+                continue
+            with open(path) as f:
+                data = json.load(f)
+            self.assertIn("rules", data,
+                          f"{folder}/euphony.json missing 'rules'")
+            self.assertIsInstance(data["rules"], list,
+                                 f"{folder}/euphony.json 'rules' must be a list")
+            for rule in data["rules"]:
+                self.assertIn("connector", rule,
+                              f"{folder}/euphony.json rule missing 'connector'")
+                self.assertIn("condition", rule,
+                              f"{folder}/euphony.json rule missing 'condition'")
+                self.assertIn("replace_with", rule,
+                              f"{folder}/euphony.json rule missing 'replace_with'")
+
+
+class TestWordConnectorsAllLocales(unittest.TestCase):
+    """Every locale with word_connectors.json must have valid and/or keys."""
+
+    def test_all_locales_have_word_connectors(self):
+        missing = []
+        for folder in sorted(os.listdir(LOCALE_DIR)):
+            folder_path = join(LOCALE_DIR, folder)
+            if not os.path.isdir(folder_path):
+                continue
+            wc_path = join(folder_path, "word_connectors.json")
+            if not os.path.isfile(wc_path):
+                missing.append(folder)
+        self.assertEqual(missing, [],
+                         f"Locale folders missing word_connectors.json: {missing}")
+
+    def test_connectors_have_and_or(self):
+        for folder in os.listdir(LOCALE_DIR):
+            path = join(LOCALE_DIR, folder, "word_connectors.json")
+            if not os.path.isfile(path):
+                continue
+            with open(path) as f:
+                data = json.load(f)
+            self.assertIn("and", data,
+                          f"{folder}/word_connectors.json missing 'and'")
+            self.assertIn("or", data,
+                          f"{folder}/word_connectors.json missing 'or'")
+            # Values must be non-empty strings
+            self.assertIsInstance(data["and"], str,
+                                 f"{folder} 'and' must be a string")
+            self.assertIsInstance(data["or"], str,
+                                 f"{folder} 'or' must be a string")
+            self.assertTrue(data["and"].strip(),
+                            f"{folder} 'and' must not be empty")
+            self.assertTrue(data["or"].strip(),
+                            f"{folder} 'or' must not be empty")
+
+
+class TestJoinWordListMoreLanguages(unittest.TestCase):
+    """join_word_list() for newly added languages."""
+
+    def test_pt_br_and(self):
+        self.assertEqual(
+            join_word_list(["gato", "cachorro"], "and", ",", "pt-BR"),
+            "gato e cachorro")
+
+    def test_ru_and(self):
+        self.assertEqual(
+            join_word_list(["кот", "собака"], "and", ",", "ru-RU"),
+            "кот и собака")
+
+    def test_tr_and(self):
+        self.assertEqual(
+            join_word_list(["kedi", "köpek"], "and", ",", "tr-TR"),
+            "kedi ve köpek")
+
+    def test_ja_and(self):
+        self.assertEqual(
+            join_word_list(["猫", "犬"], "and", ",", "ja-JP"),
+            "猫 と 犬")
+
+    def test_zh_or(self):
+        self.assertEqual(
+            join_word_list(["猫", "狗"], "or", ",", "zh-CN"),
+            "猫 或 狗")
+
+    def test_ar_and(self):
+        self.assertEqual(
+            join_word_list(["قط", "كلب"], "and", ",", "ar-SA"),
+            "قط و كلب")
+
+    def test_sv_and(self):
+        self.assertEqual(
+            join_word_list(["katt", "hund"], "and", ",", "sv-SE"),
+            "katt och hund")
+
+    def test_hu_or(self):
+        self.assertEqual(
+            join_word_list(["macska", "kutya"], "or", ",", "hu-HU"),
+            "macska vagy kutya")
+
+    def test_three_items_ru(self):
+        self.assertEqual(
+            join_word_list(["раз", "два", "три"], "and", ",", "ru-RU"),
+            "раз, два и три")
 
 
 if __name__ == "__main__":
