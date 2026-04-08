@@ -12,14 +12,12 @@
 
 from abc import abstractmethod
 from enum import IntEnum
-from os.path import dirname
 from typing import List, Optional, Tuple
 
 from ovos_bus_client import Message
-from ovos_utils.file_utils import resolve_resource_file
-from ovos_utils.lang import get_language_dir
 from ovos_utils.log import LOG, log_deprecation
 import warnings
+from ovos_workshop.resource_files import CoreResources
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
@@ -75,22 +73,10 @@ class CommonQuerySkill(OVOSSkill):
         super().__init__(*args, **kwargs)
 
         lang = self.lang
-        locale_base = f"{dirname(dirname(__file__))}/locale"
-        lang_dir = get_language_dir(locale_base, lang)
-        default_res = f"{lang_dir}/noise_words.list" if lang_dir else None
-        noise_words_filepath = f"text/{lang}/noise_words.list"
-        noise_words_filename = \
-            resolve_resource_file(noise_words_filepath,
-                                  config=self.config_core) or \
-            (resolve_resource_file(default_res, config=self.config_core)
-             if default_res else None)
-
+        noise_words = CoreResources(lang).load_list_file("noise_words")
         self._translated_noise_words = {}
-        if noise_words_filename:
-            with open(noise_words_filename) as f:
-                translated_noise_words = f.read().strip()
-            self._translated_noise_words[lang] = \
-                translated_noise_words.split()
+        if noise_words:
+            self._translated_noise_words[lang] = noise_words
 
     @property
     def translated_noise_words(self) -> List[str]:

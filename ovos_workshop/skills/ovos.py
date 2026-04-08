@@ -50,7 +50,7 @@ from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
-from ovos_utils.lang import standardize_lang_tag, get_language_dir
+from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
 from ovos_utils.parse import match_one
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
@@ -2427,22 +2427,11 @@ def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
     Returns:
         str: a randomized and/or translated version of the phrase
     """
-    locale_base = dirname(dirname(__file__)) + "/locale"
-    lang_dir = get_language_dir(locale_base, lang)
-    if not lang_dir:
-        LOG.debug(f'No locale dir found for lang: {lang}')
-        return phrase
-    filename = f"{lang_dir}/{phrase}.dialog"
-
-    if not isfile(filename):
-        LOG.debug(f'Resource file not found: {filename}')
-        return phrase
-
-    stache = MustacheDialogRenderer()
-    stache.load_template_file('template', filename)
-    if not context:
-        context = {}
-    return stache.render('template', context)
+    from random import choice
+    lines = CoreResources(lang).load_dialog_file(phrase, data=context)
+    if lines:
+        return choice(lines)
+    return phrase
 
 
 def _get_word(lang, connector):
@@ -2455,14 +2444,10 @@ def _get_word(lang, connector):
     Returns:
         str: translated version of resource name
     """
-    locale_base = dirname(dirname(__file__)) + "/locale"
-    lang_dir = get_language_dir(locale_base, lang)
-    if lang_dir:
-        res_file = f"{lang_dir}/word_connectors.json"
-        if os.path.isfile(res_file):
-            with open(res_file) as f:
-                return json.load(f)[connector]
-    LOG.warning(f"untranslated file: locale/{standardize_lang_tag(lang)}/word_connectors.json")
+    data = CoreResources(lang).load_json_file("word_connectors")
+    if connector in data:
+        return data[connector]
+    LOG.warning(f"untranslated word connector '{connector}' for lang: {lang}")
     return ", "
 
 
