@@ -50,7 +50,7 @@ from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
-from ovos_utils.lang import standardize_lang_tag
+from ovos_utils.lang import standardize_lang_tag, get_language_dir
 from ovos_utils.log import LOG
 from ovos_utils.parse import match_one
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
@@ -2427,8 +2427,12 @@ def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
     Returns:
         str: a randomized and/or translated version of the phrase
     """
-    lang = standardize_lang_tag(lang).split('-')[0]
-    filename = f"{dirname(dirname(__file__))}/locale/{lang}/{phrase}.dialog"
+    locale_base = dirname(dirname(__file__)) + "/locale"
+    lang_dir = get_language_dir(locale_base, lang)
+    if not lang_dir:
+        LOG.debug(f'No locale dir found for lang: {lang}')
+        return phrase
+    filename = f"{lang_dir}/{phrase}.dialog"
 
     if not isfile(filename):
         LOG.debug(f'Resource file not found: {filename}')
@@ -2451,22 +2455,14 @@ def _get_word(lang, connector):
     Returns:
         str: translated version of resource name
     """
-    lang_full = standardize_lang_tag(lang)
-    lang_short = lang_full.split("-")[0]
-    locale_dir = dirname(dirname(__file__)) + "/locale"
-    for candidate in [lang_full, lang_short]:
-        res_file = f"{locale_dir}/{candidate}/word_connectors.json"
+    locale_base = dirname(dirname(__file__)) + "/locale"
+    lang_dir = get_language_dir(locale_base, lang)
+    if lang_dir:
+        res_file = f"{lang_dir}/word_connectors.json"
         if os.path.isfile(res_file):
             with open(res_file) as f:
                 return json.load(f)[connector]
-    # fall back to any locale folder that starts with the language code
-    for folder in os.listdir(locale_dir):
-        if folder.startswith(lang_short + "-"):
-            res_file = f"{locale_dir}/{folder}/word_connectors.json"
-            if os.path.isfile(res_file):
-                with open(res_file) as f:
-                    return json.load(f)[connector]
-    LOG.warning(f"untranslated file: locale/{lang_full}/word_connectors.json")
+    LOG.warning(f"untranslated file: locale/{standardize_lang_tag(lang)}/word_connectors.json")
     return ", "
 
 

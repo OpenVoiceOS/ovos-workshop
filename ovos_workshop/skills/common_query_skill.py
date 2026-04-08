@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 
 from ovos_bus_client import Message
 from ovos_utils.file_utils import resolve_resource_file
+from ovos_utils.lang import get_language_dir
 from ovos_utils.log import LOG, log_deprecation
 import warnings
 from ovos_workshop.skills.ovos import OVOSSkill
@@ -73,14 +74,16 @@ class CommonQuerySkill(OVOSSkill):
         }
         super().__init__(*args, **kwargs)
 
-        lang = self.lang.split("-")[0]
+        lang = self.lang
+        locale_base = f"{dirname(dirname(__file__))}/locale"
+        lang_dir = get_language_dir(locale_base, lang)
+        default_res = f"{lang_dir}/noise_words.list" if lang_dir else None
         noise_words_filepath = f"text/{lang}/noise_words.list"
-        default_res = f"{dirname(dirname(__file__))}/locale/{lang}" \
-                      f"/noise_words.list"
         noise_words_filename = \
             resolve_resource_file(noise_words_filepath,
                                   config=self.config_core) or \
-            resolve_resource_file(default_res, config=self.config_core)
+            (resolve_resource_file(default_res, config=self.config_core)
+             if default_res else None)
 
         self._translated_noise_words = {}
         if noise_words_filename:
@@ -96,13 +99,13 @@ class CommonQuerySkill(OVOSSkill):
         """
         log_deprecation("self.translated_noise_words will become a "
                         "private variable", "0.1.0")
-        return self._translated_noise_words.get(self.lang.split("-")[0], [])
+        return self._translated_noise_words.get(self.lang, [])
 
     @translated_noise_words.setter
     def translated_noise_words(self, val: List[str]):
         log_deprecation("self.translated_noise_words will become a "
                         "private variable", "0.1.0")
-        self._translated_noise_words[self.lang.split("-")[0]] = val
+        self._translated_noise_words[self.lang] = val
 
     def bind(self, bus):
         """Overrides the default bind method of MycroftSkill.
