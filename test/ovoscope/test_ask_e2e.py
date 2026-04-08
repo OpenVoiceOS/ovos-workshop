@@ -63,23 +63,33 @@ class AskSelectionSkill(OVOSSkill):
 # ---------------------------------------------------------------------------
 
 def _inject_response_after_speak(mc, skill_id: str, utterance: str,
-                                  session: Session, delay: float = 0.3):
-    """Wait for the skill to speak (prompt), then inject user utterance.
+                                  session: Session, delay: float = 0.1):
+    """Simulate TTS completion and inject a user response.
 
-    Emits directly to ``{skill_id}.converse.get_response`` which is the
-    internal bus event that ``_wait_response`` reads from.
+    speak(wait=True) blocks on ``recognizer_loop:audio_output_end``.
+    We emit that event immediately on every ``speak`` so the skill never
+    hangs waiting for real TTS.  Once the last prompt speak is done we
+    inject the user's reply via ``{skill_id}.converse.get_response``.
     """
-    spoken = threading.Event()
+    last_speak_time = [0.0]
 
-    def on_speak(msg: str):
-        spoken.set()
+    def on_speak(raw: str):
+        import time
+        msg = Message.deserialize(raw)
+        # unblock speak(wait=True)
+        mc.bus.emit(msg.forward("recognizer_loop:audio_output_end"))
+        last_speak_time[0] = time.time()
 
-    mc.bus.on("speak", on_speak)
+    mc.bus.on("message", on_speak)
 
     def _inject():
-        spoken.wait(timeout=10)
-        mc.bus.remove("speak", on_speak)
-        import time; time.sleep(delay)
+        import time
+        # wait until speaking stops (no new speak for delay seconds)
+        while True:
+            time.sleep(0.05)
+            if last_speak_time[0] and time.time() - last_speak_time[0] >= delay:
+                break
+        mc.bus.remove("message", on_speak)
         mc.bus.emit(Message(
             f"{skill_id}.converse.get_response",
             {"utterances": [utterance], "lang": "en-us"},
