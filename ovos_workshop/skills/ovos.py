@@ -2413,27 +2413,6 @@ class SkillGUI(GUIInterface):
                               ui_directories=ui_directories)
 
 
-def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
-    """
-    Looks up a resource file for the given phrase in the specified language.
-
-    Meant only for resources bundled with ovos-workshop and shared across skills
-
-    Args:
-        phrase (str): resource phrase to retrieve/translate
-        lang (str): the language to use
-        context (dict): values to be inserted into the string
-
-    Returns:
-        str: a randomized and/or translated version of the phrase
-    """
-    from random import choice
-    lines = CoreResources(lang).load_dialog_file(phrase, data=context)
-    if lines:
-        return choice(lines)
-    return phrase
-
-
 def _get_word(lang, connector):
     """ Helper to get word translations
 
