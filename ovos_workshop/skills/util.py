@@ -39,7 +39,7 @@ def simple_trace(stack_trace: List[str]) -> str:
     return tb
 
 
-def get_word(lang: str, connector: str) -> str:
+def _get_word(lang: str, connector: str) -> str:
     """Get connector word translation for a language.
 
     Args:
@@ -56,7 +56,7 @@ def get_word(lang: str, connector: str) -> str:
     return ", "
 
 
-def load_euphony_rules(lang: str) -> Optional[Dict]:
+def _load_euphony_rules(lang: str) -> Optional[Dict]:
     """Load euphony.json for a language if it exists.
 
     Args:
@@ -71,7 +71,7 @@ def load_euphony_rules(lang: str) -> Optional[Dict]:
         return None
 
 
-def normalize_word(word: str, rules: dict) -> str:
+def _normalize_word(word: str, rules: dict) -> str:
     """Normalize a word for euphony comparison per language rules.
 
     Args:
@@ -98,7 +98,7 @@ def normalize_word(word: str, rules: dict) -> str:
     return word
 
 
-def apply_euphony(connector: str, next_word: str, rules: dict) -> str:
+def _apply_euphony(connector: str, next_word: str, rules: dict) -> str:
     """Apply euphony transformation to connector based on rules.
 
     Args:
@@ -120,7 +120,7 @@ def apply_euphony(connector: str, next_word: str, rules: dict) -> str:
 
         # Check the condition type
         condition = rule.get("condition")
-        normalized_next = normalize_word(next_word.lower(), rules)
+        normalized_next = _normalize_word(next_word.lower(), rules)
         first_char = normalized_next[0] if normalized_next else ""
 
         if condition == "starts_with_vowel":
@@ -175,12 +175,12 @@ def join_word_list(items: List[str], connector: str, sep: str, lang: str) -> str
         return str(items[0])
 
     # Load connector word
-    connector_word = get_word(lang, connector)
+    connector_word = _get_word(lang, connector)
 
     # Load and apply euphony rules if available
-    euphony_rules = load_euphony_rules(lang)
+    euphony_rules = _load_euphony_rules(lang)
     if euphony_rules:
-        connector_word = apply_euphony(connector_word, str(items[-1]), euphony_rules)
+        connector_word = _apply_euphony(connector_word, str(items[-1]), euphony_rules)
 
     # Format separator
     if not sep:
