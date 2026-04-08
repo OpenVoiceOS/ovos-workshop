@@ -368,6 +368,49 @@ class TestJoinWordListMoreLanguages(unittest.TestCase):
             join_word_list(["раз", "два", "три"], "and", ",", "ru-RU"),
             "раз, два и три")
 
+    # --- Occitan (euphony: e → et before any vowel) ---
+    def test_oc_and_before_vowel(self):
+        self.assertEqual(
+            join_word_list(["pan", "aiga"], "and", ",", "oc-FR"),
+            "pan et aiga")
+
+    def test_oc_and_before_consonant(self):
+        self.assertEqual(
+            join_word_list(["pan", "vin"], "and", ",", "oc-FR"),
+            "pan e vin")
+
+    # --- Asturian (euphony: y → e before i, o → u before o) ---
+    def test_ast_and_before_i(self):
+        self.assertEqual(
+            join_word_list(["Juan", "Irene"], "and", ",", "ast-ES"),
+            "Juan e Irene")
+
+    def test_ast_and_no_euphony(self):
+        self.assertEqual(
+            join_word_list(["pan", "agua"], "and", ",", "ast-ES"),
+            "pan y agua")
+
+    def test_ast_or_before_o(self):
+        self.assertEqual(
+            join_word_list(["uno", "otro"], "or", ",", "ast-ES"),
+            "uno u otro")
+
+    # --- Aragonese (euphony: y → e before i, o → u before o) ---
+    def test_an_and_before_i(self):
+        self.assertEqual(
+            join_word_list(["Juan", "Irene"], "and", ",", "an-ES"),
+            "Juan e Irene")
+
+    def test_an_and_no_euphony(self):
+        self.assertEqual(
+            join_word_list(["pan", "augua"], "and", ",", "an-ES"),
+            "pan y augua")
+
+    def test_an_or_before_o(self):
+        self.assertEqual(
+            join_word_list(["uno", "otro"], "or", ",", "an-ES"),
+            "uno u otro")
+
 
 if __name__ == "__main__":
     unittest.main()

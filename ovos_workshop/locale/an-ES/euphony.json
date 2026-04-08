@@ -1,0 +1,23 @@
+{
+  "normalize": {
+    "strip_leading_h": true,
+    "replace_accents": {
+      "í": "i"
+    }
+  },
+  "rules": [
+    {
+      "connector": "y",
+      "condition": "starts_with_any_except",
+      "letters": ["i"],
+      "excluded_patterns": ["io", "ia", "ie"],
+      "replace_with": "e"
+    },
+    {
+      "connector": "o",
+      "condition": "starts_with_vowel",
+      "vowels": ["o"],
+      "replace_with": "u"
+    }
+  ]
+}
