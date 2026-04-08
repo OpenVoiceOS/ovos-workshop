@@ -12,11 +12,9 @@
 
 from abc import abstractmethod
 from enum import IntEnum
-from os.path import dirname
 from typing import List, Optional, Tuple
 
 from ovos_bus_client import Message
-from ovos_utils.file_utils import resolve_resource_file
 from ovos_utils.log import LOG, log_deprecation
 import warnings
 from ovos_workshop.skills.ovos import OVOSSkill
@@ -73,36 +71,11 @@ class CommonQuerySkill(OVOSSkill):
         }
         super().__init__(*args, **kwargs)
 
-        lang = self.lang.split("-")[0]
-        noise_words_filepath = f"text/{lang}/noise_words.list"
-        default_res = f"{dirname(dirname(__file__))}/locale/{lang}" \
-                      f"/noise_words.list"
-        noise_words_filename = \
-            resolve_resource_file(noise_words_filepath,
-                                  config=self.config_core) or \
-            resolve_resource_file(default_res, config=self.config_core)
-
+        lang = self.lang
+        noise_words = self.resources.load_list_file("noise_words")
         self._translated_noise_words = {}
-        if noise_words_filename:
-            with open(noise_words_filename) as f:
-                translated_noise_words = f.read().strip()
-            self._translated_noise_words[lang] = \
-                translated_noise_words.split()
-
-    @property
-    def translated_noise_words(self) -> List[str]:
-        """
-        Get a list of "noise" words in the current language
-        """
-        log_deprecation("self.translated_noise_words will become a "
-                        "private variable", "0.1.0")
-        return self._translated_noise_words.get(self.lang.split("-")[0], [])
-
-    @translated_noise_words.setter
-    def translated_noise_words(self, val: List[str]):
-        log_deprecation("self.translated_noise_words will become a "
-                        "private variable", "0.1.0")
-        self._translated_noise_words[self.lang.split("-")[0]] = val
+        if noise_words:
+            self._translated_noise_words[lang] = noise_words
 
     def bind(self, bus):
         """Overrides the default bind method of MycroftSkill.
@@ -186,7 +159,7 @@ class CommonQuerySkill(OVOSSkill):
         @param lang: language of `phrase`, else defaults to `self.lang`
         @return: cleaned `phrase` with extra words removed
         """
-        lang = (lang or self.lang).split("-")[0]
+        lang = lang or self.lang
         phrase = ' ' + phrase + ' '
         for word in self._translated_noise_words.get(lang, []):
             mtch = ' ' + word + ' '

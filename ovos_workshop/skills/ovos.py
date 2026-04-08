@@ -1476,7 +1476,8 @@ class OVOSSkill:
         # Convert "MyFancySkill" to "My Fancy Skill" for speaking
         handler_name = camel_case_split(self.name)
         msg_data = {'skill': handler_name}
-        speech = _get_dialog('skill.error', self.lang, msg_data)
+        lines = self.resources.load_dialog_file('skill.error', data=msg_data)
+        speech = lines[0] if lines else 'skill.error'
         if speak_errors:
             self.speak(speech)
         self.log.exception(error)
@@ -2028,8 +2029,7 @@ class OVOSSkill:
         cache_key = lang + voc_filename
 
         if cache_key not in self._voc_cache:
-            vocab = self.resources.load_vocabulary_file(voc_filename) or \
-                    CoreResources(lang).load_vocabulary_file(voc_filename)
+            vocab = self.resources.load_vocabulary_file(voc_filename)
             if vocab:
                 self._voc_cache[cache_key] = list(chain(*vocab))
 
@@ -2413,34 +2413,6 @@ class SkillGUI(GUIInterface):
                               ui_directories=ui_directories)
 
 
-def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
-    """
-    Looks up a resource file for the given phrase in the specified language.
-
-    Meant only for resources bundled with ovos-workshop and shared across skills
-
-    Args:
-        phrase (str): resource phrase to retrieve/translate
-        lang (str): the language to use
-        context (dict): values to be inserted into the string
-
-    Returns:
-        str: a randomized and/or translated version of the phrase
-    """
-    lang = standardize_lang_tag(lang).split('-')[0]
-    filename = f"{dirname(dirname(__file__))}/locale/{lang}/{phrase}.dialog"
-
-    if not isfile(filename):
-        LOG.debug(f'Resource file not found: {filename}')
-        return phrase
-
-    stache = MustacheDialogRenderer()
-    stache.load_template_file('template', filename)
-    if not context:
-        context = {}
-    return stache.render('template', context)
-
-
 def _get_word(lang, connector):
     """ Helper to get word translations
 
@@ -2451,15 +2423,11 @@ def _get_word(lang, connector):
     Returns:
         str: translated version of resource name
     """
-    lang = standardize_lang_tag(lang).split("-")[0]
-    res_file = f"{dirname(dirname(__file__))}/locale/{lang}" \
-               f"/word_connectors.json"
-    if not os.path.isfile(res_file):
-        LOG.warning(f"untranslated file: {res_file}")
-        return ", "
-    with open(res_file) as f:
-        w = json.load(f)[connector]
-    return w
+    data = CoreResources(lang).load_json_file("word_connectors")
+    if connector in data:
+        return data[connector]
+    LOG.warning(f"untranslated word connector '{connector}' for lang: {lang}")
+    return ", "
 
 
 def join_word_list(items: List[str], connector: str, sep: str, lang: str) -> str:
