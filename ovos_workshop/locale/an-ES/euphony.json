@@ -2,7 +2,9 @@
   "normalize": {
     "strip_leading_h": true,
     "replace_accents": {
-      "í": "i"
+      "í": "i",
+      "ó": "o",
+      "Ó": "O"
     }
   },
   "rules": [

@@ -268,7 +268,7 @@ class TestEuphonyJsonSchema(unittest.TestCase):
             path = join(LOCALE_DIR, folder, "euphony.json")
             if not os.path.isfile(path):
                 continue
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
             self.assertIn("rules", data,
                           f"{folder}/euphony.json missing 'rules'")
@@ -303,7 +303,7 @@ class TestWordConnectorsAllLocales(unittest.TestCase):
             path = join(LOCALE_DIR, folder, "word_connectors.json")
             if not os.path.isfile(path):
                 continue
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
             self.assertIn("and", data,
                           f"{folder}/word_connectors.json missing 'and'")
