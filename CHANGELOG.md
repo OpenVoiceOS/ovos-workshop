@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.3a1) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.2a1...8.0.3a1)
+
+**Merged pull requests:**
+
+- fix: use list.remove\(\) instead of list.pop\(\) in whitelist\_skill [\#394](https://github.com/OpenVoiceOS/ovos-workshop/pull/394) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [8.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.2a1) (2026-04-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a5...8.0.2a1)
