@@ -19,13 +19,12 @@ from ovos_utils.process_utils import RuntimeRequirements
 from ovos_workshop.skills.active import ActiveSkill
 from ovos_workshop.skills.auto_translatable import UniversalSkill, UniversalFallback
 from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill
-from ovos_workshop.skills.common_query_skill import CommonQuerySkill
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
 from ovos_workshop.skills.game_skill import OVOSGameSkill, ConversationalGameSkill
 
 SKILL_BASE_CLASSES = [
-    OVOSSkill, OVOSCommonPlaybackSkill, CommonQuerySkill, ActiveSkill,
+    OVOSSkill, OVOSCommonPlaybackSkill, ActiveSkill,
     FallbackSkill, UniversalSkill, UniversalFallback, OVOSGameSkill, ConversationalGameSkill
 ]
 
