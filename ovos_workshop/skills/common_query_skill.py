@@ -77,21 +77,6 @@ class CommonQuerySkill(OVOSSkill):
         if noise_words:
             self._translated_noise_words[lang] = noise_words
 
-    @property
-    def translated_noise_words(self) -> List[str]:
-        """
-        Get a list of "noise" words in the current language
-        """
-        log_deprecation("self.translated_noise_words will become a "
-                        "private variable", "0.1.0")
-        return self._translated_noise_words.get(self.lang, [])
-
-    @translated_noise_words.setter
-    def translated_noise_words(self, val: List[str]):
-        log_deprecation("self.translated_noise_words will become a "
-                        "private variable", "0.1.0")
-        self._translated_noise_words[self.lang] = val
-
     def bind(self, bus):
         """Overrides the default bind method of MycroftSkill.
 
