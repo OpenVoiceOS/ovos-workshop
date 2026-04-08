@@ -17,7 +17,6 @@ from typing import List, Optional, Tuple
 from ovos_bus_client import Message
 from ovos_utils.log import LOG, log_deprecation
 import warnings
-from ovos_workshop.resource_files import CoreResources
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
@@ -73,7 +72,7 @@ class CommonQuerySkill(OVOSSkill):
         super().__init__(*args, **kwargs)
 
         lang = self.lang
-        noise_words = CoreResources(lang).load_list_file("noise_words")
+        noise_words = self.resources.load_list_file("noise_words")
         self._translated_noise_words = {}
         if noise_words:
             self._translated_noise_words[lang] = noise_words
