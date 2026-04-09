@@ -73,14 +73,13 @@ def _inject_response_after_speak(mc, skill_id: str, utterance: str,
     """
     last_speak_time = [0.0]
 
-    def on_speak(raw: str):
+    def on_speak(msg: Message):
         import time
-        msg = Message.deserialize(raw)
-        # unblock speak(wait=True)
+        # unblock speak(wait=True) — emit audio_output_end with same context
         mc.bus.emit(msg.forward("recognizer_loop:audio_output_end"))
         last_speak_time[0] = time.time()
 
-    mc.bus.on("message", on_speak)
+    mc.bus.on("speak", on_speak)
 
     def _inject():
         import time
@@ -89,7 +88,7 @@ def _inject_response_after_speak(mc, skill_id: str, utterance: str,
             time.sleep(0.05)
             if last_speak_time[0] and time.time() - last_speak_time[0] >= delay:
                 break
-        mc.bus.remove("message", on_speak)
+        mc.bus.remove("speak", on_speak)
         mc.bus.emit(Message(
             f"{skill_id}.converse.get_response",
             {"utterances": [utterance], "lang": "en-us"},
