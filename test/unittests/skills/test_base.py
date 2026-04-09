@@ -228,12 +228,50 @@ class TestOVOSSkill(unittest.TestCase):
     # TODO port get_response methods per #69
 
     def test_ask_yesno(self):
-        # TODO
-        pass
+        from unittest.mock import patch
+
+        # "yes" response -> "yes"
+        with patch.object(self.skill, 'get_response', return_value='yes'):
+            self.assertEqual(self.skill.ask_yesno('do you want tea'), 'yes')
+
+        # "nope" response -> "no"
+        with patch.object(self.skill, 'get_response', return_value='nope'):
+            self.assertEqual(self.skill.ask_yesno('do you want tea'), 'no')
+
+        # "maybe" -> not matched, raw response returned
+        with patch.object(self.skill, 'get_response', return_value='maybe'):
+            self.assertEqual(self.skill.ask_yesno('do you want tea'), 'maybe')
+
+        # None response (timeout) -> None
+        with patch.object(self.skill, 'get_response', return_value=None):
+            self.assertIsNone(self.skill.ask_yesno('do you want tea'))
 
     def test_ask_selection(self):
-        # TODO
-        pass
+        from unittest.mock import patch
+
+        options = ['alpha', 'beta', 'gamma']
+
+        # empty list -> None
+        self.assertIsNone(self.skill.ask_selection([]))
+
+        # single option -> returned immediately without prompting
+        with patch.object(self.skill, 'speak', wraps=self.skill.speak) as mock_speak:
+            result = self.skill.ask_selection(['only'])
+        self.assertEqual(result, 'only')
+
+        # invalid type -> ValueError
+        with self.assertRaises(ValueError):
+            self.skill.ask_selection('not a list')
+
+        # fuzzy match "beta" -> "beta"
+        with patch.object(self.skill, 'get_response', return_value='beta'):
+            result = self.skill.ask_selection(options, numeric=True)
+        self.assertEqual(result, 'beta')
+
+        # no response (timeout) -> None
+        with patch.object(self.skill, 'get_response', return_value=None):
+            result = self.skill.ask_selection(options, numeric=True)
+        self.assertIsNone(result)
 
     def test_voc_list(self):
         # TODO

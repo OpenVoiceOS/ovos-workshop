@@ -68,6 +68,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 | [app.md](app.md) | `OVOSAbstractApplication` | Skill-like app that runs without the intent service |
 | [game-skill.md](game-skill.md) | `OVOSGameSkill`, `ConversationalGameSkill` | OCP-integrated game loop with converse and auto-save |
 | [auto-translatable.md](auto-translatable.md) | `UniversalSkill`, `UniversalFallback` | Auto-translate input/output for any language |
+| [skill-interaction.md](skill-interaction.md) | `OVOSSkill.ask_yesno`, `OVOSSkill.ask_selection` | Pluggable yes/no and option-selection engines |
 | [skill-api.md](skill-api.md) | `SkillApi`, `skill_api_method` | Inter-skill RPC over the MessageBus |
 | [filesystem.md](filesystem.md) | `FileSystemAccess` | Sandboxed, XDG-compliant file storage for skills |
 | [resource-files.md](resource-files.md) | `SkillResources` | Locale, dialog, vocab, regex, and other resource files |
