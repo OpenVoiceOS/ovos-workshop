@@ -23,6 +23,15 @@ dependencies = [
     "padacioso>=1.0.0, <2.0.0",
 ]
 
+[project.optional-dependencies]
+test = [
+    "ovos-core>=0.0.8a50",
+    "ovoscope>=0.1.0",
+    "pytest",
+    "pytest-cov",
+    "ovos-translate-server-plugin",
+]
+
 [project.urls]
 Homepage = "https://github.com/OpenVoiceOS/OVOS-workshop"
 Repository = "https://github.com/OpenVoiceOS/OVOS-workshop"
