@@ -12,4 +12,3 @@ jobs:
     secrets: inherit
     with:
       test_path: 'test/unittests'
-      install_extras: 'test'
