@@ -86,16 +86,21 @@ class TestAskYesnoE2E(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         LOG.set_level("ERROR")
+        cls._saved_bus = SessionManager.bus
         cls.mc = get_minicroft([YESNO_SKILL_ID],
                                extra_skills={YESNO_SKILL_ID: AskYesNoSkill})
-        # speak(wait=True) blocks on TTS completion — patch it out for tests
-        cls._wait_patch = patch.object(SessionManager, "wait_while_speaking")
-        cls._wait_patch.start()
 
     @classmethod
     def tearDownClass(cls):
-        cls._wait_patch.stop()
         cls.mc.stop()
+        SessionManager.bus = cls._saved_bus
+
+    def setUp(self):
+        self._wait_patch = patch.object(SessionManager, "wait_while_speaking")
+        self._wait_patch.start()
+
+    def tearDown(self):
+        self._wait_patch.stop()
 
     def _run(self, user_says: str, session_id: str = "e2e-yesno") -> list:
         trigger = _make_trigger("test.ask.yesno", YESNO_SKILL_ID, session_id=session_id)
@@ -129,15 +134,21 @@ class TestAskSelectionE2E(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         LOG.set_level("ERROR")
+        cls._saved_bus = SessionManager.bus
         cls.mc = get_minicroft([SELECT_SKILL_ID],
                                extra_skills={SELECT_SKILL_ID: AskSelectionSkill})
-        cls._wait_patch = patch.object(SessionManager, "wait_while_speaking")
-        cls._wait_patch.start()
 
     @classmethod
     def tearDownClass(cls):
-        cls._wait_patch.stop()
         cls.mc.stop()
+        SessionManager.bus = cls._saved_bus
+
+    def setUp(self):
+        self._wait_patch = patch.object(SessionManager, "wait_while_speaking")
+        self._wait_patch.start()
+
+    def tearDown(self):
+        self._wait_patch.stop()
 
     def _run(self, user_says: str, options: list = None,
              session_id: str = "e2e-select") -> list:
