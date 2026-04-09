@@ -75,8 +75,13 @@ def _inject_response_after_speak(mc, skill_id: str, utterance: str,
 
     def on_speak(msg: Message):
         import time
-        # unblock speak(wait=True) — emit audio_output_end with same context
-        mc.bus.emit(msg.forward("recognizer_loop:audio_output_end"))
+        # FakeBus is synchronous: audio_output_end must fire AFTER
+        # sess.is_speaking=True is set (which happens after bus.emit returns).
+        # A short thread delay ensures the ordering is correct.
+        def _emit_end():
+            time.sleep(0.02)
+            mc.bus.emit(msg.forward("recognizer_loop:audio_output_end"))
+        threading.Thread(target=_emit_end, daemon=True).start()
         last_speak_time[0] = time.time()
 
     mc.bus.on("speak", on_speak)
