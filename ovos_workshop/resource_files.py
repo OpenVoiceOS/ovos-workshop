@@ -16,6 +16,7 @@
 import abc
 import json
 import re
+import warnings
 from collections import namedtuple
 from os import walk
 from os.path import dirname
@@ -23,10 +24,15 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
 from ovos_config.locations import get_xdg_data_save_path
-from ovos_spec_tools import expand, lang_distance
+from ovos_spec_tools import expand, lang_distance, render as _spec_render
 from ovos_utils import flatten_list
-from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
-from ovos_utils.log import LOG
+from ovos_utils.dialog import MustacheDialogRenderer
+from ovos_utils.log import LOG, deprecated
+
+from ovos_workshop.version import VERSION_MAJOR
+
+# removal version is computed from the current major, never hardcoded
+_REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 
 SkillResourceTypes = namedtuple(
     "SkillResourceTypes",
@@ -397,16 +403,40 @@ class DialogFile(ResourceFile):
 
         return dialogs
 
-    def render(self, dialog_renderer):
-        """Renders a random phrase from a dialog file.
+    def _load_raw(self) -> List[str]:
+        """Load the phrase lines without expanding variants or filling slots.
 
-        If no file is found, the requested phrase is returned as the string. This
-        will use the default language for translations.
+        Slot filling and ``(a|b)``/``[x]`` expansion are deferred to
+        :func:`ovos_spec_tools.render`, which the spec defines as the
+        conformant renderer.
+        """
+        phrases = []
+        if self.file_path is not None:
+            for line in self._read():
+                phrases.append(line.replace("{{", "{").replace("}}", "}"))
+        return phrases
+
+    def render(self, dialog_renderer=None):
+        """Renders a random phrase from this dialog file.
+
+        Phrases are loaded from this file and rendered with
+        :func:`ovos_spec_tools.render`: ``(a|b)``/``[x]`` variants are expanded
+        and ``{name}`` slots are filled from ``self.data``. If no file is found,
+        the requested phrase name is returned as a string (with dots replaced by
+        spaces), preserving the legacy fallback for missing dialogs.
+
+        Args:
+            dialog_renderer: unused, kept for backwards compatibility.
 
         Returns:
-            str: a randomized version of the phrase
+            str: a randomized, rendered version of the phrase
         """
-        return dialog_renderer.render(self.resource_name, self.data)
+        phrases = self._load_raw()
+        if not phrases:
+            # legacy fallback for a missing dialog file:
+            # render("record.not.found") -> "record not found"
+            return self.resource_name.replace(".dialog", "").replace(".", " ")
+        return _spec_render(phrases, slots=self.data)
 
 
 class VocabularyFile(ResourceFile):
@@ -457,16 +487,28 @@ class IntentFile(ResourceFile):
                 intents = [intent.format(**self.data) for intent in intents]
         return intents
 
-    def render(self, dialog_renderer):
-        """Renders a random phrase from a dialog file.
+    def render(self, dialog_renderer=None):
+        """Renders a random phrase from this intent file.
 
-        If no file is found, the requested phrase is returned as the string. This
-        will use the default language for translations.
+        Phrases are loaded from this file and rendered with
+        :func:`ovos_spec_tools.render`: ``(a|b)``/``[x]`` variants are expanded
+        and ``{name}`` slots are filled from ``self.data``. If no file is found,
+        the requested phrase name is returned as a string (with dots replaced by
+        spaces), preserving the legacy fallback for missing files.
+
+        Args:
+            dialog_renderer: unused, kept for backwards compatibility.
 
         Returns:
-            str: a randomized version of the phrase
+            str: a randomized, rendered version of the phrase
         """
-        return dialog_renderer.render(self.resource_name, self.data)
+        phrases = []
+        if self.file_path is not None:
+            for line in self._read():
+                phrases.append(line.replace("{{", "{").replace("}}", "}"))
+        if not phrases:
+            return self.resource_name.replace(".intent", "").replace(".", " ")
+        return _spec_render(phrases, slots=self.data)
 
 
 class NamedValueFile(ResourceFile):
@@ -559,10 +601,21 @@ class SkillResources:
         self.static = dict()
 
     @property
+    @deprecated("dialog_renderer is deprecated; dialog rendering is handled by "
+                "ovos_spec_tools.render via SkillResources.render_dialog. "
+                "This compat shim will be removed.", _REMOVAL_VERSION)
     def dialog_renderer(self) -> MustacheDialogRenderer:
         """
         Get a dialog renderer object for these resources
+
+        Deprecated: dialog rendering is now performed by
+        :func:`ovos_spec_tools.render` inside :meth:`render_dialog`. This
+        property is kept only as a compatibility shim and lazily builds a
+        :class:`MustacheDialogRenderer` for callers that still expect one.
         """
+        warnings.warn(
+            "dialog_renderer is deprecated; use SkillResources.render_dialog",
+            DeprecationWarning, stacklevel=3)
         if not self._dialog_renderer:
             self._load_dialog_renderer()
         return self._dialog_renderer
@@ -577,14 +630,22 @@ class SkillResources:
     def _load_dialog_renderer(self):
         """
         Initialize a MustacheDialogRenderer object for these resources
+
+        Deprecated compat helper: loads ``.dialog`` files into a
+        :class:`MustacheDialogRenderer` for legacy callers of the
+        :attr:`dialog_renderer` property. New code renders via
+        :func:`ovos_spec_tools.render`.
         """
         base_dirs = locate_lang_directories(self.language,
                                             self.skill_directory,
                                             "dialog")
         for directory in base_dirs:
             if directory.exists():
-                dialog_dir = str(directory)
-                self._dialog_renderer = load_dialogs(dialog_dir)
+                renderer = MustacheDialogRenderer()
+                for path in Path(directory).iterdir():
+                    if path.is_file() and path.suffix == ".dialog":
+                        renderer.load_template_file(path.stem, str(path))
+                self._dialog_renderer = renderer
                 return
         LOG.debug(f'No dialog loaded for {self.language}')
 
@@ -780,7 +841,7 @@ class SkillResources:
         """
         resource_file = DialogFile(self.types.dialog, name)
         resource_file.data = data
-        return resource_file.render(self.dialog_renderer)
+        return resource_file.render()
 
     def load_skill_vocabulary(self, alphanumeric_skill_id: str) -> dict:
         """

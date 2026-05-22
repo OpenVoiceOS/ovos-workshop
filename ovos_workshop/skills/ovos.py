@@ -19,6 +19,7 @@ import shutil
 import sys
 import time
 import traceback
+import warnings
 from copy import copy
 from hashlib import md5
 from inspect import signature
@@ -51,7 +52,7 @@ from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.lang import standardize_lang_tag
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, deprecated
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
@@ -64,6 +65,7 @@ from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_inte
 from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
+from ovos_workshop.version import VERSION_MAJOR
 
 
 class OVOSSkill:
@@ -421,13 +423,38 @@ class OVOSSkill:
 
     # magic properties -> depend on message.context / Session
     @property
+    @deprecated("dialog_renderer is deprecated; dialogs are rendered by "
+                "ovos_spec_tools.render via OVOSSkill.render_dialog / "
+                "self.resources.render_dialog. This compat shim will be "
+                "removed.", f"{VERSION_MAJOR + 1}.0.0")
     def dialog_renderer(self) -> Optional[MustacheDialogRenderer]:
         """
         Get a dialog renderer for this skill. Language will be determined by
         message history to match the language associated with the current
         session or else from Configuration.
+
+        Deprecated: dialog rendering is now performed by
+        :func:`ovos_spec_tools.render`. Use :meth:`render_dialog` (or
+        ``self.resources.render_dialog``) instead. This property is kept only
+        as a compatibility shim.
         """
+        warnings.warn(
+            "dialog_renderer is deprecated; use OVOSSkill.render_dialog",
+            DeprecationWarning, stacklevel=3)
         return self.resources.dialog_renderer
+
+    def render_dialog(self, name: str, data: Optional[dict] = None) -> str:
+        """
+        Render a random phrase from a ``.dialog`` file for the skill's current
+        language, filling ``{name}`` slots from ``data``.
+
+        Args:
+            name: name of the dialog file (no extension needed)
+            data: values used to fill the dialog's named slots
+        Returns:
+            A rendered phrase ready for text-to-speech.
+        """
+        return self.resources.render_dialog(name, data)
 
     @property
     def system_unit(self) -> str:
@@ -1589,21 +1616,17 @@ class OVOSSkill:
                                                            modified string. 
                                                            Defaults to None.
         """
-        if self.dialog_renderer:
-            data = data or {}
-            utterance = self.dialog_renderer.render(key, data)
-            if render_callback is not None:
-                utterance = render_callback(utterance, self.lang)
-            self.speak(
-                utterance,
-                expect_response, wait, meta={'dialog': key, 'data': data}
-            )
-        else:
-            # TODO - change this behaviour, speaking the dialog file name isn't that helpful!
-            self.log.error(
-                'dialog_render is None, does the locale/dialog folder exist?'
-            )
-            self.speak(key, expect_response, wait, {})
+        data = data or {}
+        # render_dialog renders a phrase via ovos_spec_tools.render; a missing
+        # .dialog file falls back to the dialog name with dots replaced by
+        # spaces (eg "record.not.found" -> "record not found").
+        utterance = self.render_dialog(key, data)
+        if render_callback is not None:
+            utterance = render_callback(utterance, self.lang)
+        self.speak(
+            utterance,
+            expect_response, wait, meta={'dialog': key, 'data': data}
+        )
 
     def play_audio(self, filename: str, instant: bool = False,
                    wait: Union[bool, int] = False):
@@ -1746,14 +1769,13 @@ class OVOSSkill:
         def on_fail_default(utterance):
             fail_data = data.copy()
             fail_data['utterance'] = utterance
+            # render_dialog renders a phrase via ovos_spec_tools.render; a
+            # missing .dialog file falls back to the name with dots replaced
+            # by spaces.
             if on_fail:
-                if self.dialog_renderer:
-                    return self.dialog_renderer.render(on_fail, fail_data)
-                return on_fail
+                return self.render_dialog(on_fail, fail_data)
             else:
-                if self.dialog_renderer:
-                    return self.dialog_renderer.render(dialog, data)
-                return dialog
+                return self.render_dialog(dialog, data)
 
         def is_cancel(utterance):
             return self.voc_match(utterance, 'cancel', lang=session.lang)
