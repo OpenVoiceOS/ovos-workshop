@@ -870,9 +870,8 @@ class SkillResources:
         for directory in base_dirs:
             if directory.exists():
                 renderer = MustacheDialogRenderer()
-                for path in Path(directory).iterdir():
-                    if path.is_file() and path.suffix == ".dialog":
-                        renderer.load_template_file(path.stem, str(path))
+                for path in Path(directory).rglob("*.dialog"):
+                    renderer.load_template_file(path.stem, str(path))
                 self._dialog_renderer = renderer
                 return
         LOG.debug(f'No dialog loaded for {self.language}')
