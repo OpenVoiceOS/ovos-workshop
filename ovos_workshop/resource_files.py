@@ -12,11 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Handling of skill data such as intents and regular expressions."""
+"""Handling of skill data such as intents and regular expressions.
+
+.. deprecated::
+    The whole :mod:`ovos_workshop.resource_files` module is deprecated and
+    will be removed in a future release. It predates the OVOS formal
+    specifications and is considered overengineered.
+
+    Use :mod:`ovos_spec_tools` instead:
+
+    * :class:`ovos_spec_tools.LocaleResources` replaces the resource loading
+      machinery (:class:`SkillResources`, :class:`ResourceFile` and friends).
+    * :func:`ovos_spec_tools.render` / :class:`ovos_spec_tools.DialogRenderer`
+      replace dialog rendering.
+    * :func:`ovos_spec_tools.expand` replaces template/variant expansion.
+    * :func:`ovos_spec_tools.closest_lang` / :func:`ovos_spec_tools.standardize_lang`
+      replace language matching.
+
+    The legacy resource types ``.qml``, ``.json``, ``.list``, ``.value``,
+    ``.rx`` (regex), ``.word`` and ``.template`` have no spec replacement;
+    they are legacy and not part of the OVOS formal specifications.
+
+    The module remains fully functional for downstream consumers; nothing has
+    been removed.
+"""
 import abc
 import json
 import re
+import sys
 import warnings
+import functools
 from collections import namedtuple
 from os import walk
 from os.path import dirname
@@ -33,6 +58,55 @@ from ovos_workshop.version import VERSION_MAJOR
 
 # removal version is computed from the current major, never hardcoded
 _REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
+
+
+def _caller_is_internal() -> bool:
+    """Return True when the deprecated entry point is being called by
+    ovos_workshop's own code.
+
+    Workshop instantiates these classes internally on hot paths (e.g.
+    :class:`SkillResources` is built per-skill, per-language). Firing a
+    deprecation warning for those internal calls would spam the logs at the
+    framework itself. The deprecation must stay visible to downstream users
+    but silent for workshop's own use, so the warning is guarded by this
+    stack inspection.
+    """
+    # frame 0: this function, frame 1: the deprecated wrapper -> walk outward
+    frame = sys._getframe(2)
+    while frame is not None:
+        module = frame.f_globals.get("__name__", "")
+        if module.startswith("ovos_workshop"):
+            return True
+        if module and not module.startswith("ovos_workshop"):
+            # the first non-workshop frame decides: external caller
+            return False
+        frame = frame.f_back
+    return False
+
+
+def _deprecated_public(msg: str):
+    """Decorator for public functions / ``__init__`` of public classes in this
+    module.
+
+    Combines the :func:`ovos_utils.log.deprecated` log notice with an inner
+    :class:`DeprecationWarning` (visible to IDEs/tooling), but suppresses both
+    when the caller is ovos_workshop itself (see :func:`_caller_is_internal`).
+    """
+    _decorated = deprecated(msg, _REMOVAL_VERSION)
+
+    def wrapped(func):
+        logged = _decorated(func)
+
+        @functools.wraps(func)
+        def log_wrapper(*args, **kwargs):
+            if _caller_is_internal():
+                return func(*args, **kwargs)
+            warnings.warn(msg, DeprecationWarning, stacklevel=3)
+            return logged(*args, **kwargs)
+
+        return log_wrapper
+
+    return wrapped
 
 SkillResourceTypes = namedtuple(
     "SkillResourceTypes",
@@ -52,6 +126,9 @@ SkillResourceTypes = namedtuple(
 )
 
 
+@_deprecated_public(
+    "locate_base_directories is deprecated; use ovos_spec_tools.LocaleResources "
+    "for resource discovery.")
 def locate_base_directories(skill_directory: str,
                             resource_subdirectory: Optional[str] = None) -> \
         List[Path]:
@@ -60,6 +137,9 @@ def locate_base_directories(skill_directory: str,
     @param skill_directory: skill base directory to search for resources
     @param resource_subdirectory: optional extra resource directory to prepend
     @return: list of existing skill resource directories
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource discovery.
     """
     base_dirs = [Path(skill_directory, resource_subdirectory)] if \
         resource_subdirectory else []
@@ -71,6 +151,10 @@ def locate_base_directories(skill_directory: str,
     return candidates
 
 
+@_deprecated_public(
+    "locate_lang_directories is deprecated; use ovos_spec_tools.closest_lang / "
+    "standardize_lang for language matching and ovos_spec_tools.LocaleResources "
+    "for resource discovery.")
 def locate_lang_directories(lang: str, skill_directory: str,
                             resource_subdirectory: Optional[str] = None) -> List[Path]:
     """
@@ -80,6 +164,11 @@ def locate_lang_directories(lang: str, skill_directory: str,
     @param skill_directory: skill base directory to search for resources
     @param resource_subdirectory: optional extra resource directory to prepend
     @return: list of existing skill resource directories for the given lang
+
+    .. deprecated::
+        Use :func:`ovos_spec_tools.closest_lang` / :func:`ovos_spec_tools.standardize_lang`
+        for language matching and :class:`ovos_spec_tools.LocaleResources`
+        for resource discovery.
     """
     base_dirs = [Path(skill_directory, "locale")]
     if resource_subdirectory:
@@ -102,10 +191,16 @@ def locate_lang_directories(lang: str, skill_directory: str,
     return [c[0] for c in candidates]
 
 
+@_deprecated_public(
+    "find_resource is deprecated; use ovos_spec_tools.LocaleResources for "
+    "resource discovery.")
 def find_resource(res_name: str, root_dir: str, res_dirname: str,
                   lang: Optional[str] = None) -> Optional[Path]:
     """
     Find a resource file.
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource discovery.
 
     Searches for the given filename using this scheme:
         1. Search the resource lang directory:
@@ -157,8 +252,14 @@ class ResourceType:
         resource_type: one of a predefined set of resource types for skills
         file_extension: the file extension associated with the resource type
         base_directory: directory containing all files for the resource type
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource discovery.
     """
 
+    @_deprecated_public(
+        "ResourceType is deprecated; use ovos_spec_tools.LocaleResources for "
+        "resource discovery.")
     def __init__(self, resource_type: str, file_extension: str,
                  language: Optional[str] = None):
         self.resource_type = resource_type
@@ -274,8 +375,14 @@ class ResourceFile:
         resource_type: attributes of the resource type (dialog, vocab, etc.)
         resource_name: file name of the resource, with or without extension
         file_path: absolute path to the file
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource loading.
     """
 
+    @_deprecated_public(
+        "ResourceFile is deprecated; use ovos_spec_tools.LocaleResources for "
+        "resource loading.")
     def __init__(self, resource_type: ResourceType, resource_name: str):
         self.resource_type = resource_type
         self.resource_name = resource_name
@@ -337,6 +444,19 @@ class ResourceFile:
 
 
 class QmlFile(ResourceFile):
+    """Loads a ``.qml`` GUI resource file.
+
+    .. deprecated::
+        ``.qml`` is a legacy resource type and is not part of the OVOS formal
+        specifications.
+    """
+
+    @_deprecated_public(
+        "QmlFile is deprecated; .qml is a legacy resource type and is not part "
+        "of the OVOS formal specifications.")
+    def __init__(self, resource_type: ResourceType, resource_name: str):
+        super().__init__(resource_type, resource_name)
+
     def _locate(self):
         """ QML files are special because we do not want to walk the directory """
         file_path = None
@@ -369,6 +489,19 @@ class QmlFile(ResourceFile):
 
 
 class JsonFile(ResourceFile):
+    """Loads a ``.json`` resource file.
+
+    .. deprecated::
+        ``.json`` is a legacy resource type and is not part of the OVOS formal
+        specifications.
+    """
+
+    @_deprecated_public(
+        "JsonFile is deprecated; .json is a legacy resource type and is not "
+        "part of the OVOS formal specifications.")
+    def __init__(self, resource_type: ResourceType, resource_name: str):
+        super().__init__(resource_type, resource_name)
+
     def load(self) -> Dict[str, Any]:
         if self.file_path is not None:
             try:
@@ -380,8 +513,16 @@ class JsonFile(ResourceFile):
 
 
 class DialogFile(ResourceFile):
-    """Defines a dialog file, which is used instruct TTS what to speak."""
+    """Defines a dialog file, which is used instruct TTS what to speak.
 
+    .. deprecated::
+        Use :func:`ovos_spec_tools.render` / :class:`ovos_spec_tools.DialogRenderer`
+        for dialog rendering.
+    """
+
+    @_deprecated_public(
+        "DialogFile is deprecated; use ovos_spec_tools.render / "
+        "ovos_spec_tools.DialogRenderer for dialog rendering.")
     def __init__(self, resource_type, resource_name):
         super().__init__(resource_type, resource_name)
         self.data = None
@@ -442,7 +583,17 @@ class DialogFile(ResourceFile):
 
 
 class VocabularyFile(ResourceFile):
-    """Defines a vocabulary file, which skill use to form intents."""
+    """Defines a vocabulary file, which skill use to form intents.
+
+    .. deprecated::
+        Use :func:`ovos_spec_tools.expand` for vocabulary variant expansion.
+    """
+
+    @_deprecated_public(
+        "VocabularyFile is deprecated; use ovos_spec_tools.expand for "
+        "vocabulary variant expansion.")
+    def __init__(self, resource_type: ResourceType, resource_name: str):
+        super().__init__(resource_type, resource_name)
 
     def load(self) -> List[List[str]]:
         """Loads a vocabulary file.
@@ -464,8 +615,15 @@ class VocabularyFile(ResourceFile):
 
 
 class IntentFile(ResourceFile):
-    """Defines an intent file, which skill use to form intents."""
+    """Defines an intent file, which skill use to form intents.
 
+    .. deprecated::
+        Use :func:`ovos_spec_tools.expand` / :func:`ovos_spec_tools.render`.
+    """
+
+    @_deprecated_public(
+        "IntentFile is deprecated; use ovos_spec_tools.expand / "
+        "ovos_spec_tools.render.")
     def __init__(self, resource_type, resource_name):
         super().__init__(resource_type, resource_name)
         self.data = None
@@ -517,8 +675,16 @@ class IntentFile(ResourceFile):
 
 
 class NamedValueFile(ResourceFile):
-    """Defines a named value file, which maps a variable to a values."""
+    """Defines a named value file, which maps a variable to a values.
 
+    .. deprecated::
+        ``.value`` is a legacy resource type and is not part of the OVOS
+        formal specifications.
+    """
+
+    @_deprecated_public(
+        "NamedValueFile is deprecated; .value is a legacy resource type and is "
+        "not part of the OVOS formal specifications.")
     def __init__(self, resource_type, resource_name):
         super().__init__(resource_type, resource_name)
         self.delimiter = ","
@@ -559,14 +725,50 @@ class NamedValueFile(ResourceFile):
 
 
 class ListFile(DialogFile):
-    pass
+    """Defines a ``.list`` file.
+
+    .. deprecated::
+        ``.list`` is a legacy resource type and is not part of the OVOS formal
+        specifications.
+    """
+
+    @_deprecated_public(
+        "ListFile is deprecated; .list is a legacy resource type and is not "
+        "part of the OVOS formal specifications.")
+    def __init__(self, resource_type, resource_name):
+        super().__init__(resource_type, resource_name)
 
 
 class TemplateFile(DialogFile):
-    pass
+    """Defines a ``.template`` file.
+
+    .. deprecated::
+        ``.template`` is a legacy resource type and is not part of the OVOS
+        formal specifications; use :func:`ovos_spec_tools.expand`.
+    """
+
+    @_deprecated_public(
+        "TemplateFile is deprecated; .template is a legacy resource type and "
+        "is not part of the OVOS formal specifications; use "
+        "ovos_spec_tools.expand.")
+    def __init__(self, resource_type, resource_name):
+        super().__init__(resource_type, resource_name)
 
 
 class RegexFile(ResourceFile):
+    """Defines a ``.rx`` regex resource file.
+
+    .. deprecated::
+        ``.rx`` (regex) is a legacy resource type and is not part of the OVOS
+        formal specifications.
+    """
+
+    @_deprecated_public(
+        "RegexFile is deprecated; .rx (regex) is a legacy resource type and is "
+        "not part of the OVOS formal specifications.")
+    def __init__(self, resource_type: ResourceType, resource_name: str):
+        super().__init__(resource_type, resource_name)
+
     def load(self):
         regex_patterns = []
         if self.file_path:
@@ -576,7 +778,18 @@ class RegexFile(ResourceFile):
 
 
 class WordFile(ResourceFile):
-    """Defines a word file, which defines a word in the configured language."""
+    """Defines a word file, which defines a word in the configured language.
+
+    .. deprecated::
+        ``.word`` is a legacy resource type and is not part of the OVOS formal
+        specifications.
+    """
+
+    @_deprecated_public(
+        "WordFile is deprecated; .word is a legacy resource type and is not "
+        "part of the OVOS formal specifications.")
+    def __init__(self, resource_type: ResourceType, resource_name: str):
+        super().__init__(resource_type, resource_name)
 
     def load(self) -> Optional[str]:
         """Load and lines from a file and populate the variables.
@@ -594,6 +807,16 @@ class WordFile(ResourceFile):
 
 
 class SkillResources:
+    """Loads and renders skill resource files.
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource loading and
+        :func:`ovos_spec_tools.render` for dialog rendering.
+    """
+
+    @_deprecated_public(
+        "SkillResources is deprecated; use ovos_spec_tools.LocaleResources for "
+        "resource loading and ovos_spec_tools.render for dialog rendering.")
     def __init__(self, skill_directory: str,
                  language: str,
                  dialog_renderer: Optional[MustacheDialogRenderer] = None,
@@ -959,18 +1182,46 @@ class SkillResources:
 
 
 class CoreResources(SkillResources):
+    """Loads ovos-workshop's bundled core resources.
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource loading.
+    """
+
+    @_deprecated_public(
+        "CoreResources is deprecated; use ovos_spec_tools.LocaleResources for "
+        "resource loading.")
     def __init__(self, language):
         directory = f"{dirname(__file__)}/locale"
         super().__init__(directory, language)
 
 
 class UserResources(SkillResources):
+    """Loads user-provided override resources.
+
+    .. deprecated::
+        Use :class:`ovos_spec_tools.LocaleResources` for resource loading.
+    """
+
+    @_deprecated_public(
+        "UserResources is deprecated; use ovos_spec_tools.LocaleResources for "
+        "resource loading.")
     def __init__(self, language, skill_id):
         directory = f"{get_xdg_data_save_path()}/resources/{skill_id}"
         super().__init__(directory, language)
 
 
 class RegexExtractor:
+    """Extracts a named group from an utterance using regex patterns.
+
+    .. deprecated::
+        :class:`RegexExtractor` is legacy and is not part of the OVOS formal
+        specifications.
+    """
+
+    @_deprecated_public(
+        "RegexExtractor is deprecated; it is legacy and is not part of the "
+        "OVOS formal specifications.")
     def __init__(self, group_name: str, regex_patterns: List[str]):
         """
         Init an object representing an entity and a list of possible regex
