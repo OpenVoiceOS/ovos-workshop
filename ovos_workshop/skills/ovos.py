@@ -448,13 +448,21 @@ class OVOSSkill:
         Render a random phrase from a ``.dialog`` file for the skill's current
         language, filling ``{name}`` slots from ``data``.
 
+        ``name`` may also be a **literal utterance** rather than a dialog key:
+        ``speak_dialog`` / ``get_response`` accept either form, so if no
+        ``.dialog`` resource matches, ``name`` is returned verbatim.
+
         Args:
-            name: name of the dialog file (no extension needed)
+            name: a dialog file name (no extension), or a literal utterance
             data: values used to fill the dialog's named slots
         Returns:
             A rendered phrase ready for text-to-speech.
         """
-        return self.resources.render_dialog(name, data)
+        try:
+            return self.resources.render_dialog(name, data)
+        except FileNotFoundError:
+            # `name` is not a dialog key — treat it as a literal utterance
+            return name
 
     @property
     def system_unit(self) -> str:
@@ -1617,9 +1625,9 @@ class OVOSSkill:
                                                            Defaults to None.
         """
         data = data or {}
-        # render_dialog renders a phrase via ovos_spec_tools.render; a missing
-        # .dialog file falls back to the dialog name with dots replaced by
-        # spaces (eg "record.not.found" -> "record not found").
+        # render_dialog renders a phrase via ovos_spec_tools.render; `key` may
+        # also be a literal utterance — if no .dialog file matches it, it is
+        # spoken verbatim.
         utterance = self.render_dialog(key, data)
         if render_callback is not None:
             utterance = render_callback(utterance, self.lang)

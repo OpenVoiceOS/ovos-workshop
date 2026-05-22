@@ -421,21 +421,23 @@ class DialogFile(ResourceFile):
 
         Phrases are loaded from this file and rendered with
         :func:`ovos_spec_tools.render`: ``(a|b)``/``[x]`` variants are expanded
-        and ``{name}`` slots are filled from ``self.data``. If no file is found,
-        the requested phrase name is returned as a string (with dots replaced by
-        spaces), preserving the legacy fallback for missing dialogs.
+        and ``{name}`` slots are filled from ``self.data``.
 
         Args:
             dialog_renderer: unused, kept for backwards compatibility.
 
         Returns:
             str: a randomized, rendered version of the phrase
+
+        Raises:
+            FileNotFoundError: the ``.dialog`` resource does not exist or is
+                empty. A missing dialog is a skill bug — it is reported, not
+                silently rendered as the dialog name.
         """
         phrases = self._load_raw()
         if not phrases:
-            # legacy fallback for a missing dialog file:
-            # render("record.not.found") -> "record not found"
-            return self.resource_name.replace(".dialog", "").replace(".", " ")
+            raise FileNotFoundError(
+                f"missing or empty .dialog resource: {self.resource_name!r}")
         return _spec_render(phrases, slots=self.data)
 
 
@@ -492,22 +494,25 @@ class IntentFile(ResourceFile):
 
         Phrases are loaded from this file and rendered with
         :func:`ovos_spec_tools.render`: ``(a|b)``/``[x]`` variants are expanded
-        and ``{name}`` slots are filled from ``self.data``. If no file is found,
-        the requested phrase name is returned as a string (with dots replaced by
-        spaces), preserving the legacy fallback for missing files.
+        and ``{name}`` slots are filled from ``self.data``.
 
         Args:
             dialog_renderer: unused, kept for backwards compatibility.
 
         Returns:
             str: a randomized, rendered version of the phrase
+
+        Raises:
+            FileNotFoundError: the ``.intent`` resource does not exist or is
+                empty.
         """
         phrases = []
         if self.file_path is not None:
             for line in self._read():
                 phrases.append(line.replace("{{", "{").replace("}}", "}"))
         if not phrases:
-            return self.resource_name.replace(".intent", "").replace(".", " ")
+            raise FileNotFoundError(
+                f"missing or empty .intent resource: {self.resource_name!r}")
         return _spec_render(phrases, slots=self.data)
 
 
