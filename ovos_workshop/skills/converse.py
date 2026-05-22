@@ -2,7 +2,7 @@ import abc
 from inspect import signature
 from typing import Optional
 
-from langcodes import closest_match
+from ovos_spec_tools import closest_lang
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_config.config import Configuration
@@ -104,14 +104,9 @@ class ConversationalSkill(OVOSSkill):
 
     def _get_closest_lang(self, lang: str) -> Optional[str]:
         if self.converse_matchers:
-            lang = standardize_lang_tag(lang)
-            closest, score = closest_match(lang, list(self.converse_matchers.keys()))
-            # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-            # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-            # 1- 3 -> These codes indicate a minor regional difference.
-            # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-            if score < 10:
-                return closest
+            # closest_lang follows the OVOS-LANG spec: it standardizes both
+            # sides and accepts a match only when the distance is below 10.
+            return closest_lang(lang, list(self.converse_matchers.keys()))
         return None
 
     def _handle_converse_ack(self, message: Message):

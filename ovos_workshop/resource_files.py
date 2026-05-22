@@ -22,10 +22,9 @@ from os.path import dirname
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
-from langcodes import tag_distance
 from ovos_config.locations import get_xdg_data_save_path
+from ovos_spec_tools import expand, lang_distance
 from ovos_utils import flatten_list
-from ovos_utils.bracket_expansion import expand_template
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
 from ovos_utils.log import LOG
 
@@ -85,13 +84,11 @@ def locate_lang_directories(lang: str, skill_directory: str,
             for folder in directory.iterdir():
                 if folder.is_dir():
                     try:
-                        score = tag_distance(lang, folder.name)
+                        score = lang_distance(lang, folder.name)
                     except ValueError:  # not a valid language code
                         continue
-                    # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-                    # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-                    # 1- 3 -> These codes indicate a minor regional difference.
-                    # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
+                    # lang_distance follows the OVOS-LANG spec: 0 is identical,
+                    # a value of 10 or more is not a usable match.
                     if score < 10:
                         candidates.append((folder, score))
     # sort by distance to target lang code
@@ -430,7 +427,7 @@ class VocabularyFile(ResourceFile):
         vocabulary = []
         if self.file_path is not None:
             for line in self._read():
-                vocabulary.append(expand_template(line.lower()))
+                vocabulary.append(sorted(expand(line.lower())))
         return vocabulary
 
 
@@ -453,7 +450,7 @@ class IntentFile(ResourceFile):
         if self.file_path is not None:
             for line in self._read():
                 line = line.replace("{{", "{").replace("}}", "}")
-                intents.extend(flatten_list(expand_template(line.lower())))
+                intents.extend(flatten_list(sorted(expand(line.lower()))))
             if not entities:
                 intents = [re.sub(r'{.*?}\s?', '', intent).strip() for intent in intents]
             elif self.data:
