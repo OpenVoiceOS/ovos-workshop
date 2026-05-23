@@ -404,7 +404,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         Returns:
             A rendered phrase ready for text-to-speech.
         """
-        lang = self.lang
+        lang = self._resource_lang
         try:
             phrases = self._locale_resources.load_dialog(name, lang)
         except FileNotFoundError:
@@ -480,6 +480,20 @@ class OVOSSkill(_LegacyResourcesMixin):
         if message:
             lang = get_message_lang(message)
         return standardize_lang(lang)
+
+    @property
+    def _resource_lang(self) -> str:
+        """Language for resource-file lookups (``.dialog``, ``.voc``,
+        ``.intent``, ``.entity``).
+
+        Defaults to the message-context language (:attr:`lang`). Subclasses
+        that decouple resource language from query language — see
+        :class:`~ovos_workshop.skills.auto_translatable.UniversalSkill`,
+        whose dialogs/vocab are authored in ``internal_language`` while
+        ``self.lang`` reflects the incoming query language — override this
+        single property and the resource lookups follow.
+        """
+        return self.lang
 
     @property
     def core_lang(self) -> str:
@@ -1356,7 +1370,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         @param lang: language of `entity` (default self.lang)
         """
         keyword_type = self.alphanumeric_skill_id + entity_type
-        lang = standardize_lang(lang or self.lang)
+        lang = standardize_lang(lang or self._resource_lang)
         self.intent_service.register_adapt_keyword(keyword_type, entity,
                                                    lang=lang)
 
@@ -1369,7 +1383,8 @@ class OVOSSkill(_LegacyResourcesMixin):
         self.log.debug('registering regex string: ' + regex_str)
         regex = munge_regex(regex_str, self.skill_id)
         re.compile(regex)  # validate regex
-        self.intent_service.register_adapt_regex(regex, lang=standardize_lang(lang or self.lang))
+        self.intent_service.register_adapt_regex(
+            regex, lang=standardize_lang(lang or self._resource_lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -2037,7 +2052,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         this skill instance so subsequent ``voc_match`` / ``remove_voc``
         calls do not re-walk the locale tree.
         """
-        lang = standardize_lang(lang or self.lang)
+        lang = standardize_lang(lang or self._resource_lang)
         cache_key = lang + voc_filename
         if cache_key not in self._voc_cache:
             vocab = self._locale_resources.voc_list(voc_filename, lang)

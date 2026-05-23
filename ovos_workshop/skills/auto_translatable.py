@@ -59,6 +59,17 @@ class UniversalSkill(OVOSSkill):
                         f"internal_language, casting to {lang}")
             self.internal_language = lang
 
+    @property
+    def _resource_lang(self) -> str:
+        """UniversalSkill authors its ``.dialog`` / ``.voc`` / ``.intent``
+        files in :attr:`internal_language`. Incoming utterances are
+        translated *into* that language before the handler runs and
+        :meth:`speak` translates outgoing text back to ``self.lang``, so
+        every resource lookup — dialog rendering, vocabulary listing and
+        matching, adapt keyword/regex registration — must target the
+        internal language regardless of the query language."""
+        return self.internal_language
+
     def detect_language(self, utterance: str):
         """
         Detect the language of the given utterance.
