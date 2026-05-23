@@ -21,11 +21,10 @@ import os
 from os.path import dirname, isdir, isfile, join
 from typing import Dict, List, Optional
 
-from ovos_spec_tools import closest_lang
-from ovos_utils.lang import standardize_lang_tag
+from ovos_spec_tools import closest_lang, iter_locale_dirs
 from ovos_utils.log import LOG
 
-_LOCALE_DIR = join(dirname(dirname(__file__)), "locale")
+_LOCALE_ROOT = dirname(dirname(__file__))  # iter_locale_dirs looks for <root>/locale/
 
 
 def _load_workshop_json(name: str, lang: str) -> Optional[Dict]:
@@ -37,21 +36,18 @@ def _load_workshop_json(name: str, lang: str) -> Optional[Dict]:
     @param lang: requested BCP-47 language tag
     @return: parsed JSON dict, or None if not found
     """
-    if not isdir(_LOCALE_DIR):
+    # discover available langs once, pick the single closest match
+    available = dict(iter_locale_dirs(_LOCALE_ROOT))  # {lang_norm: Path}
+    if not available:
         return None
-    available = [d for d in os.listdir(_LOCALE_DIR)
-                 if isdir(join(_LOCALE_DIR, d))]
-    best = closest_lang(standardize_lang_tag(lang), available)
+    best = closest_lang(lang, list(available.keys()))
     if best is None:
         return None
-    for d in available:
-        if standardize_lang_tag(d) == best:
-            path = join(_LOCALE_DIR, d, f"{name}.json")
-            if isfile(path):
-                with open(path) as f:
-                    return json.load(f)
-            return None
-    return None
+    path = join(str(available[best]), f"{name}.json")
+    if not isfile(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
 
 
 def simple_trace(stack_trace: List[str]) -> str:

@@ -2,11 +2,10 @@ import abc
 from inspect import signature
 from typing import Optional
 
-from ovos_spec_tools import closest_lang
+from ovos_spec_tools import closest_lang, standardize_lang
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_config.config import Configuration
-from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
@@ -180,7 +179,7 @@ class ConversationalSkill(OVOSSkill):
                 params = signature(self.converse).parameters
                 kwargs = {"message": message,
                           "utterances": message.data['utterances'],
-                          "lang": standardize_lang_tag(message.data['lang'])}
+                          "lang": standardize_lang(message.data['lang'])}
                 kwargs = {k: v for k, v in kwargs.items() if k in params}
 
                 response_message.data["result"] = self.converse(**kwargs)

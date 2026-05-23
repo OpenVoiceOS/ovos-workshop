@@ -53,7 +53,6 @@ from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
-from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG, deprecated
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
@@ -529,14 +528,14 @@ class OVOSSkill:
         message = dig_for_message()
         if message:
             lang = get_message_lang(message)
-        return standardize_lang_tag(lang)
+        return standardize_lang(lang)
 
     @property
     def core_lang(self) -> str:
         """
         Get the configured default language as a BCP-47 language code.
         """
-        return standardize_lang_tag(self.config_core.get("lang", "en-US"))
+        return standardize_lang(self.config_core.get("lang", "en-US"))
 
     @property
     def secondary_langs(self) -> List[str]:
@@ -546,7 +545,7 @@ class OVOSSkill:
         to `core_lang`. A skill may override this method to specify which
         languages intents are registered in.
         """
-        return [standardize_lang_tag(lang) for lang in self.config_core.get('secondary_langs', [])
+        return [standardize_lang(lang) for lang in self.config_core.get('secondary_langs', [])
                 if lang != self.core_lang]
 
     @property
@@ -556,7 +555,7 @@ class OVOSSkill:
         and explicitly supported). This is equivalent to normalized
         secondary_langs + core_lang.
         """
-        valid = set([standardize_lang_tag(lang) for lang in self.secondary_langs
+        valid = set([standardize_lang(lang) for lang in self.secondary_langs
                      if lang != self.core_lang] + [self.core_lang])
         return list(valid)
 
@@ -778,23 +777,15 @@ class OVOSSkill:
         """
         if name.endswith(ext):
             name = name[:-len(ext)]
-        locale_dir = join(self.res_dir, "locale")
-        if not isdir(locale_dir):
+        # iter_locale_dirs yields (lang_norm, path) for every <res_dir>/locale/
+        # subdir; pick the single closest one and walk it for the resource.
+        available = dict(iter_locale_dirs(self.res_dir))
+        if not available:
             return None
-        available = [d for d in os.listdir(locale_dir)
-                     if isdir(join(locale_dir, d))]
-        best = closest_lang(standardize_lang_tag(lang), available)
+        best = closest_lang(lang, list(available.keys()))
         if best is None:
             return None
-        # closest_lang returns a standardized tag; match it back to the dir
-        lang_dir = None
-        for d in available:
-            if standardize_lang_tag(d) == best:
-                lang_dir = join(locale_dir, d)
-                break
-        if lang_dir is None:
-            return None
-        for directory, _, files in os.walk(lang_dir):
+        for directory, _, files in os.walk(str(available[best])):
             if f"{name}{ext}" in files:
                 return join(directory, f"{name}{ext}")
         return None
@@ -1520,7 +1511,7 @@ class OVOSSkill:
         @param lang: language of `entity` (default self.lang)
         """
         keyword_type = self.alphanumeric_skill_id + entity_type
-        lang = standardize_lang_tag(lang or self.lang)
+        lang = standardize_lang(lang or self.lang)
         self.intent_service.register_adapt_keyword(keyword_type, entity,
                                                    lang=lang)
 
@@ -1533,7 +1524,7 @@ class OVOSSkill:
         self.log.debug('registering regex string: ' + regex_str)
         regex = munge_regex(regex_str, self.skill_id)
         re.compile(regex)  # validate regex
-        self.intent_service.register_adapt_regex(regex, lang=standardize_lang_tag(lang or self.lang))
+        self.intent_service.register_adapt_regex(regex, lang=standardize_lang(lang or self.lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -2201,7 +2192,7 @@ class OVOSSkill:
         @param lang: language to get vocab for (default self.lang)
         @return: list of string vocab options
         """
-        lang = standardize_lang_tag(lang or self.lang)
+        lang = standardize_lang(lang or self.lang)
         cache_key = lang + voc_filename
 
         if cache_key not in self._voc_cache:

@@ -3,8 +3,7 @@ from os.path import isdir, join
 from typing import Optional
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_bus_client.util import get_mycroft_bus
-from ovos_spec_tools import closest_lang
-from ovos_utils.lang import standardize_lang_tag
+from ovos_spec_tools import closest_lang, standardize_lang
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.client.client import MessageBusClient
 from ovos_workshop.skills.ovos import OVOSSkill
@@ -64,7 +63,7 @@ class OVOSAbstractApplication(OVOSSkill):
 
         base_path = base_path or self.res_dir
         lang = lang or self.lang
-        lang = str(standardize_lang_tag(lang))
+        lang = standardize_lang(lang)
 
         # base_path/lang-CODE (region is upper case)
         if isdir(join(base_path, lang)):
@@ -83,7 +82,7 @@ class OVOSAbstractApplication(OVOSSkill):
         if best is None:
             return None
         for d in available:
-            if standardize_lang_tag(d) == best:
+            if standardize_lang(d) == best:
                 return join(base_path, d)
 
     def clear_intents(self):
