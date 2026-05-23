@@ -41,8 +41,9 @@ from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_config.locations import get_xdg_data_save_path
-from ovos_spec_tools import (LocaleResources, render, expand,
-                              iter_locale_dirs, standardize_lang)
+from ovos_spec_tools import (LocaleResources, render, iter_locale_dirs,
+                              standardize_lang, strip_samples,
+                              utterance_contains)
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
 from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
@@ -56,7 +57,6 @@ from ovos_utils.json_helper import merge_dict
 from ovos_utils.log import LOG, deprecated
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap
 from ovos_utils.skills import get_non_properties
-from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
@@ -551,28 +551,16 @@ class OVOSSkill(_LegacyResourcesMixin):
         self.load_regex_files(root_directory)
 
     def load_vocab_files(self, root_directory: Optional[str] = None):
-        """ Load ``.voc`` files found under the skill's ``locale/`` directory
-        and register them as adapt keywords."""
-        root_directory = root_directory or self.res_dir
-        resources = self.load_lang(root_directory)
+        """Load ``.voc`` files under the skill's ``locale/`` directory and
+        register each template line as a single keyword with adapt — the
+        canonical entity comes first, aliases canonicalize to it
+        (OVOS-INTENT-2 §4.3 / :func:`ovos_spec_tools.keyword_form`)."""
+        resources = self.load_lang(root_directory or self.res_dir)
         for lang in self.native_langs:
-            vocabularies = resources.vocabularies(lang)
-            if not vocabularies:
-                self.log.debug(f'No vocab loaded for {lang}')
-                continue
-            # Each .voc file becomes a single adapt keyword type. Each line is
-            # expanded into its alternatives; the first option is the entity
-            # value, the rest are registered as aliases.
-            for voc_name, lines in vocabularies.items():
+            for voc_name, entity, aliases in resources.vocabulary_keywords(lang):
                 vocab_type = self.alphanumeric_skill_id + voc_name.title()
-                for line in lines:
-                    options = sorted(expand(line.lower()))
-                    if not options:
-                        continue
-                    entity = options[0]
-                    aliases = options[1:]
-                    self.intent_service.register_adapt_keyword(
-                        vocab_type, entity, aliases, lang)
+                self.intent_service.register_adapt_keyword(
+                    vocab_type, entity, aliases, lang)
 
     def load_regex_files(self, root_directory: Optional[str] = None) -> None:
         """Load and register ``.rx`` regex files for adapt-style intents.
@@ -2061,71 +2049,45 @@ class OVOSSkill(_LegacyResourcesMixin):
 
     def voc_match(self, utt: str, voc_filename: str, lang: Optional[str] = None,
                   exact: bool = False, ensure_ascii=True):
-        """
-        Determine if the given utterance contains the vocabulary provided.
+        """Determine if ``utt`` matches any phrase from a ``.voc``.
 
-        By default the method checks if the utterance contains the given vocab
-        thereby allowing the user to say things like "yes, please" and still
-        match against "Yes.voc" containing only "yes". An exact match can be
-        requested.
-
-        The method first checks in the current Skill's .voc files and secondly
-        in the "locale" folder of ovos-workshop. The result is cached to
-        avoid hitting the disk each time the method is called.
+        By default (``exact=False``) a sample matches when it appears in the
+        utterance as a whole-word substring — so ``"yes, please"`` matches a
+        ``yes.voc`` of just ``yes``. With ``exact=True`` the utterance must
+        equal a sample after normalization.
 
         Args:
-            utt (str): Utterance to be tested
-            voc_filename (str): Name of vocabulary file (e.g. 'cancel' for
-                                'locale/en-us/cancel.voc')
-            lang (str): Language code, defaults to self.lang
-            exact (bool): Whether the vocab must exactly match the utterance
-            ensure_ascii (bool): Whether to ignore accents and punctuation
-
-        Returns:
-            bool: True if the utterance has the given vocabulary it
+            utt: utterance to test
+            voc_filename: vocab resource name (e.g. ``cancel`` for
+                ``locale/en-US/cancel.voc``)
+            lang: BCP-47 language code, defaults to ``self.lang``
+            exact: whether the vocab must equal the utterance
+            ensure_ascii: drop diacritics **and** ASCII punctuation before
+                comparison (the historical bundled behaviour — kept as one
+                flag for back-compat; for finer control call
+                :func:`ovos_spec_tools.utterance_contains` directly with
+                ``strip_diacritics`` / ``strip_punct``)
         """
         lang = lang or self.lang
-        match = False
         try:
-            _vocs = self.voc_list(voc_filename, lang)
+            samples = self.voc_list(voc_filename, lang)
         except FileNotFoundError:
             LOG.warning(
-                f"{self.skill_id} failed to find voc file '{voc_filename}' for lang '{lang}' in `{self.res_dir}'")
+                f"{self.skill_id} failed to find voc file '{voc_filename}' "
+                f"for lang '{lang}' in `{self.res_dir}'")
             return False
-
-        if utt and _vocs:
-            if ensure_ascii:
-                utt = remove_accents_and_punct(utt)
-                _vocs = [remove_accents_and_punct(v) for v in _vocs]
-
-            if exact:
-                # Check for exact match
-                match = any(i.strip().lower() == utt.lower()
-                            for i in _vocs)
-            else:
-                # Check for matches against complete words
-                match = any([re.match(r'.*\b' + re.escape(i) + r'\b.*', utt, re.IGNORECASE)
-                             for i in _vocs])
-
-        return match
+        return utterance_contains(
+            utt, samples, exact=exact,
+            strip_diacritics=ensure_ascii, strip_punct=ensure_ascii)
 
     def remove_voc(self, utt: str, voc_filename: str,
                    lang: Optional[str] = None) -> str:
-        """
-        Removes any vocab match from the utterance.
-        @param utt: Utterance to evaluate
-        @param voc_filename: vocab resource to remove from utt
-        @param lang: Optional language associated with vocab and utterance
-        @return: string with vocab removed
-        """
-        if utt:
-            # Check for matches against complete words
-            voc_list = self.voc_list(voc_filename, lang)
-            # From longest to shortest to replace composite terms first
-            for i in sorted(voc_list, key=len, reverse=True):
-                # Substitute only whole words matching the token
-                utt = re.sub(r'\b' + i + r'\b', '', utt)
-        return utt
+        """Return ``utt`` with every whole-word occurrence of any phrase from
+        a ``.voc`` removed (longest first so composite phrases consume their
+        parts)."""
+        if not utt:
+            return utt
+        return strip_samples(utt, self.voc_list(voc_filename, lang))
 
     # event related skill developer facing utils
     def add_event(self, name: str, handler: callable,
