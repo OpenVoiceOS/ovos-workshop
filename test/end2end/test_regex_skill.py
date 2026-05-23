@@ -33,11 +33,8 @@ class _RegexTestSkill(OVOSSkill):
     """
 
     def initialize(self):
-        # group name is the alphanumeric skill id + the regex group name —
-        # this is exactly what OVOSSkill.load_regex_files prefixes onto each
-        # `(?P<...>...)` in the .rx file
-        group = self.alphanumeric_skill_id + "thing"
-        intent = IntentBuilder("PlayIntent").require(group).build()
+        # keyword name is the regex group name — `(?P...)` in the .rx file
+        intent = IntentBuilder("PlayIntent").require("thing").build()
         self.register_intent(intent, self.handle_play)
 
     def handle_play(self, message):

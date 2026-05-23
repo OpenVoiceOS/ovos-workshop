@@ -6,15 +6,28 @@
 
 OVOSSkill no longer drives resource loading through
 ``ovos_workshop.resource_files.SkillResources`` — it uses
-:class:`ovos_spec_tools.LocaleResources` directly. The three legacy entry
-points — ``self.resources``, ``self.dialog_renderer``, ``self.find_resource``
-— are kept for one release so skills that still call them keep working, and
+:class:`ovos_spec_tools.LocaleResources` directly. The legacy entry points
+are kept for one release so skills that still call them keep working, and
 isolated here so the deprecation cycle is a single ``import`` removal away.
 
-The mixin assumes its host class supplies the attributes every OVOSSkill has:
-``res_dir``, ``lang``, ``skill_id``, ``log``. It owns one piece of state —
-``_skill_resources_compat`` — a single :class:`SkillResources` instance lazily
-built on first access and reused by every method below.
+Surface that lives in the mixin:
+
+- :attr:`resources` — the deprecated :class:`SkillResources` handle;
+- :attr:`dialog_renderer` — the legacy
+  :class:`~ovos_utils.dialog.MustacheDialogRenderer`;
+- :meth:`find_resource` — pre-``LocaleResources.find`` lookup;
+- :meth:`load_dialog_files` — no-op kept because some skill base classes
+  call it during boot;
+- :attr:`voc_match_cache` — back-compat accessor for the
+  :attr:`OVOSSkill._voc_cache` dict;
+- :attr:`runtime_requirements` / :attr:`network_requirements` — declared
+  deprecated in ovos-core; kept so LAN/cache/offline skills still load.
+
+The mixin assumes its host class supplies the attributes every OVOSSkill
+has: ``res_dir``, ``lang``, ``skill_id``, ``log``, and ``_voc_cache``. It
+owns one piece of state of its own — ``_skill_resources_compat`` — a
+single :class:`SkillResources` instance lazily built on first access and
+reused by every method below.
 
 **Lifecycle.** Remove ``_LegacyResourcesMixin`` from :class:`OVOSSkill`'s
 bases (and delete this file) when the deprecation period ends; nothing on

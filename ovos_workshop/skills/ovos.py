@@ -113,7 +113,19 @@ class OVOSSkill(_LegacyResourcesMixin):
 
         # Workshop-internal LocaleResources — single instance per skill,
         # serves every language the skill ships (the language is per query).
-        self._locale_resources = LocaleResources(self.res_dir)
+        # Override-precedence sources (§2.1): user data overrides, skill's
+        # own locale/, then the workshop-bundled core locale/ (which ships
+        # ``cancel.voc``, ``yes.voc``, ``skill.error.dialog``, etc.).
+        # Cache it under res_dir so :meth:`load_lang` returns the same
+        # instance for the default root rather than rebuilding.
+        workshop_locale = join(dirname(dirname(abspath(__file__))), "locale")
+        user_locale = join(get_xdg_data_save_path(), "resources",
+                           self.skill_id) if self.skill_id else None
+        self._locale_resources = LocaleResources(
+            skill_locale=join(self.res_dir, "locale"),
+            core_locale=workshop_locale,
+            user_locale=user_locale)
+        self._lang_resources = {self.res_dir: self._locale_resources}
 
         self.gui = gui
         self._bus = bus
@@ -145,9 +157,6 @@ class OVOSSkill(_LegacyResourcesMixin):
 
         # Cached voc file contents
         self._voc_cache = {}
-
-        # loaded lang file resources
-        self._lang_resources = {}
 
         # Delegator classes
         self.event_scheduler = EventSchedulerInterface()
@@ -1602,6 +1611,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         # render_dialog renders a phrase via ovos_spec_tools.render; `key` may
         # also be a literal utterance — if no .dialog file matches it, it is
         # spoken verbatim.
+        # TODO - change this behaviour, speaking the dialog file name isn't that helpful!
         utterance = self.render_dialog(key, data)
         if render_callback is not None:
             utterance = render_callback(utterance, self.lang)
