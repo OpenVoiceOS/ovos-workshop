@@ -25,7 +25,9 @@ from __future__ import annotations
 import warnings
 from typing import Optional
 
-from ovos_utils.log import deprecated
+from ovos_utils import classproperty
+from ovos_utils.log import LOG, deprecated
+from ovos_utils.process_utils import RuntimeRequirements
 
 from ovos_workshop.version import VERSION_MAJOR
 
@@ -99,6 +101,56 @@ class _LegacyResourcesMixin:
             "dialog_renderer is deprecated; use OVOSSkill.render_dialog",
             DeprecationWarning, stacklevel=3)
         return self._legacy_skill_resources().dialog_renderer
+
+    @classproperty
+    def runtime_requirements(self) -> RuntimeRequirements:
+        """Declare what a skill expects to be available at init and at runtime.
+
+        .. deprecated::
+            Deprecated in ovos-core. Skills should let the framework infer
+            requirements from the intent surface; this hook stays around for
+            one release for the LAN/cache/offline-only skills that still
+            override it. Some examples that historically used the override::
+
+                # IOT skill that scans the LAN on init
+                scans_on_init = True
+                RuntimeRequirements(internet_before_load=False,
+                                    network_before_load=scans_on_init,
+                                    requires_internet=False,
+                                    requires_network=True,
+                                    no_internet_fallback=True,
+                                    no_network_fallback=False)
+
+                # online search skill with a local cache
+                has_cache = False
+                RuntimeRequirements(internet_before_load=not has_cache,
+                                    network_before_load=not has_cache,
+                                    requires_internet=True,
+                                    requires_network=True,
+                                    no_internet_fallback=True,
+                                    no_network_fallback=True)
+
+                # a fully offline skill
+                RuntimeRequirements(internet_before_load=False,
+                                    network_before_load=False,
+                                    requires_internet=False,
+                                    requires_network=False,
+                                    no_internet_fallback=True,
+                                    no_network_fallback=True)
+        """
+        return RuntimeRequirements()
+
+    @classproperty
+    def network_requirements(self) -> RuntimeRequirements:
+        """Pre-deprecation alias of :attr:`runtime_requirements`.
+
+        .. deprecated::
+            Renamed years ago; kept so old skills still load. Override
+            :attr:`runtime_requirements` instead.
+        """
+        LOG.warning("network_requirements renamed to runtime_requirements, "
+                    "will be removed in ovos-core 0.0.8")
+        return self.runtime_requirements
 
     @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
                 "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")

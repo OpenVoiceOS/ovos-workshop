@@ -54,7 +54,7 @@ from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.log import LOG, deprecated
-from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
+from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
@@ -205,43 +205,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         pass
 
     # skill class properties
-    @classproperty
-    def runtime_requirements(self) -> RuntimeRequirements:
-        """
-        Override to specify what a skill expects to be available at init and at
-        runtime. Default will assume network and internet are required and GUI
-        is not required for backwards-compat.
-
-        some examples:
-
-        IOT skill that controls skills via LAN could return:
-        scans_on_init = True
-        RuntimeRequirements(internet_before_load=False,
-                            network_before_load=scans_on_init,
-                            requires_internet=False,
-                            requires_network=True,
-                            no_internet_fallback=True,
-                            no_network_fallback=False)
-
-        online search skill with a local cache:
-        has_cache = False
-        RuntimeRequirements(internet_before_load=not has_cache,
-                            network_before_load=not has_cache,
-                            requires_internet=True,
-                            requires_network=True,
-                            no_internet_fallback=True,
-                            no_network_fallback=True)
-
-        a fully offline skill:
-        RuntimeRequirements(internet_before_load=False,
-                            network_before_load=False,
-                            requires_internet=False,
-                            requires_network=False,
-                            no_internet_fallback=True,
-                            no_network_fallback=True)
-        """
-        return RuntimeRequirements()
-
     @property
     def is_fully_initialized(self) -> bool:
         """
@@ -2446,12 +2409,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         # TODO: register TTS events to track state instead of guessing
         waiter.wait(0.5)  # if TTS had not yet started
         self.bus.emit(msg.forward("mycroft.audio.speech.stop"))
-
-    @classproperty
-    def network_requirements(self) -> RuntimeRequirements:
-        LOG.warning("network_requirements renamed to runtime_requirements, "
-                    "will be removed in ovos-core 0.0.8")
-        return self.runtime_requirements
 
     @property
     def voc_match_cache(self) -> Dict[str, List[str]]:
