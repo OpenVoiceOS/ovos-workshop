@@ -604,6 +604,60 @@ class OVOSSkill:
             self._skill_resources_compat = cached
         return cached
 
+    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
+                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
+    def find_resource(self, res_name: str,
+                      res_dirname: Optional[str] = None,
+                      lang: Optional[str] = None) -> Optional[str]:
+        """Find a resource file (legacy).
+
+        .. deprecated::
+            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
+            skill methods) for resource discovery. This delegates to
+            :func:`ovos_workshop.resource_files.find_resource` for backward
+            compatibility with skills that still call it directly.
+        """
+        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
+        warnings.warn(
+            "OVOSSkill.find_resource is deprecated; use "
+            "ovos_spec_tools.LocaleResources for resource discovery",
+            DeprecationWarning, stacklevel=3)
+        from ovos_workshop.resource_files import find_resource as _find
+        lang = standardize_lang(lang or self.lang)
+        x = _find(res_name, self.res_dir, res_dirname, lang)
+        if x:
+            return str(x)
+        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
+                       f"{lang!r} not found in skill")
+        return None
+
+    @deprecated("load_regex_files is deprecated; .rx/regex resources are not "
+                "part of the OVOS formal specifications",
+                f"{VERSION_MAJOR + 1}.0.0")
+    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
+        """Load ``.rx`` regex files (legacy).
+
+        .. deprecated::
+            ``.rx`` regex resources are not part of the OVOS formal
+            specifications and have no ``ovos-spec-tools`` replacement. This
+            shim still loads them for backward compatibility, but the
+            functionality will be removed in a future major release.
+        """
+        warnings.warn(
+            "OVOSSkill.load_regex_files is deprecated; .rx regex resources "
+            "are not part of the OVOS formal specifications",
+            DeprecationWarning, stacklevel=3)
+        from ovos_workshop.resource_files import SkillResources
+        root_directory = root_directory or self.res_dir
+        for lang in self.native_langs:
+            resources = SkillResources(root_directory, lang,
+                                       skill_id=self.skill_id)
+            if resources.types.regex.base_directory is not None:
+                regexes = resources.load_skill_regex(
+                    self.alphanumeric_skill_id)
+                for regex in regexes:
+                    self.intent_service.register_adapt_regex(regex, lang)
+
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
                   lang: Optional[str] = None) -> LocaleResources:
