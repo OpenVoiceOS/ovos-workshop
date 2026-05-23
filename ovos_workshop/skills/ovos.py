@@ -41,7 +41,8 @@ from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_config.locations import get_xdg_data_save_path
-from ovos_spec_tools import LocaleResources, render, expand, closest_lang, standardize_lang
+from ovos_spec_tools import (LocaleResources, render, expand, closest_lang,
+                              iter_locale_dirs, standardize_lang)
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
 from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
@@ -657,23 +658,11 @@ class OVOSSkill:
         root_directory = root_directory or self.res_dir
         unique_prefix = "(?P<" + self.alphanumeric_skill_id
         loaded_any = False
-        locales_root = join(root_directory, "locale")
-        if not isdir(locales_root):
-            return
-        # iterate locale/ subdirs — the dir name *is* the lang tag; we match it
-        # against native_langs via closest_lang so e.g. an `en-US/` tree is
-        # picked up for a skill that declares `en` (or `en-GB`) as native.
-        native_norms = [standardize_lang(l) for l in self.native_langs]
-        for entry in sorted(os.listdir(locales_root)):
-            locale_dir = join(locales_root, entry)
-            if not isdir(locale_dir):
-                continue
-            try:
-                lang_norm = standardize_lang(entry)
-            except Exception:
-                continue
-            if native_norms and closest_lang(lang_norm, native_norms) is None:
-                continue
+        # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
+        # native_langs via closest_lang — so an `en-US/` tree is picked up for
+        # a skill that declares `en` (or `en-GB`) as native.
+        for lang_norm, locale_dir in iter_locale_dirs(
+                root_directory, native_langs=self.native_langs):
             for directory, _, files in os.walk(locale_dir):
                 for file_name in files:
                     if not file_name.endswith(".rx"):
