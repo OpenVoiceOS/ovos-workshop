@@ -41,14 +41,7 @@ class _RegexTestSkill(OVOSSkill):
         self.register_intent(intent, self.handle_play)
 
     def handle_play(self, message):
-        # the captured entity may live under either the prefixed or bare group
-        # name depending on adapt internals; check both so the speak content
-        # also pins the regex *capture* end-to-end, not just the handler firing
-        d = message.data
-        thing = (d.get(self.alphanumeric_skill_id + "thing")
-                 or d.get("thing")
-                 or next((v for k, v in d.items()
-                          if isinstance(v, str) and "thing" in k), "?"))
+        thing  = message.data.get("thing")
         self.speak(f"playing {thing}")
 
 
@@ -57,12 +50,8 @@ class TestRegexSkillE2E(TestCase):
 
     def setUp(self):
         self.skill_id = "regextest.openvoiceos"
-        # ovoscope's auto-default pipeline downgrades to LIGHT (no adapt) when
-        # padatious / common-query are not importable — pass an explicit
         # adapt-only pipeline so this test actually exercises adapt's regex.
-        adapt_pipeline = ["ovos-adapt-pipeline-plugin-high",
-                          "ovos-adapt-pipeline-plugin-medium",
-                          "ovos-adapt-pipeline-plugin-low"]
+        adapt_pipeline = ["ovos-adapt-pipeline-plugin-low"]
         # Adapt's confidence for a regex-only intent with a single named group
         # is low (~0.07 — adapt scales it by the entity count / utterance
         # weight). Lower the per-tier thresholds so the low-tier still fires.
@@ -71,11 +60,7 @@ class TestRegexSkillE2E(TestCase):
             extra_skills={self.skill_id: _RegexTestSkill},
             default_pipeline=adapt_pipeline,
             lang="en-US",
-            pipeline_config={
-                "ovos-adapt-pipeline-plugin": {
-                    "conf_high": 0.05,
-                    "conf_med": 0.05,
-                    "conf_low": 0.05}})
+            pipeline_config={"ovos-adapt-pipeline-plugin": {"conf_low": 0.05}})
 
     def tearDown(self):
         if self.minicroft is not None:
@@ -98,9 +83,7 @@ class TestRegexSkillE2E(TestCase):
         # pin the per-session pipeline to adapt — the regex match is an Adapt
         # feature, the default pipeline would also try padatious/fallback and
         # we want a clean "if adapt doesn't fire, the test fails" assertion
-        session.pipeline = ["ovos-adapt-pipeline-plugin-high",
-                            "ovos-adapt-pipeline-plugin-medium",
-                            "ovos-adapt-pipeline-plugin-low"]
+        session.pipeline = ["ovos-adapt-pipeline-plugin-low"]
         utterance = Message(
             "recognizer_loop:utterance",
             {"utterances": ["play music please"], "lang": "en-US"},
