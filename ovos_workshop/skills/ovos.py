@@ -455,11 +455,11 @@ class OVOSSkill:
         """
         lang = self.lang
         try:
-            phrases = self.resources.load_dialog(name, lang)
+            phrases = self._locale_resources.load_dialog(name, lang)
         except FileNotFoundError:
             # `name` is not a dialog key — treat it as a literal utterance
             return name
-        vocabularies = self.resources.vocabularies(lang)
+        vocabularies = self._locale_resources.vocabularies(lang)
         return render(phrases, slots=data, vocabularies=vocabularies)
 
     @property
@@ -560,15 +560,49 @@ class OVOSSkill:
         return list(valid)
 
     @property
-    def resources(self) -> LocaleResources:
-        """
-        Get a :class:`~ovos_spec_tools.LocaleResources` object for this skill.
+    def _locale_resources(self) -> LocaleResources:
+        """Workshop-internal :class:`~ovos_spec_tools.LocaleResources`.
 
-        Resources are resolved from the skill's ``locale/`` directory, the
-        user-override directory, and the ovos-workshop core ``locale/``
-        directory (for shared resources such as ``cancel.voc``).
+        Use this for any in-workshop code that needs the resource loader —
+        the public :attr:`resources` property is a deprecated back-compat
+        shim that still returns the legacy ``SkillResources``.
         """
         return self.load_lang(self.res_dir)
+
+    @property
+    @deprecated("self.resources is deprecated; use the high-level skill "
+                "methods (speak_dialog, register_intent_file, voc_match, "
+                "...) or construct ovos_spec_tools.LocaleResources directly",
+                f"{VERSION_MAJOR + 1}.0.0")
+    def resources(self):
+        """Back-compat handle returning a :class:`SkillResources`.
+
+        .. deprecated::
+            ``self.resources`` historically returned a
+            :class:`ovos_workshop.resource_files.SkillResources`. The skill
+            framework no longer uses it internally — workshop routes through
+            :class:`ovos_spec_tools.LocaleResources`. This property is kept
+            so legacy skill code that calls ``self.resources.load_*``,
+            ``self.resources.render_dialog`` etc. keeps working through one
+            release. Migrate to the high-level skill methods (``speak_dialog``,
+            ``register_intent_file``, ``voc_match``, …) or construct
+            :class:`ovos_spec_tools.LocaleResources` directly.
+        """
+        # stacklevel=3: warn() -> property body -> @deprecated wrapper -> caller
+        warnings.warn(
+            "self.resources is deprecated; use the high-level skill methods "
+            "or construct ovos_spec_tools.LocaleResources directly",
+            DeprecationWarning, stacklevel=3)
+        cached = getattr(self, "_skill_resources_compat", None)
+        if cached is None:
+            # resource_files is itself deprecated; the SkillResources
+            # constructor is silenced for workshop-internal callers via the
+            # _caller_is_internal guard in resource_files.py.
+            from ovos_workshop.resource_files import SkillResources
+            cached = SkillResources(
+                self.res_dir, self.lang, skill_id=self.skill_id)
+            self._skill_resources_compat = cached
+        return cached
 
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
@@ -2081,7 +2115,7 @@ class OVOSSkill:
         cache_key = lang + voc_filename
 
         if cache_key not in self._voc_cache:
-            vocab = self.resources.load_vocabulary(voc_filename, lang)
+            vocab = self._locale_resources.load_vocabulary(voc_filename, lang)
             if vocab:
                 self._voc_cache[cache_key] = list(vocab)
 

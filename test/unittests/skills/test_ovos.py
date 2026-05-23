@@ -53,7 +53,8 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIsInstance(self.skill.secondary_langs, list)
         self.assertIsInstance(self.skill.native_langs, list)
         self.assertIsInstance(self.skill.alphanumeric_skill_id, str)
-        self.assertIsInstance(self.skill.resources, LocaleResources)
+        # internal accessor: the new LocaleResources-backed path
+        self.assertIsInstance(self.skill._locale_resources, LocaleResources)
 
     def test_activate(self):
         # TODO
