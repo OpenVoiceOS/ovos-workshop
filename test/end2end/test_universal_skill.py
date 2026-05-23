@@ -145,13 +145,17 @@ class TestUniversalSkillResourceLang(TestCase):
 
     def setUp(self):
         self.skill_id = "univtest.openvoiceos"
-        # explicit lang="en-US" — Configuration().lang controls native_langs
-        # on the skill, which controls which language the .intent file
-        # registers under. The skill ships en-US only.
+        # A real-world UniversalSkill is addressed in multiple languages;
+        # padacioso registers its .intent for every entry in native_langs
+        # (= core_lang + secondary_langs). Configure the test env to
+        # include pt-PT so the pt-PT fact.intent gets registered and the
+        # full real-world round-trip is exercised — Portuguese utterance,
+        # English-only skill code, Portuguese reply.
         self.minicroft = ovoscope.get_minicroft(
             [self.skill_id],
             extra_skills={self.skill_id: _AnimalFactsUniversalSkill},
-            lang="en-US")
+            lang="pt-PT",
+            secondary_langs=["en-US"])
 
     def tearDown(self):
         if self.minicroft is not None:
@@ -219,75 +223,66 @@ class TestUniversalSkillResourceLang(TestCase):
 
     # --- realistic full round-trip ----------------------------------------
 
-    def test_realistic_english_only_api_roundtrip_to_portuguese(self):
-        """Wolfram-style English-only skill addressed from Portuguese.
+    def test_realistic_pt_user_addresses_english_only_skill(self):
+        """Real round-trip: Portuguese-speaking user, English-only skill code.
 
-        UniversalSkill drives translation **inside the skill** in both
-        directions: the inbound wrapper translates the captured slot into
-        ``internal_language`` before the callback runs, the callback hits
-        the English API, and :meth:`UniversalSkill.speak` translates the
-        reply back to the user's session lang on the way out.
+        The skill ships a Portuguese ``fact.intent`` (a real-world skill
+        would ship one per supported language); padacioso matches it
+        against a real ``recognizer_loop:utterance`` in Portuguese and
+        captures ``animal="gatos"``. The :class:`UniversalSkill`
+        handler-wrapper folds that slot into ``internal_language``
+        before the callback runs, so the user's skill code is
+        single-language: hits an English-only API with ``"cats"``, gets
+        an English fact, calls ``self.speak(fact)``. :meth:`speak`
+        translates the reply back to Portuguese on the way out — the
+        user never sees the English internals.
 
-        Failure modes this test catches:
+        Three failure modes this catches:
 
-        * intent file resolved against the wrong language → registration
-          fails with ``Unable to find fact.intent``;
-        * the inbound translation step is bypassed → the handler sees
-          the Portuguese slot and the API lookup misses;
-        * the outbound translation step is dropped → the user gets an
-          English reply.
+        * pt-PT ``.intent`` not registered → padacioso never matches,
+          no speak fires;
+        * inbound translation skipped → handler sees ``"gatos"`` instead
+          of ``"cats"``, API lookup misses, user gets the fallback;
+        * outbound translation skipped or argument-swapped → user
+          gets the English fact verbatim instead of the translation.
         """
-        # Step 1: the intent file registered against the en-US tree.
-        # `Unable to find fact.intent` would have logged otherwise.
-        self.assertTrue(
-            any("fact.intent" in str(name) for name in
-                self.minicroft.bus.ee.event_names()),
-            "fact.intent did not register against the en-US fixture; "
-            "_resource_lang → LocaleResources.find could not resolve it")
-
-        # Step 2: emit the intent-match event with a *Portuguese* slot —
-        # that is what a hypothetical pt-PT intent matcher would capture.
-        # The UniversalSkill handler wrapper translates `animal: "gatos"`
-        # → `"cats"` before our callback runs; the callback then calls
-        # the English API and `speak` translates the reply on the way out.
         spoken = []
         event = Event()
         self.minicroft.bus.on("speak", lambda m: (
             spoken.append(m.data.get("utterance", "")), event.set()))
 
+        # A real Portuguese utterance from the user. Padacioso (bundled,
+        # always available in the test env) matches the pt-PT intent
+        # file the skill ships and captures the animal slot in Portuguese.
         session = Session("uni-roundtrip")
-        session.lang = "pt-PT"  # user speaks Portuguese
+        session.lang = "pt-PT"
         self.minicroft.inject_message(Message(
-            f"{self.skill_id}:fact.intent",
-            # Portuguese slot — exactly what a pt-PT intent matcher would
-            # have captured. The UniversalSkill wrapper translates it
-            # into ``internal_language`` (en-US) before our handler runs.
-            {"animal": "gatos",
-             "utterance": "conta-me um facto sobre gatos"},
+            "recognizer_loop:utterance",
+            {"utterances": ["conta-me um facto sobre gatos"],
+             "lang": "pt-PT"},
             context={"session": session.serialize(),
                      "source": "A", "destination": "B"}))
 
         self.assertTrue(
             event.wait(timeout=10),
-            f"no speak within timeout — handler did not fire. "
-            f"spoken={spoken!r}")
+            "no speak within 10s — the pt-PT fact.intent likely never "
+            f"matched. spoken={spoken!r}")
 
-        # Inbound translation: the handler saw the slot already folded
-        # into internal_language. If translate_message ran before the
-        # wrapped callback, ``_last_animal_seen`` is the English form.
+        # Inbound translation happened inside the skill: the handler
+        # received the slot already in internal_language.
         skill = self._skill()
         self.assertEqual(
             getattr(skill, "_last_animal_seen", None), "cats",
-            "the inbound translation step did not run — the handler "
-            "saw the Portuguese slot 'gatos' instead of 'cats'. The "
-            "universal_intent_handler wrapper that calls "
-            "translate_message may not be in the dispatch chain.")
+            "handler saw the Portuguese slot 'gatos' — the inbound "
+            "translate_message step in the universal_intent_handler "
+            "wrapper did not run, or was bypassed.")
 
-        # Outbound translation: the English fact came back as Portuguese.
+        # Outbound translation happened inside speak(): the user gets
+        # Portuguese, never sees the English internals.
         self.assertTrue(
             any("dezasseis" in s for s in spoken),
             "expected the Portuguese translation of the English API "
             f"reply in the speak utterance; got {spoken!r}. "
-            "UniversalSkill.speak may have dropped the outbound "
-            "translation step, or its translate_utterance call uses "
-            "swapped target/source args (returning the source text).")
+            "UniversalSkill.speak may have skipped the outbound "
+            "translation step, or its translate_utterance arguments "
+            "are still source/target-swapped.")
