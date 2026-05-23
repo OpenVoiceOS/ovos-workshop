@@ -2030,21 +2030,19 @@ class OVOSSkill(_LegacyResourcesMixin):
 
     def voc_list(self, voc_filename: str,
                  lang: Optional[str] = None) -> List[str]:
-        """
-        Get list of vocab options for the requested resource and cache the
-        results for future references.
-        @param voc_filename: Name of vocab resource to get options for
-        @param lang: language to get vocab for (default self.lang)
-        @return: list of string vocab options
+        """Cached per-skill view of a ``.voc`` phrase set.
+
+        Delegates the lookup to :meth:`LocaleResources.voc_list` (which
+        returns ``[]`` for a missing resource) and caches the result on
+        this skill instance so subsequent ``voc_match`` / ``remove_voc``
+        calls do not re-walk the locale tree.
         """
         lang = standardize_lang(lang or self.lang)
         cache_key = lang + voc_filename
-
         if cache_key not in self._voc_cache:
-            vocab = self._locale_resources.load_vocabulary(voc_filename, lang)
+            vocab = self._locale_resources.voc_list(voc_filename, lang)
             if vocab:
                 self._voc_cache[cache_key] = list(vocab)
-
         return self._voc_cache.get(cache_key) or []
 
     def voc_match(self, utt: str, voc_filename: str, lang: Optional[str] = None,
@@ -2056,28 +2054,13 @@ class OVOSSkill(_LegacyResourcesMixin):
         ``yes.voc`` of just ``yes``. With ``exact=True`` the utterance must
         equal a sample after normalization.
 
-        Args:
-            utt: utterance to test
-            voc_filename: vocab resource name (e.g. ``cancel`` for
-                ``locale/en-US/cancel.voc``)
-            lang: BCP-47 language code, defaults to ``self.lang``
-            exact: whether the vocab must equal the utterance
-            ensure_ascii: drop diacritics **and** ASCII punctuation before
-                comparison (the historical bundled behaviour — kept as one
-                flag for back-compat; for finer control call
-                :func:`ovos_spec_tools.utterance_contains` directly with
-                ``strip_diacritics`` / ``strip_punct``)
+        ``ensure_ascii`` is the historical bundled normalization knob —
+        drops diacritics and ASCII punctuation together; for finer control
+        call :func:`ovos_spec_tools.utterance_contains` directly with
+        ``strip_diacritics`` / ``strip_punct``.
         """
-        lang = lang or self.lang
-        try:
-            samples = self.voc_list(voc_filename, lang)
-        except FileNotFoundError:
-            LOG.warning(
-                f"{self.skill_id} failed to find voc file '{voc_filename}' "
-                f"for lang '{lang}' in `{self.res_dir}'")
-            return False
         return utterance_contains(
-            utt, samples, exact=exact,
+            utt, self.voc_list(voc_filename, lang), exact=exact,
             strip_diacritics=ensure_ascii, strip_punct=ensure_ascii)
 
     def remove_voc(self, utt: str, voc_filename: str,
