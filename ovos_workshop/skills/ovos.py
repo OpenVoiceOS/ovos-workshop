@@ -111,6 +111,10 @@ class OVOSSkill:
         self.root_dir = dirname(abspath(sys.modules[self.__module__].__file__))
         self.res_dir = resources_dir or self.root_dir
 
+        # Workshop-internal LocaleResources — single instance per skill,
+        # serves every language the skill ships (the language is per query).
+        self._locale_resources = LocaleResources(self.res_dir)
+
         self.gui = gui
         self._bus = bus
         self._enclosure = EnclosureAPI()
@@ -427,16 +431,28 @@ class OVOSSkill:
                 "ovos_spec_tools.render via OVOSSkill.render_dialog. "
                 "This compat shim will be removed.",
                 f"{VERSION_MAJOR + 1}.0.0")
-    def dialog_renderer(self) -> None:
+    def dialog_renderer(self):
         """
-        Deprecated: dialog rendering is now performed by
-        :func:`ovos_spec_tools.render`. Use :meth:`render_dialog` instead.
-        This property no longer returns a renderer object.
+        Back-compat handle returning the legacy
+        :class:`~ovos_utils.dialog.MustacheDialogRenderer`.
+
+        .. deprecated::
+            Dialog rendering is now performed by :func:`ovos_spec_tools.render`
+            via :meth:`render_dialog`. This property keeps returning a real
+            renderer so legacy skill code calling
+            ``self.dialog_renderer.render(name, data)`` keeps working through
+            one release.
         """
         warnings.warn(
             "dialog_renderer is deprecated; use OVOSSkill.render_dialog",
             DeprecationWarning, stacklevel=3)
-        return None
+        cached = getattr(self, "_skill_resources_compat", None)
+        if cached is None:
+            from ovos_workshop.resource_files import SkillResources
+            cached = SkillResources(
+                self.res_dir, self.lang, skill_id=self.skill_id)
+            self._skill_resources_compat = cached
+        return cached.dialog_renderer
 
     def render_dialog(self, name: str, data: Optional[dict] = None) -> str:
         """
@@ -558,16 +574,6 @@ class OVOSSkill:
         valid = set([standardize_lang(lang) for lang in self.secondary_langs
                      if lang != self.core_lang] + [self.core_lang])
         return list(valid)
-
-    @property
-    def _locale_resources(self) -> LocaleResources:
-        """Workshop-internal :class:`~ovos_spec_tools.LocaleResources`.
-
-        Use this for any in-workshop code that needs the resource loader —
-        the public :attr:`resources` property is a deprecated back-compat
-        shim that still returns the legacy ``SkillResources``.
-        """
-        return self.load_lang(self.res_dir)
 
     @property
     @deprecated("self.resources is deprecated; use the high-level skill "
