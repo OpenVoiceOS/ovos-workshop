@@ -1,11 +1,12 @@
+import os
 from os.path import isdir, join
 from typing import Optional
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_bus_client.util import get_mycroft_bus
+from ovos_spec_tools import closest_lang
 from ovos_utils.lang import standardize_lang_tag
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.client.client import MessageBusClient
-from ovos_workshop.resource_files import locate_lang_directories
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
@@ -74,11 +75,16 @@ class OVOSAbstractApplication(OVOSSkill):
 
         # check for subdialects of same language as a fallback
         # eg, language is set to en-au but only en-us resources are available
-        similar_dialect_directories = locate_lang_directories(lang, base_path)
-        for directory in similar_dialect_directories:
-            if directory.exists():
-                # NOTE: these are already sorted, the first is the best match
-                return str(directory)
+        if not isdir(base_path):
+            return None
+        available = [d for d in os.listdir(base_path)
+                     if isdir(join(base_path, d))]
+        best = closest_lang(lang, available)
+        if best is None:
+            return None
+        for d in available:
+            if standardize_lang_tag(d) == best:
+                return join(base_path, d)
 
     def clear_intents(self):
         """

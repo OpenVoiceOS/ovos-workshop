@@ -46,7 +46,7 @@ class TestOVOSSkill(unittest.TestCase):
         from ovos_utils.process_utils import RuntimeRequirements
         from ovos_bus_client.apis.enclosure import EnclosureAPI
         from ovos_workshop.filesystem import FileSystemAccess
-        from ovos_workshop.resource_files import SkillResources
+        from ovos_spec_tools import LocaleResources
 
         self.assertIsInstance(self.skill.log, Logger)
         self.assertEqual(self.skill.name, self.skill.__class__.__name__)
@@ -84,8 +84,7 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIsInstance(self.skill.native_langs, list)
         self.assertIn(self.skill.core_lang, self.skill.native_langs)
         self.assertIsInstance(self.skill.alphanumeric_skill_id, str)
-        self.assertIsInstance(self.skill.resources, SkillResources)
-        self.assertEqual(self.skill.resources.language, self.skill.lang)
+        self.assertIsInstance(self.skill.resources, LocaleResources)
         self.assertFalse(self.skill._stop_is_implemented)
 
     def test_handle_first_run(self):
@@ -293,10 +292,6 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
-    def test_find_resource(self):
-        # TODO
-        pass
-
     def test_on_event_start(self):
         # TODO
         pass
@@ -449,10 +444,6 @@ class TestOVOSSkill(unittest.TestCase):
         pass
 
     def test_load_vocab_files(self):
-        # TODO
-        pass
-
-    def test_load_regex_files(self):
         # TODO
         pass
 

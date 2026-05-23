@@ -16,10 +16,42 @@ Utility functions for skills, including word list joining with language-specific
 and error traceback formatting.
 """
 
+import json
+import os
+from os.path import dirname, isdir, isfile, join
 from typing import Dict, List, Optional
 
+from ovos_spec_tools import closest_lang
+from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
-from ovos_workshop.resource_files import CoreResources
+
+_LOCALE_DIR = join(dirname(dirname(__file__)), "locale")
+
+
+def _load_workshop_json(name: str, lang: str) -> Optional[Dict]:
+    """Load a JSON config file shipped under ovos-workshop's ``locale/`` dir.
+
+    Resolves the closest available language directory per OVOS-LANG.
+
+    @param name: file base name (no extension)
+    @param lang: requested BCP-47 language tag
+    @return: parsed JSON dict, or None if not found
+    """
+    if not isdir(_LOCALE_DIR):
+        return None
+    available = [d for d in os.listdir(_LOCALE_DIR)
+                 if isdir(join(_LOCALE_DIR, d))]
+    best = closest_lang(standardize_lang_tag(lang), available)
+    if best is None:
+        return None
+    for d in available:
+        if standardize_lang_tag(d) == best:
+            path = join(_LOCALE_DIR, d, f"{name}.json")
+            if isfile(path):
+                with open(path) as f:
+                    return json.load(f)
+            return None
+    return None
 
 
 def simple_trace(stack_trace: List[str]) -> str:
@@ -50,7 +82,7 @@ def _get_word(lang: str, connector: str) -> str:
     Returns:
         Translated connector word, or ", " as fallback
     """
-    data = CoreResources(lang).load_json_file("word_connectors")
+    data = _load_workshop_json("word_connectors", lang) or {}
     if connector in data:
         return data[connector]
     LOG.warning(f"untranslated word connector '{connector}' for lang: {lang}")
@@ -67,7 +99,7 @@ def _load_euphony_rules(lang: str) -> Optional[Dict]:
         Dict with euphony rules or None if not found
     """
     try:
-        return CoreResources(lang).load_json_file("euphony")
+        return _load_workshop_json("euphony", lang)
     except Exception:
         return None
 

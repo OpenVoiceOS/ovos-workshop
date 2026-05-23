@@ -12,7 +12,6 @@ from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
-from ovos_workshop.resource_files import ResourceFile
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
@@ -87,12 +86,10 @@ class ConversationalSkill(OVOSSkill):
         for lang in self.native_langs:
             self.converse_matchers[lang] = IntentContainer(fuzz=fuzzy)
 
-            resources = self.load_lang(self.res_dir, lang)
-            resource_file = ResourceFile(resources.types.intent, intent_file)
-            if resource_file.file_path is None:
+            filename = self._locate_lang_file(intent_file, ".intent", lang)
+            if filename is None:
                 self.log.error(f'Unable to find "{intent_file}"')
                 continue
-            filename = str(resource_file.file_path)
 
             with open(filename) as f:
                 samples = [l.strip() for l in f.read().split("\n")

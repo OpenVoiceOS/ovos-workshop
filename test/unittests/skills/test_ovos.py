@@ -4,7 +4,7 @@ from ovos_utils.process_utils import RuntimeRequirements
 from ovos_utils.fakebus import FakeBus
 from ovos_utils import classproperty
 from ovos_workshop.decorators.layers import IntentLayers
-from ovos_workshop.resource_files import SkillResources
+from ovos_spec_tools import LocaleResources
 
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -53,7 +53,7 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIsInstance(self.skill.secondary_langs, list)
         self.assertIsInstance(self.skill.native_langs, list)
         self.assertIsInstance(self.skill.alphanumeric_skill_id, str)
-        self.assertIsInstance(self.skill.resources, SkillResources)
+        self.assertIsInstance(self.skill.resources, LocaleResources)
 
     def test_activate(self):
         # TODO
