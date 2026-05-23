@@ -111,21 +111,10 @@ class OVOSSkill(_LegacyResourcesMixin):
         self.root_dir = dirname(abspath(sys.modules[self.__module__].__file__))
         self.res_dir = resources_dir or self.root_dir
 
-        # Workshop-internal LocaleResources — single instance per skill,
-        # serves every language the skill ships (the language is per query).
-        # Override-precedence sources (§2.1): user data overrides, skill's
-        # own locale/, then the workshop-bundled core locale/ (which ships
-        # ``cancel.voc``, ``yes.voc``, ``skill.error.dialog``, etc.).
-        # Cache it under res_dir so :meth:`load_lang` returns the same
-        # instance for the default root rather than rebuilding.
-        workshop_locale = join(dirname(dirname(abspath(__file__))), "locale")
-        user_locale = join(get_xdg_data_save_path(), "resources",
-                           self.skill_id) if self.skill_id else None
-        self._locale_resources = LocaleResources(
-            skill_locale=join(self.res_dir, "locale"),
-            core_locale=workshop_locale,
-            user_locale=user_locale)
-        self._lang_resources = {self.res_dir: self._locale_resources}
+        # per-root LocaleResources cache, lazily populated by load_lang
+        # so post-init res_dir mutations (legitimate for fixture-driven
+        # tests and live-reload skills) take effect on the next access.
+        self._lang_resources = {}
 
         self.gui = gui
         self._bus = bus
@@ -489,6 +478,22 @@ class OVOSSkill(_LegacyResourcesMixin):
         if message:
             lang = get_message_lang(message)
         return standardize_lang(lang)
+
+    @property
+    def _locale_resources(self) -> LocaleResources:
+        """Workshop-internal :class:`~ovos_spec_tools.LocaleResources` for
+        ``self.res_dir`` — the language-agnostic loader that backs every
+        per-language resource lookup on this skill.
+
+        Delegates to :meth:`load_lang` (which caches per root_directory)
+        so post-init changes to ``self.res_dir`` are picked up on the
+        next access. Workshop-internal code (``render_dialog``,
+        ``voc_match``, ``_locate_lang_file`` etc.) goes through this
+        attribute; the public, deprecated :attr:`resources` shim lives
+        on :class:`_LegacyResourcesMixin` and still hands back the
+        legacy :class:`SkillResources`.
+        """
+        return self.load_lang(self.res_dir)
 
     @property
     def _resource_lang(self) -> str:
