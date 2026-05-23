@@ -36,12 +36,16 @@ class TestRegexLoading(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls._old_xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
         cls._tmp_config = tempfile.mkdtemp(prefix="ws_rx_cfg_")
         os.environ["XDG_CONFIG_HOME"] = cls._tmp_config
 
     @classmethod
     def tearDownClass(cls):
-        os.environ.pop("XDG_CONFIG_HOME", None)
+        if cls._old_xdg_config_home is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = cls._old_xdg_config_home
         shutil.rmtree(cls._tmp_config, ignore_errors=True)
 
     def setUp(self):
@@ -78,7 +82,7 @@ class TestRegexLoading(unittest.TestCase):
         # one bubbling up from native_langs) are out of scope here.
         self.assertFalse([w for w in caught
                           if issubclass(w.category, DeprecationWarning)
-                          and "regex" in str(w.message).lower()])
+                          and "padatious" in str(w.message).lower()])
 
     def test_loading_an_rx_registers_and_warns(self):
         """A real .rx file gets read; its pattern is registered (with the

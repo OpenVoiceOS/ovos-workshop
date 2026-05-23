@@ -48,11 +48,10 @@ _FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "universal_locale")
 # both legs.
 #
 # Keys are kept at the **primary subtag** so the lookup is stable across
-# ovos_bus_client versions (pre-2.0.0a4 Session.deserialize folded the
-# session lang through ovos_utils.lang.standardize_lang_tag's macro=True
-# default and delivered "pt" to the handler; 2.0.0a4+ preserves "pt-PT").
-# The pyproject pin now requires the fixed bus-client, but the stub's
-# lookup folds to primary so the test is not coupled to it.
+# ovos_bus_client versions (some versions fold the session lang through
+# ovos_utils.lang.standardize_lang_tag's macro=True default and deliver
+# "pt" rather than "pt-PT"). The stub's lookup folds to primary so the
+# test is not coupled to any particular bus-client behaviour.
 def _primary(tag):
     return (tag or "").split("-", 1)[0].lower()
 
@@ -90,7 +89,8 @@ class _AnimalFactsUniversalSkill(UniversalSkill):
         # alongside the default ``utterance`` / ``utterances`` keys.
         kwargs.setdefault("translate_keys",
                           ["animal", "utterance", "utterances"])
-        super().__init__(internal_language="en-US", *args, **kwargs)
+        kwargs.setdefault("internal_language", "en-US")
+        super().__init__(*args, **kwargs)
 
     # --- stubbed translation (no plugin, no network) ----------------------
     #
