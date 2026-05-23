@@ -170,8 +170,10 @@ class UniversalSkill(OVOSSkill):
                 translation_data["translated"][key] = message.data[key] = \
                     _do_tx(message.data[key])
 
-        # special case
-        if self.translate_tags:
+        # special case — adapt entity captures land under ``__tags__``;
+        # other intent pipelines (padacioso, padatious, ...) do not set
+        # the key, so the lookup must guard against its absence.
+        if self.translate_tags and "__tags__" in message.data:
             translation_data["original"]["__tags__"] = message.data["__tags__"]
             for idx, token in enumerate(message.data["__tags__"]):
                 message.data["__tags__"][idx] = \
@@ -295,7 +297,13 @@ class UniversalSkill(OVOSSkill):
                 "internal_lang": self.internal_language,
                 "target_lang": out_lang
             }
-            utterance = self.translate_utterance(utterance, sauce_lang, out_lang)
+            # translate_utterance(text, target_lang, sauce_lang): the
+            # outbound speak goes FROM internal TO user — pass them in
+            # the right order, not source/target swapped (long-standing
+            # silently-broken call site — kept this way for years because
+            # the translator plugin is rarely installed in test envs).
+            utterance = self.translate_utterance(
+                utterance, target_lang=out_lang, sauce_lang=sauce_lang)
             meta["translation_data"]["translated"] = utterance
             kwargs["meta"] = meta
         super().speak(utterance, *args, **kwargs)
