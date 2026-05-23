@@ -41,7 +41,7 @@ from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_config.locations import get_xdg_data_save_path
-from ovos_spec_tools import (LocaleResources, render, expand, closest_lang,
+from ovos_spec_tools import (LocaleResources, render, expand,
                               iter_locale_dirs, standardize_lang)
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
@@ -767,28 +767,14 @@ class OVOSSkill:
                           lang: str) -> Optional[str]:
         """Resolve the on-disk path of a spec resource file.
 
-        Searches ``<res_dir>/locale/<lang>/`` (recursively), falling back to
-        the closest available language directory per OVOS-LANG (§2.2).
-
-        @param name: resource base name (extension optional)
-        @param ext: resource extension including the dot, eg ``.intent``
-        @param lang: requested BCP-47 language tag
-        @return: absolute path to the resource file, or None if not found
+        Delegates to :meth:`ovos_spec_tools.LocaleResources.find` — the same
+        override-precedence + closest-language walk that backs every loader
+        call on this skill.
         """
         if name.endswith(ext):
             name = name[:-len(ext)]
-        # iter_locale_dirs yields (lang_norm, path) for every <res_dir>/locale/
-        # subdir; pick the single closest one and walk it for the resource.
-        available = dict(iter_locale_dirs(self.res_dir))
-        if not available:
-            return None
-        best = closest_lang(lang, list(available.keys()))
-        if best is None:
-            return None
-        for directory, _, files in os.walk(str(available[best])):
-            if f"{name}{ext}" in files:
-                return join(directory, f"{name}{ext}")
-        return None
+        path = self._locale_resources.find(name, ext, lang)
+        return str(path) if path is not None else None
 
     # skill object setup
     def _handle_first_run(self) -> None:
