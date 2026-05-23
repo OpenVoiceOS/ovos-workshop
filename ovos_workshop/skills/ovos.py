@@ -64,11 +64,12 @@ from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
 from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
 from ovos_workshop.settings import PrivateSettings
+from ovos_workshop.skills._legacy_resources import _LegacyResourcesMixin
 from ovos_workshop.skills.util import join_word_list, simple_trace
 from ovos_workshop.version import VERSION_MAJOR
 
 
-class OVOSSkill:
+class OVOSSkill(_LegacyResourcesMixin):
     """
     Base class for OpenVoiceOS skills providing common behaviour and parameters
     to all Skill implementations.
@@ -426,34 +427,6 @@ class OVOSSkill:
             raise TypeError(f"Expected a MessageBusClient, got: {type(value)}")
 
     # magic properties -> depend on message.context / Session
-    @property
-    @deprecated("dialog_renderer is deprecated; dialogs are rendered by "
-                "ovos_spec_tools.render via OVOSSkill.render_dialog. "
-                "This compat shim will be removed.",
-                f"{VERSION_MAJOR + 1}.0.0")
-    def dialog_renderer(self):
-        """
-        Back-compat handle returning the legacy
-        :class:`~ovos_utils.dialog.MustacheDialogRenderer`.
-
-        .. deprecated::
-            Dialog rendering is now performed by :func:`ovos_spec_tools.render`
-            via :meth:`render_dialog`. This property keeps returning a real
-            renderer so legacy skill code calling
-            ``self.dialog_renderer.render(name, data)`` keeps working through
-            one release.
-        """
-        warnings.warn(
-            "dialog_renderer is deprecated; use OVOSSkill.render_dialog",
-            DeprecationWarning, stacklevel=3)
-        cached = getattr(self, "_skill_resources_compat", None)
-        if cached is None:
-            from ovos_workshop.resource_files import SkillResources
-            cached = SkillResources(
-                self.res_dir, self.lang, skill_id=self.skill_id)
-            self._skill_resources_compat = cached
-        return cached.dialog_renderer
-
     def render_dialog(self, name: str, data: Optional[dict] = None) -> str:
         """
         Render a random phrase from a ``.dialog`` file for the skill's current
@@ -574,41 +547,6 @@ class OVOSSkill:
         valid = set([standardize_lang(lang) for lang in self.secondary_langs
                      if lang != self.core_lang] + [self.core_lang])
         return list(valid)
-
-    @property
-    @deprecated("self.resources is deprecated; use the high-level skill "
-                "methods (speak_dialog, register_intent_file, voc_match, "
-                "...) or construct ovos_spec_tools.LocaleResources directly",
-                f"{VERSION_MAJOR + 1}.0.0")
-    def resources(self):
-        """Back-compat handle returning a :class:`SkillResources`.
-
-        .. deprecated::
-            ``self.resources`` historically returned a
-            :class:`ovos_workshop.resource_files.SkillResources`. The skill
-            framework no longer uses it internally — workshop routes through
-            :class:`ovos_spec_tools.LocaleResources`. This property is kept
-            so legacy skill code that calls ``self.resources.load_*``,
-            ``self.resources.render_dialog`` etc. keeps working through one
-            release. Migrate to the high-level skill methods (``speak_dialog``,
-            ``register_intent_file``, ``voc_match``, …) or construct
-            :class:`ovos_spec_tools.LocaleResources` directly.
-        """
-        # stacklevel=3: warn() -> property body -> @deprecated wrapper -> caller
-        warnings.warn(
-            "self.resources is deprecated; use the high-level skill methods "
-            "or construct ovos_spec_tools.LocaleResources directly",
-            DeprecationWarning, stacklevel=3)
-        cached = getattr(self, "_skill_resources_compat", None)
-        if cached is None:
-            # resource_files is itself deprecated; the SkillResources
-            # constructor is silenced for workshop-internal callers via the
-            # _caller_is_internal guard in resource_files.py.
-            from ovos_workshop.resource_files import SkillResources
-            cached = SkillResources(
-                self.res_dir, self.lang, skill_id=self.skill_id)
-            self._skill_resources_compat = cached
-        return cached
 
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
@@ -741,33 +679,6 @@ class OVOSSkill:
                 "the OVOS formal specifications. The .rx loader is kept for "
                 "legacy adapt skills; consider migrating.",
                 DeprecationWarning, stacklevel=2)
-
-    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
-                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
-    def find_resource(self, res_name: str,
-                      res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None) -> Optional[str]:
-        """Find a resource file (legacy).
-
-        .. deprecated::
-            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
-            skill methods) for resource discovery. This delegates to
-            :func:`ovos_workshop.resource_files.find_resource` for backward
-            compatibility with skills that still call it directly.
-        """
-        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
-        warnings.warn(
-            "OVOSSkill.find_resource is deprecated; use "
-            "ovos_spec_tools.LocaleResources for resource discovery",
-            DeprecationWarning, stacklevel=3)
-        from ovos_workshop.resource_files import find_resource as _find
-        lang = standardize_lang(lang or self.lang)
-        x = _find(res_name, self.res_dir, res_dirname, lang)
-        if x:
-            return str(x)
-        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
-                       f"{lang!r} not found in skill")
-        return None
 
     def _locate_lang_file(self, name: str, ext: str,
                           lang: str) -> Optional[str]:
