@@ -24,7 +24,7 @@ import warnings
 from copy import copy
 from hashlib import md5
 from inspect import signature
-from os.path import join, abspath, dirname, basename, isfile, isdir
+from os.path import join, abspath, dirname, basename, isfile
 from threading import Event, RLock
 from typing import Dict, Callable, List, Optional, Union
 
@@ -49,7 +49,7 @@ from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
 from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
 from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
-from ovos_utils import camel_case_split, classproperty
+from ovos_utils import camel_case_split
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
@@ -2345,22 +2345,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         # TODO: register TTS events to track state instead of guessing
         waiter.wait(0.5)  # if TTS had not yet started
         self.bus.emit(msg.forward("mycroft.audio.speech.stop"))
-
-    @property
-    def voc_match_cache(self) -> Dict[str, List[str]]:
-        """
-        Backwards-compatible accessor method for vocab cache
-        @return: dict vocab resources to parsed resources
-        """
-        return self._voc_cache
-
-    @voc_match_cache.setter
-    def voc_match_cache(self, val):
-        self.log.warning("self._voc_cache should not be modified externally. This"
-                         "functionality will be deprecated in a future release")
-        if isinstance(val, dict):
-            self._voc_cache = val
-
 
 class SkillGUI(GUIInterface):
     def __init__(self, skill: OVOSSkill):

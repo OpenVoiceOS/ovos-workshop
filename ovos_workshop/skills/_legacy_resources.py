@@ -23,7 +23,7 @@ OVOSSkill depends on it.
 from __future__ import annotations
 
 import warnings
-from typing import Optional
+from typing import Dict, List, Optional
 
 from ovos_utils import classproperty
 from ovos_utils.log import LOG, deprecated
@@ -137,6 +137,27 @@ class _LegacyResourcesMixin:
         self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
                        f"{lang!r} not found in skill")
         return None
+
+    @property
+    def voc_match_cache(self) -> Dict[str, List[str]]:
+        """Back-compat accessor for the per-skill vocab cache.
+
+        .. deprecated::
+            The cache is an internal detail; the public
+            :meth:`OVOSSkill.voc_list` / :meth:`OVOSSkill.voc_match` already
+            cache and reuse results. External callers should read or
+            invalidate via those methods, not this dict.
+        """
+        return self._voc_cache
+
+    @voc_match_cache.setter
+    def voc_match_cache(self, val):
+        warnings.warn(
+            "OVOSSkill.voc_match_cache external mutation is deprecated; "
+            "use voc_list / voc_match instead",
+            DeprecationWarning, stacklevel=2)
+        if isinstance(val, dict):
+            self._voc_cache = val
 
     @classproperty
     def runtime_requirements(self) -> RuntimeRequirements:
