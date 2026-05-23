@@ -28,7 +28,6 @@ from typing import Optional
 from ovos_utils import classproperty
 from ovos_utils.log import LOG, deprecated
 from ovos_utils.process_utils import RuntimeRequirements
-
 from ovos_workshop.version import VERSION_MAJOR
 
 
@@ -55,6 +54,14 @@ class _LegacyResourcesMixin:
                 self.res_dir, self.lang, skill_id=self.skill_id)
             self._skill_resources_compat = cached
         return cached
+
+    def load_dialog_files(self, root_directory: Optional[str] = None):
+        """
+        Deprecated no-op kept for backwards compatibility.
+
+        ``.dialog`` files are now loaded lazily by
+        :class:`~ovos_spec_tools.LocaleResources` when a dialog is rendered.
+        """
 
     @property
     @deprecated("self.resources is deprecated; use the high-level skill "
@@ -101,6 +108,35 @@ class _LegacyResourcesMixin:
             "dialog_renderer is deprecated; use OVOSSkill.render_dialog",
             DeprecationWarning, stacklevel=3)
         return self._legacy_skill_resources().dialog_renderer
+
+    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
+                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
+    def find_resource(self, res_name: str,
+                      res_dirname: Optional[str] = None,
+                      lang: Optional[str] = None) -> Optional[str]:
+        """Find a resource file (legacy).
+
+        .. deprecated::
+            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
+            skill methods) for resource discovery. This delegates to
+            :func:`ovos_workshop.resource_files.find_resource` for backward
+            compatibility with skills that still call it directly.
+        """
+        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
+        warnings.warn(
+            "OVOSSkill.find_resource is deprecated; use "
+            "ovos_spec_tools.LocaleResources for resource discovery",
+            DeprecationWarning, stacklevel=3)
+        # import locally — the spec-tools-backed path doesn't touch this.
+        from ovos_spec_tools import standardize_lang
+        from ovos_workshop.resource_files import find_resource as _find
+        lang = standardize_lang(lang or self.lang)
+        x = _find(res_name, self.res_dir, res_dirname, lang)
+        if x:
+            return str(x)
+        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
+                       f"{lang!r} not found in skill")
+        return None
 
     @classproperty
     def runtime_requirements(self) -> RuntimeRequirements:
@@ -151,32 +187,3 @@ class _LegacyResourcesMixin:
         LOG.warning("network_requirements renamed to runtime_requirements, "
                     "will be removed in ovos-core 0.0.8")
         return self.runtime_requirements
-
-    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
-                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
-    def find_resource(self, res_name: str,
-                      res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None) -> Optional[str]:
-        """Find a resource file (legacy).
-
-        .. deprecated::
-            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
-            skill methods) for resource discovery. This delegates to
-            :func:`ovos_workshop.resource_files.find_resource` for backward
-            compatibility with skills that still call it directly.
-        """
-        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
-        warnings.warn(
-            "OVOSSkill.find_resource is deprecated; use "
-            "ovos_spec_tools.LocaleResources for resource discovery",
-            DeprecationWarning, stacklevel=3)
-        # import locally — the spec-tools-backed path doesn't touch this.
-        from ovos_spec_tools import standardize_lang
-        from ovos_workshop.resource_files import find_resource as _find
-        lang = standardize_lang(lang or self.lang)
-        x = _find(res_name, self.res_dir, res_dirname, lang)
-        if x:
-            return str(x)
-        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
-                       f"{lang!r} not found in skill")
-        return None

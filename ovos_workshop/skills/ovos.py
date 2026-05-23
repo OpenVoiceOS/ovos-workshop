@@ -66,7 +66,6 @@ from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_inte
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills._legacy_resources import _LegacyResourcesMixin
 from ovos_workshop.skills.util import join_word_list, simple_trace
-from ovos_workshop.version import VERSION_MAJOR
 
 
 class OVOSSkill(_LegacyResourcesMixin):
@@ -534,14 +533,6 @@ class OVOSSkill(_LegacyResourcesMixin):
                 core_locale=workshop_locale,
                 user_locale=user_locale)
         return self._lang_resources[root_directory]
-
-    def load_dialog_files(self, root_directory: Optional[str] = None):
-        """
-        Deprecated no-op kept for backwards compatibility.
-
-        ``.dialog`` files are now loaded lazily by
-        :class:`~ovos_spec_tools.LocaleResources` when a dialog is rendered.
-        """
 
     def load_data_files(self, root_directory: Optional[str] = None):
         """
