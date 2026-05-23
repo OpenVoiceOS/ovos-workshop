@@ -41,7 +41,7 @@ from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_config.locations import get_xdg_data_save_path
-from ovos_spec_tools import LocaleResources, render, expand, closest_lang
+from ovos_spec_tools import LocaleResources, render, expand, closest_lang, standardize_lang
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
 from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
@@ -631,32 +631,77 @@ class OVOSSkill:
                        f"{lang!r} not found in skill")
         return None
 
-    @deprecated("load_regex_files is deprecated; .rx/regex resources are not "
-                "part of the OVOS formal specifications",
-                f"{VERSION_MAJOR + 1}.0.0")
     def load_regex_files(self, root_directory: Optional[str] = None) -> None:
-        """Load ``.rx`` regex files (legacy).
+        """Load and register ``.rx`` regex files for adapt-style intents.
+
+        Walks ``<root>/locale/<lang>/`` for ``.rx`` files; each non-blank,
+        non-``#``-comment line is one regex pattern. ``(?P<name>...)`` named
+        groups are prefixed with the skill's alphanumeric id so they don't
+        collide across skills. Each pattern is then registered with the adapt
+        intent service.
+
+        Self-contained — does NOT go through the deprecated
+        ``ovos_workshop.resource_files`` module. A ``DeprecationWarning`` is
+        emitted **only when a ``.rx`` file is actually loaded**, so skills that
+        ship none stay quiet.
 
         .. deprecated::
-            ``.rx`` regex resources are not part of the OVOS formal
-            specifications and have no ``ovos-spec-tools`` replacement. This
-            shim still loads them for backward compatibility, but the
-            functionality will be removed in a future major release.
+            For new intents that need pattern matching, prefer
+            **padatious-style template intents** with named ``{slots}`` — they
+            generalize, localize, and are part of the OVOS formal
+            specifications. ``.rx`` regex support remains for legacy adapt
+            skills; its deprecation is independent of (and outlives) the
+            broader ``resource_files`` deprecation, and its removal is not
+            yet scheduled.
         """
-        warnings.warn(
-            "OVOSSkill.load_regex_files is deprecated; .rx regex resources "
-            "are not part of the OVOS formal specifications",
-            DeprecationWarning, stacklevel=3)
-        from ovos_workshop.resource_files import SkillResources
         root_directory = root_directory or self.res_dir
-        for lang in self.native_langs:
-            resources = SkillResources(root_directory, lang,
-                                       skill_id=self.skill_id)
-            if resources.types.regex.base_directory is not None:
-                regexes = resources.load_skill_regex(
-                    self.alphanumeric_skill_id)
-                for regex in regexes:
-                    self.intent_service.register_adapt_regex(regex, lang)
+        unique_prefix = "(?P<" + self.alphanumeric_skill_id
+        loaded_any = False
+        locales_root = join(root_directory, "locale")
+        if not isdir(locales_root):
+            return
+        # iterate locale/ subdirs — the dir name *is* the lang tag; we match it
+        # against native_langs via closest_lang so e.g. an `en-US/` tree is
+        # picked up for a skill that declares `en` (or `en-GB`) as native.
+        native_norms = [standardize_lang(l) for l in self.native_langs]
+        for entry in sorted(os.listdir(locales_root)):
+            locale_dir = join(locales_root, entry)
+            if not isdir(locale_dir):
+                continue
+            try:
+                lang_norm = standardize_lang(entry)
+            except Exception:
+                continue
+            if native_norms and closest_lang(lang_norm, native_norms) is None:
+                continue
+            for directory, _, files in os.walk(locale_dir):
+                for file_name in files:
+                    if not file_name.endswith(".rx"):
+                        continue
+                    rx_path = join(directory, file_name)
+                    self.log.info(
+                        f"loading regex file {rx_path!r} for lang "
+                        f"{lang_norm!r}")
+                    with open(rx_path, "r", encoding="utf-8-sig") as f:
+                        for line in f:
+                            pattern = line.strip()
+                            if not pattern or pattern.startswith("#"):
+                                continue
+                            # uniqueify group names so they don't collide
+                            # across skills, then validate
+                            unique = unique_prefix.join(pattern.split("(?P<"))
+                            re.compile(unique)
+                            self.intent_service.register_adapt_regex(
+                                unique, lang_norm)
+                            loaded_any = True
+        if loaded_any:
+            warnings.warn(
+                "OVOSSkill.load_regex_files: .rx regex resources are "
+                "deprecated. Prefer padatious-style template intents with "
+                "named {slots} — they generalize, localize, and are part of "
+                "the OVOS formal specifications. The .rx loader is kept for "
+                "legacy adapt skills; consider migrating.",
+                DeprecationWarning, stacklevel=2)
 
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
@@ -703,6 +748,8 @@ class OVOSSkill:
         """
         root_directory = root_directory or self.res_dir
         self.load_vocab_files(root_directory)
+        # legacy adapt-style regex resources; silent unless a .rx exists
+        self.load_regex_files(root_directory)
 
     def load_vocab_files(self, root_directory: Optional[str] = None):
         """ Load ``.voc`` files found under the skill's ``locale/`` directory
