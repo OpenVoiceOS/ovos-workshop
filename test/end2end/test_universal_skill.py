@@ -47,17 +47,23 @@ _FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "universal_locale")
 # from ``internal_language`` to the user's session lang. The test pins
 # both legs.
 #
-# NB: ovos_bus_client.Session.deserialize folds the session lang through
-# ovos_utils.lang.standardize_lang_tag (whose old macro=True default still
-# lives in the bundled release), so a session lang of "pt-PT" reaches the
-# handler as "pt". Keys reflect what the runtime actually delivers.
+# Keys are kept at the **primary subtag** so the lookup is stable across
+# ovos_bus_client versions (pre-2.0.0a4 Session.deserialize folded the
+# session lang through ovos_utils.lang.standardize_lang_tag's macro=True
+# default and delivered "pt" to the handler; 2.0.0a4+ preserves "pt-PT").
+# The pyproject pin now requires the fixed bus-client, but the stub's
+# lookup folds to primary so the test is not coupled to it.
+def _primary(tag):
+    return (tag or "").split("-", 1)[0].lower()
+
+
 _FAKE_TRANSLATIONS = {
     # inbound: Portuguese → English (the user's slot lands here)
-    ("gatos", "pt", "en-US"): "cats",
+    ("gatos", "pt", "en"): "cats",
     # outbound: English → Portuguese (the skill's reply lands here)
-    ("Cats sleep up to sixteen hours a day.", "en-US", "pt"):
+    ("Cats sleep up to sixteen hours a day.", "en", "pt"):
         "Os gatos dormem até dezasseis horas por dia.",
-    ("I do not know about that animal.", "en-US", "pt"):
+    ("I do not know about that animal.", "en", "pt"):
         "Não conheço esse animal.",
 }
 
@@ -97,10 +103,14 @@ class _AnimalFactsUniversalSkill(UniversalSkill):
 
     def translate_utterance(self, text, target_lang, sauce_lang=None):
         sauce_lang = sauce_lang or self.internal_language
-        # exact-key lookup against the test's deterministic table; fall
-        # through to the source text so an untranslated branch surfaces
-        # in test failure output instead of silently no-oping.
-        return _FAKE_TRANSLATIONS.get((text, sauce_lang, target_lang), text)
+        # exact-key lookup against the test's deterministic table; lang
+        # tags are folded to primary so the table works whether the
+        # runtime delivers "pt" or "pt-PT" (see _FAKE_TRANSLATIONS for
+        # the bus-client version note). Fall through to the source text
+        # so an untranslated branch surfaces in test failure output
+        # instead of silently no-oping.
+        key = (text, _primary(sauce_lang), _primary(target_lang))
+        return _FAKE_TRANSLATIONS.get(key, text)
 
     # --- skill surface ----------------------------------------------------
     def initialize(self):
