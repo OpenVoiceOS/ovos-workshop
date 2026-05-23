@@ -604,93 +604,6 @@ class OVOSSkill:
             self._skill_resources_compat = cached
         return cached
 
-    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
-                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
-    def find_resource(self, res_name: str,
-                      res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None) -> Optional[str]:
-        """Find a resource file (legacy).
-
-        .. deprecated::
-            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
-            skill methods) for resource discovery. This delegates to
-            :func:`ovos_workshop.resource_files.find_resource` for backward
-            compatibility with skills that still call it directly.
-        """
-        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
-        warnings.warn(
-            "OVOSSkill.find_resource is deprecated; use "
-            "ovos_spec_tools.LocaleResources for resource discovery",
-            DeprecationWarning, stacklevel=3)
-        from ovos_workshop.resource_files import find_resource as _find
-        lang = standardize_lang(lang or self.lang)
-        x = _find(res_name, self.res_dir, res_dirname, lang)
-        if x:
-            return str(x)
-        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
-                       f"{lang!r} not found in skill")
-        return None
-
-    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
-        """Load and register ``.rx`` regex files for adapt-style intents.
-
-        Walks ``<root>/locale/<lang>/`` for ``.rx`` files; each non-blank,
-        non-``#``-comment line is one regex pattern. ``(?P<name>...)`` named
-        groups are prefixed with the skill's alphanumeric id so they don't
-        collide across skills. Each pattern is then registered with the adapt
-        intent service.
-
-        Self-contained — does NOT go through the deprecated
-        ``ovos_workshop.resource_files`` module. A ``DeprecationWarning`` is
-        emitted **only when a ``.rx`` file is actually loaded**, so skills that
-        ship none stay quiet.
-
-        .. deprecated::
-            For new intents that need pattern matching, prefer
-            **padatious-style template intents** with named ``{slots}`` — they
-            generalize, localize, and are part of the OVOS formal
-            specifications. ``.rx`` regex support remains for legacy adapt
-            skills; its deprecation is independent of (and outlives) the
-            broader ``resource_files`` deprecation, and its removal is not
-            yet scheduled.
-        """
-        root_directory = root_directory or self.res_dir
-        unique_prefix = "(?P<" + self.alphanumeric_skill_id
-        loaded_any = False
-        # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
-        # native_langs via closest_lang — so an `en-US/` tree is picked up for
-        # a skill that declares `en` (or `en-GB`) as native.
-        for lang_norm, locale_dir in iter_locale_dirs(
-                root_directory, native_langs=self.native_langs):
-            for directory, _, files in os.walk(locale_dir):
-                for file_name in files:
-                    if not file_name.endswith(".rx"):
-                        continue
-                    rx_path = join(directory, file_name)
-                    self.log.info(
-                        f"loading regex file {rx_path!r} for lang "
-                        f"{lang_norm!r}")
-                    with open(rx_path, "r", encoding="utf-8-sig") as f:
-                        for line in f:
-                            pattern = line.strip()
-                            if not pattern or pattern.startswith("#"):
-                                continue
-                            # uniqueify group names so they don't collide
-                            # across skills, then validate
-                            unique = unique_prefix.join(pattern.split("(?P<"))
-                            re.compile(unique)
-                            self.intent_service.register_adapt_regex(
-                                unique, lang_norm)
-                            loaded_any = True
-        if loaded_any:
-            warnings.warn(
-                "OVOSSkill.load_regex_files: .rx regex resources are "
-                "deprecated. Prefer padatious-style template intents with "
-                "named {slots} — they generalize, localize, and are part of "
-                "the OVOS formal specifications. The .rx loader is kept for "
-                "legacy adapt skills; consider migrating.",
-                DeprecationWarning, stacklevel=2)
-
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
                   lang: Optional[str] = None) -> LocaleResources:
@@ -762,6 +675,93 @@ class OVOSSkill:
                     aliases = options[1:]
                     self.intent_service.register_adapt_keyword(
                         vocab_type, entity, aliases, lang)
+
+    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
+        """Load and register ``.rx`` regex files for adapt-style intents.
+
+        Walks ``<root>/locale/<lang>/`` for ``.rx`` files; each non-blank,
+        non-``#``-comment line is one regex pattern. ``(?P<name>...)`` named
+        groups are prefixed with the skill's alphanumeric id so they don't
+        collide across skills. Each pattern is then registered with the adapt
+        intent service.
+
+        Self-contained — does NOT go through the deprecated
+        ``ovos_workshop.resource_files`` module. A ``DeprecationWarning`` is
+        emitted **only when a ``.rx`` file is actually loaded**, so skills that
+        ship none stay quiet.
+
+        .. deprecated::
+            For new intents that need pattern matching, prefer
+            **padatious-style template intents** with named ``{slots}`` — they
+            generalize, localize, and are part of the OVOS formal
+            specifications. ``.rx`` regex support remains for legacy adapt
+            skills; its deprecation is independent of (and outlives) the
+            broader ``resource_files`` deprecation, and its removal is not
+            yet scheduled.
+        """
+        root_directory = root_directory or self.res_dir
+        unique_prefix = "(?P<" + self.alphanumeric_skill_id
+        loaded_any = False
+        # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
+        # native_langs via closest_lang — so an `en-US/` tree is picked up for
+        # a skill that declares `en` (or `en-GB`) as native.
+        for lang_norm, locale_dir in iter_locale_dirs(
+                root_directory, native_langs=self.native_langs):
+            for directory, _, files in os.walk(locale_dir):
+                for file_name in files:
+                    if not file_name.endswith(".rx"):
+                        continue
+                    rx_path = join(directory, file_name)
+                    self.log.info(
+                        f"loading regex file {rx_path!r} for lang "
+                        f"{lang_norm!r}")
+                    with open(rx_path, "r", encoding="utf-8-sig") as f:
+                        for line in f:
+                            pattern = line.strip()
+                            if not pattern or pattern.startswith("#"):
+                                continue
+                            # uniqueify group names so they don't collide
+                            # across skills, then validate
+                            unique = unique_prefix.join(pattern.split("(?P<"))
+                            re.compile(unique)
+                            self.intent_service.register_adapt_regex(
+                                unique, lang_norm)
+                            loaded_any = True
+        if loaded_any:
+            warnings.warn(
+                "OVOSSkill.load_regex_files: .rx regex resources are "
+                "deprecated. Prefer padatious-style template intents with "
+                "named {slots} — they generalize, localize, and are part of "
+                "the OVOS formal specifications. The .rx loader is kept for "
+                "legacy adapt skills; consider migrating.",
+                DeprecationWarning, stacklevel=2)
+
+    @deprecated("find_resource is deprecated; use ovos_spec_tools.LocaleResources "
+                "for resource discovery", f"{VERSION_MAJOR + 1}.0.0")
+    def find_resource(self, res_name: str,
+                      res_dirname: Optional[str] = None,
+                      lang: Optional[str] = None) -> Optional[str]:
+        """Find a resource file (legacy).
+
+        .. deprecated::
+            Use :class:`ovos_spec_tools.LocaleResources` (or the high-level
+            skill methods) for resource discovery. This delegates to
+            :func:`ovos_workshop.resource_files.find_resource` for backward
+            compatibility with skills that still call it directly.
+        """
+        # stacklevel=3: warn() -> body -> @deprecated wrapper -> caller
+        warnings.warn(
+            "OVOSSkill.find_resource is deprecated; use "
+            "ovos_spec_tools.LocaleResources for resource discovery",
+            DeprecationWarning, stacklevel=3)
+        from ovos_workshop.resource_files import find_resource as _find
+        lang = standardize_lang(lang or self.lang)
+        x = _find(res_name, self.res_dir, res_dirname, lang)
+        if x:
+            return str(x)
+        self.log.error(f"Skill {self.skill_id} resource {res_name!r} for lang "
+                       f"{lang!r} not found in skill")
+        return None
 
     def _locate_lang_file(self, name: str, ext: str,
                           lang: str) -> Optional[str]:
