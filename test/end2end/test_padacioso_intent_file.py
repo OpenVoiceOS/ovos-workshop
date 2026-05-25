@@ -6,10 +6,9 @@ the new ``_locate_lang_file`` resolver and triggers an intent match.
 ``OVOSSkill._locate_lang_file`` is the private helper introduced in PR #413
 that resolves ``<lang>/<name>.intent`` (and ``.entity``) under the skill's
 ``locale/`` tree via :func:`ovos_spec_tools.closest_lang` + ``os.walk``.
-The resolved file path is then handed to padatious'
-``register_padatious_intent``. If the resolver silently returns the wrong
-path (or ``None``) padatious registers nothing and the intent never
-matches.
+The resolved file path is then handed to whichever intent engine the
+pipeline runs — here padacioso, which is always available (pure Python,
+no native deps).
 
 The fixture ships ``locale/en-US/wave.intent`` with four utterance
 samples; sending ``wave hello`` should fire the registered handler.
@@ -38,21 +37,21 @@ class _WaveSkill(OVOSSkill):
         self.speak("waving back")
 
 
-class TestPadatiousIntentFileE2E(TestCase):
+class TestPadaciosoIntentFileE2E(TestCase):
     """``register_intent_file`` -> ``_locate_lang_file`` ->
-    ``intent_service.register_padatious_intent`` -> bus match."""
+    padacioso registration -> bus match."""
 
     def setUp(self):
         self.skill_id = "wave.openvoiceos"
-        # padatious-only pipeline so the test pins THIS path; if padatious
-        # is unavailable in the CI env, ovoscope's pipeline check will
-        # skip rather than silently fall through to adapt/fallback.
-        padatious = ["ovos-padatious-pipeline-plugin-high",
-                     "ovos-padatious-pipeline-plugin-medium"]
+        # padacioso-only pipeline so the test pins THIS path; if the
+        # intent doesn't match, the failure mode is unambiguous.
+        padacioso = ["ovos-padacioso-pipeline-plugin-high",
+                     "ovos-padacioso-pipeline-plugin-medium",
+                     "ovos-padacioso-pipeline-plugin-low"]
         self.minicroft = ovoscope.get_minicroft(
             [self.skill_id],
             extra_skills={self.skill_id: _WaveSkill},
-            default_pipeline=padatious,
+            default_pipeline=padacioso,
             lang="en-US")
 
     def tearDown(self):
@@ -60,9 +59,6 @@ class TestPadatiousIntentFileE2E(TestCase):
             self.minicroft.stop()
 
     def test_intent_file_match_fires_handler(self):
-        if not ovoscope.is_pipeline_available("ovos-padatious-pipeline-plugin"):
-            self.skipTest("padatious pipeline not installed")
-
         seen_speaks = []
         speak_event = Event()
 
@@ -74,8 +70,9 @@ class TestPadatiousIntentFileE2E(TestCase):
 
         session = Session("wave-1")
         session.lang = "en-US"
-        session.pipeline = ["ovos-padatious-pipeline-plugin-high",
-                            "ovos-padatious-pipeline-plugin-medium"]
+        session.pipeline = ["ovos-padacioso-pipeline-plugin-high",
+                            "ovos-padacioso-pipeline-plugin-medium",
+                            "ovos-padacioso-pipeline-plugin-low"]
         utterance = Message(
             "recognizer_loop:utterance",
             {"utterances": ["wave hello"], "lang": "en-US"},
