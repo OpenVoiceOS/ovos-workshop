@@ -1,19 +1,23 @@
 # Copyright 2026 OpenVoiceOS
 # Licensed under the Apache License, Version 2.0
-"""End-to-end ovoscope test: ``register_entity_file`` registers a constrained
-slot value-set through ``_locate_lang_file`` and pads an intent's slot
-matching to only the entity's enumerated values.
+"""End-to-end ovoscope test: ``register_entity_file`` round-trips through
+the new ``_locate_lang_file`` resolver and reaches the bus as a
+``padatious:register_entity`` event with the resolved path and the
+parsed sample list.
 
 Companion to ``test_padacioso_intent_file.py``: same resolver, different
-resource role. The fixture ships:
+file extension (``.entity`` vs ``.intent``). The fixture ships
+``locale/en-US/drink.entity`` with three sample values; the assertion
+is that the bus event carries the path of that file (proves
+``_locate_lang_file`` resolved the ``.entity`` correctly) and the
+parsed sample list (proves the OVOS-side entity-file reader can open
+and split it).
 
-- ``locale/en-US/order.intent`` — three samples using a ``{drink}`` slot.
-- ``locale/en-US/drink.entity`` — ``coffee``/``tea``/``juice``.
-
-A successful match captures the ``{drink}`` slot. The handler echoes it
-in its speak so the assert can confirm the slot was filled (slot fill
-fails if the entity wasn't registered, because the bare ``{drink}``
-slot would either fail to match or capture the wrong span).
+**Note on what ``.entity`` does** — in OVOS, ``.entity`` files are
+hints / training samples for the intent engine, not strict slot
+constraints. An open ``{drink}`` slot would capture any token even
+without the entity file. This test therefore asserts on the
+*registration plumbing* rather than on slot-fill behaviour.
 """
 from threading import Event
 from unittest import TestCase
@@ -28,61 +32,69 @@ from ovos_workshop.skills.ovos import OVOSSkill
 ovoscope = pytest.importorskip("ovoscope")
 
 
-class _OrderSkill(OVOSSkill):
+class _DrinkRegistrarSkill(OVOSSkill):
+    """Calls ``register_entity_file`` when poked via the bus, so the
+    test can subscribe to ``padatious:register_entity`` BEFORE the
+    registration fires."""
 
     def initialize(self):
-        self.register_entity_file("drink.entity")
-        self.register_intent_file("order.intent", self._on_order)
+        self.add_event("drinks.register", self._do_register)
 
-    def _on_order(self, message):
-        drink = message.data.get("drink", "<empty>")
-        self.speak(f"ordering {drink}")
+    def _do_register(self, _msg):
+        self.register_entity_file("drink.entity")
 
 
 class TestPadaciosoEntityFileE2E(TestCase):
+    """``register_entity_file`` -> ``_locate_lang_file(name, '.entity')``
+    -> ``intent_service.register_padatious_entity`` -> bus event
+    ``padatious:register_entity`` with the resolved file path and
+    parsed samples."""
 
     def setUp(self):
-        self.skill_id = "order.openvoiceos"
-        padacioso = ["ovos-padacioso-pipeline-plugin-high",
-                     "ovos-padacioso-pipeline-plugin-medium",
-                     "ovos-padacioso-pipeline-plugin-low"]
+        self.skill_id = "drinks.openvoiceos"
         self.minicroft = ovoscope.get_minicroft(
             [self.skill_id],
-            extra_skills={self.skill_id: _OrderSkill},
-            default_pipeline=padacioso,
+            extra_skills={self.skill_id: _DrinkRegistrarSkill},
             lang="en-US")
 
     def tearDown(self):
         if self.minicroft is not None:
             self.minicroft.stop()
 
-    def test_entity_constrained_slot_fills_from_entity_file(self):
-        seen_speaks = []
-        speak_event = Event()
+    def test_registration_resolves_entity_file_and_parses_samples(self):
+        registration = {}
+        registered = Event()
 
-        def on_speak(msg):
-            seen_speaks.append(msg.data.get("utterance", ""))
-            speak_event.set()
+        def _on_register(msg):
+            registration.update(msg.data)
+            registered.set()
 
-        self.minicroft.bus.on("speak", on_speak)
+        self.minicroft.bus.on("padatious:register_entity", _on_register)
 
-        session = Session("order-1")
+        # Trigger registration AFTER subscribing.
+        session = Session("reg-1")
         session.lang = "en-US"
-        session.pipeline = ["ovos-padacioso-pipeline-plugin-high",
-                            "ovos-padacioso-pipeline-plugin-medium",
-                            "ovos-padacioso-pipeline-plugin-low"]
-        utterance = Message(
-            "recognizer_loop:utterance",
-            {"utterances": ["i want a coffee"], "lang": "en-US"},
+        self.minicroft.inject_message(Message(
+            "drinks.register", {},
             context={"session": session.serialize(),
-                     "source": "A", "destination": "B"})
-        self.minicroft.inject_message(utterance)
+                     "source": "A", "destination": "B"}))
 
         self.assertTrue(
-            speak_event.wait(timeout=15),
-            "no speak message — register_entity_file path "
-            "(_locate_lang_file resolving the .entity) is broken")
+            registered.wait(timeout=10),
+            "no ``padatious:register_entity`` bus event — "
+            "``register_entity_file`` did not resolve drink.entity "
+            "(``_locate_lang_file`` resolver may be broken for .entity)")
+        self.registration = registration
+
+        # The file_name in the event proves _locate_lang_file resolved
+        # the .entity file (not None, ends with the expected suffix).
+        file_name = self.registration.get("file_name", "")
         self.assertTrue(
-            any("ordering coffee" in s for s in seen_speaks),
-            f"slot ``{{drink}}`` not filled from drink.entity; "
-            f"got: {seen_speaks}")
+            file_name.endswith("drink.entity"),
+            f"unexpected file_name in registration event: {file_name!r}")
+
+        # The parsed samples prove the OVOS-side entity reader opened
+        # the resolved path and split it correctly. Comments and blanks
+        # are filtered out by ``register_padatious_entity`` upstream.
+        samples = self.registration.get("samples", [])
+        self.assertEqual(sorted(samples), ["coffee", "juice", "tea"])
