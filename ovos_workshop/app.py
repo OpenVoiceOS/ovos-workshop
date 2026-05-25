@@ -1,9 +1,7 @@
-import os
-from os.path import isdir, join
 from typing import Optional
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_bus_client.util import get_mycroft_bus
-from ovos_spec_tools import closest_lang, standardize_lang
+from ovos_spec_tools import find_lang_dir, standardize_lang
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.client.client import MessageBusClient
 from ovos_workshop.skills.ovos import OVOSSkill
@@ -53,37 +51,19 @@ class OVOSAbstractApplication(OVOSSkill):
                          lang: Optional[str] = None) -> Optional[str]:
         """
         Get the best matched language resource directory for the requested lang.
-        This will consider dialects for the requested language, i.e. if lang is
-        set to pt-pt but only pt-br resources exist, the `pt-br` resource path
-        will be returned.
+
+        Delegates to :func:`ovos_spec_tools.find_lang_dir` — case mismatch
+        (``en-US`` vs ``en-us``), bare-language requests (``en`` against
+        ``en-US/``) and minor regional fallback (``en-au`` -> ``en-us``)
+        all resolve through one OVOS-INTENT-2 §2.2 predicate.
+
         @param base_path: root path to find resources (default res_dir)
         @param lang: language to get resources for (default self.lang)
         @return: path to language resources if they exist, else None
         """
-
-        base_path = base_path or self.res_dir
-        lang = lang or self.lang
-        lang = standardize_lang(lang)
-
-        # base_path/lang-CODE (region is upper case)
-        if isdir(join(base_path, lang)):
-            return join(base_path, lang)
-        # base_path/lang-code (lowercase)
-        if isdir(join(base_path, lang.lower())):
-            return join(base_path, lang.lower())
-
-        # check for subdialects of same language as a fallback
-        # eg, language is set to en-au but only en-us resources are available
-        if not isdir(base_path):
-            return None
-        available = [d for d in os.listdir(base_path)
-                     if isdir(join(base_path, d))]
-        best = closest_lang(lang, available)
-        if best is None:
-            return None
-        for d in available:
-            if standardize_lang(d) == best:
-                return join(base_path, d)
+        resolved = find_lang_dir(base_path or self.res_dir,
+                                 standardize_lang(lang or self.lang))
+        return str(resolved) if resolved is not None else None
 
     def clear_intents(self):
         """
