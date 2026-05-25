@@ -244,6 +244,48 @@ class TestLoadDialogFilesNoOp(unittest.TestCase):
         self.assertIsNone(skill.load_dialog_files())
 
 
+# --- runtime / network requirements shims -----------------------------------
+
+class TestRuntimeRequirementsShim(unittest.TestCase):
+    """``runtime_requirements`` and ``network_requirements`` are class-level
+    overridable hooks kept on the mixin so LAN/cache/offline skills that
+    declared them in their class body continue to load."""
+
+    def test_runtime_requirements_default_is_a_requirements_object(self):
+        from ovos_utils.process_utils import RuntimeRequirements
+        skill = OVOSSkill(bus=FakeBus(), skill_id="rtr.openvoiceos")
+        self.assertIsInstance(skill.runtime_requirements, RuntimeRequirements)
+
+    def test_subclass_override_is_honoured(self):
+        """A skill declaring its own ``runtime_requirements`` classproperty
+        (the historic LAN-only / offline-only pattern) still wins."""
+        from ovos_utils import classproperty
+        from ovos_utils.process_utils import RuntimeRequirements
+
+        class _OfflineSkill(OVOSSkill):
+            @classproperty
+            def runtime_requirements(self):
+                return RuntimeRequirements(
+                    internet_before_load=False,
+                    network_before_load=False,
+                    requires_internet=False,
+                    requires_network=False,
+                    no_internet_fallback=True,
+                    no_network_fallback=True)
+
+        skill = _OfflineSkill(bus=FakeBus(), skill_id="off.openvoiceos")
+        self.assertFalse(skill.runtime_requirements.requires_internet)
+        self.assertFalse(skill.runtime_requirements.requires_network)
+
+    def test_network_requirements_delegates_to_runtime_requirements(self):
+        """Legacy alias still exists and returns the same object."""
+        skill = OVOSSkill(bus=FakeBus(), skill_id="net.openvoiceos")
+        # No DeprecationWarning here — ``network_requirements`` uses a plain
+        # LOG.warning, which is enough for the legacy-rename case.
+        self.assertEqual(skill.network_requirements,
+                         skill.runtime_requirements)
+
+
 # --- legacy file formats "in the wild" --------------------------------------
 
 class TestLegacyFileFormats(unittest.TestCase):
