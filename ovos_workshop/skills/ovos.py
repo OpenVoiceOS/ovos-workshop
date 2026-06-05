@@ -1071,9 +1071,15 @@ class OVOSSkill:
         """
         Register default messagebus event handlers
         """
+        # Stop topics: subscribe to BOTH the legacy and the OVOS-STOP-1 spec
+        # namespaces. Only one namespace is ever emitted (chosen by the
+        # 'legacy_namespace' config), so a subscriber never sees duplicates.
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
+        self.add_event('ovos.stop', self._handle_session_stop, speak_errors=False)  # STOP-1 §5.3
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
+        self.add_event(f"{self.skill_id}:stop", self._handle_session_stop, speak_errors=False)  # STOP-1 §4.3
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
+        self.add_event("ovos.stop.ping", self._handle_stop_ack, speak_errors=False)  # STOP-1 §4.2
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
@@ -1143,15 +1149,28 @@ class OVOSSkill:
                                        f"remote changes not handled!: {e}")
             self._start_filewatcher()
 
+    @staticmethod
+    def _legacy_namespace() -> bool:
+        """Whether to emit the legacy ``mycroft.*`` bus topics (default) or the
+        OVOS spec ``ovos.*`` topics, during the bus-namespace transition.
+
+        Deployment-wide, controlled by the ``legacy_namespace`` config key
+        (default ``True``). Emitters pick exactly one namespace so subscribers —
+        which listen on both — never receive duplicate messages.
+        """
+        return Configuration().get("legacy_namespace", True)
+
     def _handle_stop_ack(self, message: Message):
         """
-        Inform skills service if we want to handle stop. Individual skills
-        must implement the method self.can_stop to enable or
-        disable stop support.
-        @param message: `{self.skill_id}.stop.ping` Message
+        Answer a stoppability ping. Individual skills must implement the method
+        self.can_stop to enable or disable stop support. Replies on the legacy
+        ``skill.stop.pong`` or the spec ``ovos.stop.pong`` (OVOS-STOP-1 §4.2)
+        depending on the active namespace.
+        @param message: a ``{self.skill_id}.stop.ping`` or ``ovos.stop.ping`` Message
         """
+        topic = "skill.stop.pong" if self._legacy_namespace() else "ovos.stop.pong"
         self.bus.emit(message.reply(
-            "skill.stop.pong",
+            topic,
             data={"skill_id": self.skill_id,
                   "can_handle": self.can_stop(message)},
             context={"skill_id": self.skill_id}))
@@ -1424,6 +1443,16 @@ class OVOSSkill:
         context = message.data.get('context')
         self.remove_context(context)
 
+    def _intent_handler_data(self, message: Optional[Message],
+                             skill_data: dict) -> dict:
+        """Build the OVOS-PIPELINE-1 §8.2 handler-lifecycle payload
+        (``skill_id`` + ``intent_name``) on top of the legacy ``skill_data``."""
+        data = dict(skill_data)
+        data["skill_id"] = self.skill_id
+        if message is not None and ":" in message.msg_type:
+            data["intent_name"] = message.msg_type.split(":", 1)[-1]
+        return data
+
     def _on_event_start(self, message: Message, handler_info: str,
                         skill_data: dict, activation: Optional[bool] = None):
         """
@@ -1435,9 +1464,15 @@ class OVOSSkill:
         """
         if handler_info:
             # Indicate that the skill handler is starting if requested
-            msg_type = handler_info + '.start'
             message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # OVOS-PIPELINE-1 §8 handler-lifecycle trio: legacy mycroft.skill.handler.*
+            # or spec ovos.intent.handler.* depending on the active namespace.
+            if handler_info == "mycroft.skill.handler" and not self._legacy_namespace():
+                self.bus.emit(message.forward(
+                    "ovos.intent.handler.start",
+                    self._intent_handler_data(message, skill_data)))
+            else:
+                self.bus.emit(message.forward(handler_info + '.start', skill_data))
 
     def _on_event_end(self, message: Message, handler_info: str,
                       skill_data: dict, is_intent: bool = False):
@@ -1446,9 +1481,14 @@ class OVOSSkill:
         completed.
         """
         if handler_info:
-            msg_type = handler_info + '.complete'
             message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # OVOS-PIPELINE-1 §8: legacy or spec namespace.
+            if handler_info == "mycroft.skill.handler" and not self._legacy_namespace():
+                self.bus.emit(message.forward(
+                    "ovos.intent.handler.complete",
+                    self._intent_handler_data(message, skill_data)))
+            else:
+                self.bus.emit(message.forward(handler_info + '.complete', skill_data))
         if is_intent:
             self.bus.emit(message.forward("ovos.utterance.handled", skill_data))
 
@@ -1474,10 +1514,15 @@ class OVOSSkill:
         skill_data['exception'] = repr(error)
         if handler_info:
             # Indicate that the skill handler errored
-            msg_type = handler_info + '.error'
             message = message or Message("")
             message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # OVOS-PIPELINE-1 §8: legacy or spec namespace.
+            if handler_info == "mycroft.skill.handler" and not self._legacy_namespace():
+                self.bus.emit(message.forward(
+                    "ovos.intent.handler.error",
+                    self._intent_handler_data(message, skill_data)))
+            else:
+                self.bus.emit(message.forward(handler_info + '.error', skill_data))
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
