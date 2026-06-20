@@ -24,7 +24,7 @@ jobs:
     - name: Install unreleased ovos-gui-api-client (until PyPI release)
       # PR OpenVoiceOS/ovos-gui-api-client#2 — drop once published
       run: |
-        pip install git+https://github.com/OpenVoiceOS/ovos-gui-api-client@feat/packaging
+        pip install git+https://github.com/OpenVoiceOS/ovos-gui-api-client@dev
     - name: Install repo
       run: |
         pip install -e .
