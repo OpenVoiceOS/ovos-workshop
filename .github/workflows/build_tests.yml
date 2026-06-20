@@ -13,3 +13,8 @@ jobs:
     with:
       test_path: 'test/unittests'
       install_extras: 'test'
+      # ovos-gui-api-client is not yet on PyPI (lives on its feat/packaging branch,
+      # PR OpenVoiceOS/ovos-gui-api-client#2). Install it from git so CI can resolve
+      # the new skill-side GUIInterface. Revert to the released version (or @dev) once
+      # that PR merges and an alpha is published.
+      pre_install_pip: 'git+https://github.com/OpenVoiceOS/ovos-gui-api-client@feat/packaging'

@@ -21,6 +21,10 @@ jobs:
         sudo apt-get update
         sudo apt install python3-dev
         python -m pip install build wheel
+    - name: Install unreleased ovos-gui-api-client (until PyPI release)
+      # PR OpenVoiceOS/ovos-gui-api-client#2 — drop once published
+      run: |
+        pip install git+https://github.com/OpenVoiceOS/ovos-gui-api-client@feat/packaging
     - name: Install repo
       run: |
         pip install -e .

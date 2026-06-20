@@ -32,7 +32,7 @@ from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
 from ovos_gui_api_client import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
-from ovos_bus_client.apis.gui import GUIInterface
+from ovos_gui_api_client import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
@@ -52,7 +52,6 @@ from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
-from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.log import LOG
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
@@ -833,7 +832,6 @@ class OVOSSkill:
         Set up the SkillGUI for this skill and connect relevant bus events.
         """
         self.gui = SkillGUI(self)
-        self.gui.setup_default_handlers()
 
     def register_homescreen_app(self, icon: str, name: str, event: str):
         """the icon file MUST be located under 'gui' subfolder"""
@@ -2546,15 +2544,13 @@ class SkillGUI(GUIInterface):
         Initialize a SkillGUI that connects a skill to the GUI framework.
         
         Parameters:
-        	skill (OVOSSkill): The skill instance whose GUI should be managed. The constructor initializes the underlying GUIInterface using the skill's id, message bus, GUI configuration, and UI directories.
+        	skill (OVOSSkill): The skill instance whose GUI should be managed. The constructor initializes the underlying GUIInterface using the skill's id, message bus, and GUI configuration.
         """
         self._skill = skill
         skill_id = skill.skill_id
         bus = skill.bus
         config = skill.config_core.get('gui')
-        ui_directories = get_ui_directories(skill.root_dir)
-        GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config,
-                              ui_directories=ui_directories)
+        GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config)
 
 
 
