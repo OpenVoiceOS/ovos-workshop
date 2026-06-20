@@ -74,23 +74,6 @@ def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = N
     return real_decorator
 
 
-def resting_screen_handler(name: str):
-    """
-    Decorator for adding a method as a resting screen handler to optionally
-    be shown on screen when device enters idle mode.
-    @param name: Name of the restring screen to register
-    """
-
-    def real_decorator(func):
-        # Store the resting information inside the function
-        # This will be used later in register_resting_screen
-        if not hasattr(func, 'resting_handler'):
-            func.resting_handler = name
-        return func
-
-    return real_decorator
-
-
 def skill_api_method(func: callable):
     """
     Decorator for adding a method to the skill's public api. Methods with this
@@ -158,26 +141,6 @@ def fallback_handler(priority: int = 50):
     def real_decorator(func):
         if not hasattr(func, 'fallback_priority'):
             func.fallback_priority = priority
-        return func
-
-    return real_decorator
-
-
-def homescreen_app(icon: str, name: Optional[str] = None):
-    """
-    Decorator for adding a method as a homescreen app
-
-    the icon file MUST be located under 'gui' subfolder
-
-    @param icon: icon file to use in app drawer (relative to "gui" folder)
-    @param name: short name to show under the icon in app drawer
-    """
-
-    def real_decorator(func):
-        # Store the icon inside the function
-        # This will be used later to call register_homescreen_app
-        func.homescreen_app_icon = icon
-        func.homescreen_app_name = name
         return func
 
     return real_decorator
