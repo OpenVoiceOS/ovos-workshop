@@ -46,11 +46,9 @@ Override these in your skill class:
 4. Init GUI
 5. Load resource files (`load_data_files`)
 6. Register decorated intents (`_register_decorated`)
-7. Register homescreen app if `@homescreen_app` used
-8. Register resting screen if `@resting_screen_handler` used
-9. Call `initialize()`
-10. Check first run
-11. Set status to `ready`
+7. Call `initialize()`
+8. Check first run
+9. Set status to `ready`
 
 ### Shutdown Sequence (`default_shutdown`)
 
@@ -187,3 +185,17 @@ This is used by `SkillManager` to defer loading until the required connectivity 
 | `question:action.{skill_id}` | Common query callback |
 | `homescreen.metadata.get` | Homescreen requesting metadata |
 | `{skill_id}.public_api` | Skill API introspection |
+
+## Spec conformance — OVOS-GUI-1 §6.9
+
+The skill-side home/resting-screen API has been removed: the home/resting screen
+is a GUI render-backend concern, never a skill. Removed surface:
+
+- The `@resting_screen_handler` and `@homescreen_app` decorators.
+- `OVOSSkill.register_resting_screen()` and `register_homescreen_app()`, plus the
+  startup hook that invoked them (`register_resting_screen` / `_register_app_launcher`,
+  now a no-op).
+- The `IdleDisplaySkill` base class (`ovos_workshop/skills/idle_display_skill.py`).
+
+This is a **breaking** change. Skills must no longer register or own a homescreen;
+that responsibility moves to the ovos-gui / homescreen-manager layer.
