@@ -136,6 +136,15 @@ class MyQuerySkill(CommonQuerySkill):
 
 **Module:** `ovos_workshop.skills.common_play`
 
+> **Deprecated (OVOS-OCP-1):** `OVOSCommonPlaybackSkill` and the
+> `@ocp_search` / `@ocp_featured_media` decorators are superseded by the
+> **MediaProvider** plugin type (`opm.media.provider`). New media catalogs
+> should ship as `ovos-media-provider-*` plugins that return
+> `mediavocab.Release` objects and are loaded in-process by the OCP pipeline,
+> instead of media-provider skills queried over the bus. The constructor emits
+> a deprecation warning (removal targeted for `2.0.0`). See
+> [OVOS-OCP-1](https://github.com/OpenVoiceOS/architecture/blob/dev/ovos-ocp-1.md).
+
 Integrates with OCP (OpenVoiceOS Common Play) for media playback. Uses `@ocp_search`, `@ocp_play`, and related decorators to respond to play requests and appear in the OCP media browser.
 
 ```python
