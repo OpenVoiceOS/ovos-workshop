@@ -75,6 +75,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 | [settings.md](settings.md) | `SkillSettingsManager` | Skill settings — persistence, change callbacks, file watching |
 | [intent-layers.md](intent-layers.md) | `IntentLayers` | Enable/disable intent sets at runtime |
 | [skill-launcher.md](skill-launcher.md) | `SkillLoader`, `PluginSkillLoader` | Loading skills as plugins or in standalone mode |
+| [bus-namespaces.md](bus-namespaces.md) | `OVOSSkill` | Legacy vs OVOS-spec bus topics (`legacy_namespace`); PIPELINE-1/STOP-1 conformance |
 | [permissions.md](permissions.md) | `ConverseMode`, `FallbackMode` | Converse and fallback permission modes |
 
 ---
