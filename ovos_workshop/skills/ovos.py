@@ -1433,16 +1433,6 @@ class OVOSSkill:
         context = message.data.get('context')
         self.remove_context(context)
 
-    def _intent_handler_data(self, message: Optional[Message],
-                             skill_data: dict) -> dict:
-        """Build the OVOS-PIPELINE-1 §8.2 handler-lifecycle payload
-        (``skill_id`` + ``intent_name``) on top of the legacy ``skill_data``."""
-        data = dict(skill_data)
-        data["skill_id"] = self.skill_id
-        if message is not None and ":" in message.msg_type:
-            data["intent_name"] = message.msg_type.split(":", 1)[-1]
-        return data
-
     def _on_event_start(self, message: Message, handler_info: str,
                         skill_data: dict, activation: Optional[bool] = None):
         """
@@ -1456,10 +1446,9 @@ class OVOSSkill:
             # Indicate that the skill handler is starting if requested
             message.context["skill_id"] = self.skill_id
             
-            # OVOS-PIPELINE-1 §8 handler-lifecycle trio
-            self.bus.emit(message.forward(
-                    "ovos.intent.handler.start",
-                    self._intent_handler_data(message, skill_data)))
+            # OVOS-PIPELINE-1 §8.2 handler-lifecycle trio
+            self.bus.emit(message.forward("ovos.intent.handler.start", {"skill_id": self.skill_id, 
+                                                                        "intent_name": message.msg_type.split(":", 1)[-1]}))
             self.bus.emit(message.forward(handler_info + '.start', skill_data))  # legacy namespace - TODO: remove
 
     def _on_event_end(self, message: Message, handler_info: str,
@@ -1470,10 +1459,9 @@ class OVOSSkill:
         """
         if handler_info:
             message.context["skill_id"] = self.skill_id
-            # OVOS-PIPELINE-1 §8 handler-lifecycle trio
-            self.bus.emit(message.forward(
-                    "ovos.intent.handler.complete",
-                    self._intent_handler_data(message, skill_data)))
+            # OVOS-PIPELINE-1 §8.2 handler-lifecycle trio
+            self.bus.emit(message.forward("ovos.intent.handler.complete", {"skill_id": self.skill_id, 
+                                                                           "intent_name": message.msg_type.split(":", 1)[-1]}))))
             self.bus.emit(message.forward(handler_info + '.complete', skill_data))  # legacy namespace - TODO: remove
                 
         if is_intent:
@@ -1504,10 +1492,9 @@ class OVOSSkill:
             message = message or Message("")
             message.context["skill_id"] = self.skill_id
             
-            # OVOS-PIPELINE-1 §8: handler-lifecycle trio
-            self.bus.emit(message.forward(
-                "ovos.intent.handler.error",
-                self._intent_handler_data(message, skill_data)))
+            # OVOS-PIPELINE-1 §8.2: handler-lifecycle trio
+            self.bus.emit(message.forward("ovos.intent.handler.error", {"skill_id": self.skill_id, 
+                                                                        "intent_name": message.msg_type.split(":", 1)[-1]}))))
             self.bus.emit(message.forward(handler_info + '.error', skill_data)) # legacy namespace - TODO: delete
 
     def _register_adapt_intent(self,
