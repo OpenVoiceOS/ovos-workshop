@@ -1071,15 +1071,12 @@ class OVOSSkill:
         """
         Register default messagebus event handlers
         """
-        # Stop topics: subscribe to BOTH the legacy and the OVOS-STOP-1 spec
-        # namespaces. Only one namespace is ever emitted (chosen by the
-        # 'legacy_namespace' config), so a subscriber never sees duplicates.
-        self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
-        self.add_event('ovos.stop', self._handle_session_stop, speak_errors=False)  # STOP-1 §5.3
-        self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
-        self.add_event(f"{self.skill_id}:stop", self._handle_session_stop, speak_errors=False)  # STOP-1 §4.3
-        self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
+        # Stop topics: subscribe to the OVOS-STOP-1 spec namespaces.
         self.add_event("ovos.stop.ping", self._handle_stop_ack, speak_errors=False)  # STOP-1 §4.2
+        self.add_event(f"{self.skill_id}:stop", self._handle_session_stop, speak_errors=False)  # STOP-1 §4.3
+        self.add_event('ovos.stop', self._handle_session_stop, speak_errors=False)  # STOP-1 §5.3
+        self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)   # legacy namespace - TODO: remove
+        self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)   # legacy namespace - TODO: remove
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
