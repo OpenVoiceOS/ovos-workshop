@@ -108,7 +108,7 @@ class TestKillableIntents(unittest.TestCase):
         """Assert that a speak message with the given utterance was emitted,
         regardless of the active language tag."""
         spoken = [m for m in self.bus.emitted_msgs
-                  if m.get("type") == "speak"
+                  if m.get("type") == "ovos.utterance.speak"
                   and m.get("data", {}).get("utterance") == utterance]
         self.assertTrue(spoken, f"No speak message with utterance {utterance!r} found "
                                 f"in: {self.bus.emitted_msgs}")
