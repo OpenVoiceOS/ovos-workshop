@@ -70,6 +70,28 @@ class TestIntentLayers(unittest.TestCase):
         layers.activate_layer("my_layer")
         self.assertTrue(layers.is_active("my_layer"))
 
+    def test_activate_layer_sets_context(self) -> None:
+        """Activating a layer must SET an intent context (not enable intents)."""
+        from ovos_workshop.decorators.layers import layer_context_token
+        layers = self._make_layers("test.skill")
+        layers.update_layer("my_layer", ["intent1"])
+        layers.activate_layer("my_layer")
+        token = layer_context_token("my_layer")
+        layers.skill.set_context.assert_called_with(token, token)
+        # gating is via context, NOT via enable/disable of intents
+        layers.skill.enable_intent.assert_not_called()
+
+    def test_deactivate_layer_removes_context(self) -> None:
+        """Deactivating a layer must REMOVE the intent context."""
+        from ovos_workshop.decorators.layers import layer_context_token
+        layers = self._make_layers("test.skill")
+        layers.update_layer("my_layer", ["intent1"])
+        layers.activate_layer("my_layer")
+        layers.deactivate_layer("my_layer")
+        token = layer_context_token("my_layer")
+        layers.skill.remove_context.assert_called_with(token)
+        layers.skill.disable_intent.assert_not_called()
+
     def test_activate_nonexistent_layer_no_error(self) -> None:
         layers = self._make_layers()
         # Should not raise — just logs debug
@@ -105,15 +127,33 @@ class TestIntentLayers(unittest.TestCase):
         layers.replace_layer("new_layer", ["intent_x"])
         self.assertIn("test.skill:new_layer", layers._layers)
 
-    def test_disable_deactivates_all_layers(self) -> None:
+    def test_reset_deactivates_all_layers(self) -> None:
         layers = self._make_layers("test.skill")
         layers.update_layer("layer_a", ["intent1"])
         layers.update_layer("layer_b", ["intent2"])
         layers.activate_layer("layer_a")
         layers.activate_layer("layer_b")
-        layers.disable()
+        layers.reset()
         self.assertFalse(layers.is_active("layer_a"))
         self.assertFalse(layers.is_active("layer_b"))
+
+    def test_disable_is_reset_alias(self) -> None:
+        """`disable()` is kept as an alias of reset() (turn all layers off)."""
+        layers = self._make_layers("test.skill")
+        layers.update_layer("layer_a", ["intent1"])
+        layers.activate_layer("layer_a")
+        layers.disable()
+        self.assertFalse(layers.is_active("layer_a"))
+        self.assertEqual(layers.active_layers, [])
+
+    def test_remove_layer_removes_context(self) -> None:
+        from ovos_workshop.decorators.layers import layer_context_token
+        layers = self._make_layers("test.skill")
+        layers.update_layer("gone", ["intent1"])
+        layers.activate_layer("gone")
+        layers.remove_layer("gone")
+        layers.skill.remove_context.assert_called_with(layer_context_token("gone"))
+        self.assertNotIn("test.skill:gone", layers._layers)
 
 
 class TestLayerIntentDecorator(unittest.TestCase):
@@ -152,6 +192,24 @@ class TestLayerIntentDecorator(unittest.TestCase):
             pass
 
         self.assertIn("BuiltIntent", action_handler.intent_layers.get("action_layer", []))
+
+    def test_layer_intent_gates_builder_on_context(self) -> None:
+        """layer_intent must add the layer context token as a requirement so the
+        intent only matches while the layer context is active."""
+        from ovos_workshop.decorators.layers import layer_intent, layer_context_token
+        from ovos_workshop.intents import IntentBuilder
+
+        builder = IntentBuilder("GatedIntent").require("Action")
+
+        @layer_intent(builder, "action_layer")
+        def action_handler():
+            pass
+
+        token = layer_context_token("action_layer")
+        intent = action_handler.intents[0].build()
+        required = [r[0] for r in intent.requires]
+        self.assertIn(token, required)
+        self.assertIn("Action", required)
 
 
 if __name__ == "__main__":
