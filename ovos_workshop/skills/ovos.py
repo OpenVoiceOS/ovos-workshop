@@ -2326,6 +2326,38 @@ class OVOSSkill:
             self.log.error(f'Could not enable {intent_name}, it hasn\'t been registered.')
             return False
 
+    def skill_will_match(self, utterance: str, lang: Optional[str] = None,
+                         timeout: float = 0.8,
+                         exclude_pipeline: Optional[List[str]] = None) -> bool:
+        """Ask the intent service whether one of THIS skill's intents would match
+        the utterance under the current session context.
+
+        Uses the read-only `intent.service.intent.get` probe (it never executes a
+        handler, so it has no side effects). Honours the active session intent
+        context, so context-gated intents are accounted for.
+
+        @param utterance: utterance to probe
+        @param lang: language tag (defaults to skill lang)
+        @param timeout: seconds to wait for the intent-service reply
+        @param exclude_pipeline: pipeline stages to skip for this probe (substring
+            match). A skill that is currently conversing should pass
+            `["converse"]` to avoid re-entering its own converse stage.
+        @return: True if the matched intent belongs to this skill
+        """
+        lang = standardize_lang_tag(lang or self.lang)
+        data = {"utterance": utterance, "lang": lang}
+        if exclude_pipeline:
+            data["exclude_pipeline"] = list(exclude_pipeline)
+        response = self.bus.wait_for_response(
+            Message("intent.service.intent.get", data),
+            "intent.service.intent.reply", timeout=timeout)
+        if not response:
+            return False
+        intent = response.data.get("intent")
+        if not intent:
+            return False
+        return intent.get("skill_id") == self.skill_id
+
     def set_context(self, context: str, word: str = '', origin: str = ''):
         """
         Add context to intent service
