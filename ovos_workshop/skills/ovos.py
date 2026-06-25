@@ -36,7 +36,6 @@ from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
-from ovos_bus_client.util.migration import emit_migration_pair
 from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
@@ -1555,17 +1554,16 @@ class OVOSSkill:
         # bus-namespace migration: "speak" -> "ovos.utterance.speak"
         # (architecture PIPELINE-1 §9.6). During the migration we dual-emit on
         # both topics so consumers on either namespace are reached; they dedupe
-        # on content. Gated on `legacy_namespace` (default True). The full
-        # payload (incl. expect_response/meta) is kept on both emissions; the
-        # wait/expect_response handshake is keyed on the session, not the topic,
-        # so it is unaffected by the topic change.
+        # on content. Always emit the new topic; also emit the legacy "speak"
+        # while `legacy_namespace` is True (default). The full payload (incl.
+        # expect_response/meta) is kept on both emissions; the wait/
+        # expect_response handshake is keyed on the session, not the topic, so
+        # it is unaffected by the topic change.
         # TODO: remove the legacy "speak" branch in the next major release,
         #  once every node emits the ovos.* topic only.
         if Configuration().get("legacy_namespace", True):
-            emit_migration_pair(self.bus, m, "speak",
-                                "ovos.utterance.speak", data)
-        else:
-            self.bus.emit(m.forward("ovos.utterance.speak", data))
+            self.bus.emit(m.forward("speak", data))
+        self.bus.emit(m.forward("ovos.utterance.speak", data))
 
         if wait:
             timeout = 15 if isinstance(wait, bool) else wait
