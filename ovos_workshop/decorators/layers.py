@@ -315,11 +315,46 @@ class IntentLayers:
     # for "turn all layers off"; it is reset(), not the old enable/disable model
     disable = reset
 
-    def is_active(self, layer_name: str) -> bool:
+    def is_active(self, layer_name: str, session=None) -> bool:
+        """True if the layer is active.
+
+        Layer gating is per-session (the layer's context token lives in the
+        session). When a `session` (or the current message's session) is
+        available, this checks that session's context - the source of truth for
+        concurrent multi-session play. Otherwise it falls back to the
+        skill-level bookkeeping in `active_layers`.
+
+        @param session: a Session to check; if None, the current message's
+            session is used when one can be resolved.
+        """
         layer_name = self._full_name(layer_name)
+        sess = session or self._current_session()
+        if sess is not None:
+            token = layer_context_token(self._bare_name(layer_name))
+            full_token = self._alnum_id() + token
+            return any(c.get("key") == token or
+                       full_token in [d[1] for d in c.get("data", [])]
+                       for c in sess.context.get_context())
         return layer_name in self.active_layers
 
     # context plumbing -------------------------------------------------------
+    def _alnum_id(self) -> str:
+        if self.skill and hasattr(self.skill, "alphanumeric_skill_id"):
+            return self.skill.alphanumeric_skill_id
+        return ""
+
+    def _current_session(self):
+        """Resolve the current message's session, if any."""
+        try:
+            from ovos_bus_client.message import dig_for_message
+            from ovos_bus_client.session import SessionManager
+            msg = dig_for_message()
+            if msg is not None:
+                return SessionManager.get(msg)
+        except Exception:
+            pass
+        return None
+
     def _set_context(self, full_layer_name: str):
         if not self.skill:
             return

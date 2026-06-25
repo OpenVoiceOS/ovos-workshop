@@ -83,13 +83,8 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
             entry.match_confidence = conf
             yield entry
 
-    @property
-    def is_playing(self) -> bool:
-        return self._playing.is_set()
-
-    @property
-    def is_paused(self) -> bool:
-        return self._paused.is_set()
+    # is_playing / is_paused (and per-session variants) are provided by
+    # OVOSCommonPlaybackSkill and are session aware.
 
     @abc.abstractmethod
     def on_play_game(self):
@@ -120,13 +115,14 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
 
     def stop_game(self):
         """to be called by skills if they want to stop game programatically"""
-        if self.is_playing:
-            self._paused.clear()
+        sid = self.get_session_id()
+        if self.is_playing_in(sid):
+            self._paused_sessions.discard(sid)
             self.gui.release()
             self.log.debug("changing OCP state: PlayerState.STOPPED ")
             self.bus.emit(Message("ovos.common_play.player.state",
                                   {"state": PlayerState.STOPPED}))
-            self._playing.clear()
+            self._playing_sessions.discard(sid)
             self.on_stop_game()
             return True
         return False
@@ -177,16 +173,20 @@ class ConversationalGameSkill(OVOSGameSkill):
         self.speak_dialog("cant_load_game")
 
     def on_pause_game(self):
-        """called by ocp_pipeline on 'pause' if game is being played"""
-        self._paused.set()
+        """called by ocp_pipeline on 'pause' if game is being played
+
+        NOTE: the per-session paused state is already set by the OCP framework
+        before this handler runs."""
         self.acknowledge()
         # individual skills can change default value if desired
         if self.settings.get("pause_dialog", False):
             self.speak_dialog("game_pause")
 
     def on_resume_game(self):
-        """called by ocp_pipeline on 'resume/unpause' if game is being played and paused"""
-        self._paused.clear()
+        """called by ocp_pipeline on 'resume/unpause' if game is being played and paused
+
+        NOTE: the per-session paused state is already cleared by the OCP
+        framework before this handler runs."""
         self.acknowledge()
         # individual skills can change default value if desired
         if self.settings.get("pause_dialog", False):
@@ -202,10 +202,14 @@ class ConversationalGameSkill(OVOSGameSkill):
         auto-save may be implemented here"""
 
     @abc.abstractmethod
-    def on_game_command(self, utterance: str, lang: str):
+    def on_game_command(self, utterance: str, lang: str,
+                        message: Optional[Message] = None):
         """pipe user input that wasnt caught by intents to the game
         do any intent matching or normalization here
         don't forget to self.speak the game output too!
+
+        @param message: the utterance Message (carries the session); use it to
+            key per-session game state so several sessions can play at once.
         """
 
     def on_abandon_game(self):
@@ -276,7 +280,7 @@ class ConversationalGameSkill(OVOSGameSkill):
         utterance = message.data["utterances"][0]
         lang = get_message_lang(message)
         self.log.debug(f"Piping utterance to game: {utterance}")
-        self.on_game_command(utterance, lang)
+        self.on_game_command(utterance, lang, message)
 
     def converse(self, message: Message) -> bool:
         try:
