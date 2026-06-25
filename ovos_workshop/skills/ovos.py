@@ -36,6 +36,7 @@ from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
+from ovos_spec_tools import SpecMessage
 from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
@@ -1541,8 +1542,8 @@ class OVOSSkill:
 
         # grab message that triggered speech so we can keep context
         message = dig_for_message()
-        m = message.forward("speak", data) if message \
-            else Message("speak", data)
+        m = message.forward(SpecMessage.SPEAK, data) if message \
+            else Message(SpecMessage.SPEAK, data)
         m.context["skill_id"] = self.skill_id
 
         # update any auto-translation metadata in message.context
