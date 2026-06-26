@@ -13,3 +13,5 @@ jobs:
     with:
       test_path: 'test/unittests'
       install_extras: 'test'
+      # in-flight cap cascade: cap-lifted ovos-adapt-parser + ovos-core allowing ovos-workshop 9.x (unpublished)
+      pre_install_pip: 'git+https://github.com/OpenVoiceOS/ovos-adapt-pipeline-plugin@fix/allow-ovos-workshop-9 git+https://github.com/OpenVoiceOS/ovos-core@fix/allow-ovos-workshop-9'
