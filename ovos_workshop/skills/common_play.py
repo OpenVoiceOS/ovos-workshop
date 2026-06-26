@@ -17,6 +17,8 @@ from threading import Event
 from typing import List, Callable, Optional, Dict
 
 from ovos_bus_client import Message
+from ovos_bus_client.message import dig_for_message
+from ovos_bus_client.session import SessionManager
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_utils import camel_case_split
 from ovos_utils.log import LOG
@@ -109,14 +111,43 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         self.__prev_handler = prev_handler
         self.__resume_handler = resume_handler
         self._stop_event = Event()
-        self._playing = Event()
-        self._paused = Event()
+        # OCP is session aware: track playing/paused state per session_id so
+        # several sessions can play (and pause/stop) independently
+        self._playing_sessions = set()
+        self._paused_sessions = set()
         # TODO new default icon
         self.skill_icon = skill_icon or ""
 
         self.ocp_matchers: Dict[str, AhocorasickNER] = {}
         self._ocp_ents: Dict[str, List[str]] = {}
         super().__init__(*args, **kwargs)
+
+    # --- per-session playback state (OCP is session aware) ------------------
+    @staticmethod
+    def get_session_id(message: Optional[Message] = None) -> str:
+        """Resolve the session id for the current/given message."""
+        message = message or dig_for_message()
+        return SessionManager.get(message).session_id
+
+    def is_playing_in(self, session_id: str) -> bool:
+        return session_id in self._playing_sessions
+
+    def is_paused_in(self, session_id: str) -> bool:
+        return session_id in self._paused_sessions
+
+    @property
+    def playing_sessions(self) -> List[str]:
+        return list(self._playing_sessions)
+
+    @property
+    def is_playing(self) -> bool:
+        """True if the *current* session is playing (back-compat property)."""
+        return self.is_playing_in(self.get_session_id())
+
+    @property
+    def is_paused(self) -> bool:
+        """True if the *current* session is paused (back-compat property)."""
+        return self.is_paused_in(self.get_session_id())
 
     def _read_skill_name_voc(self):
         """
@@ -456,14 +487,15 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         
         If a playback handler is registered, it is called with the message if accepted, and the player state is set to PLAYING. Logs an error if no playback handler is implemented.
         """
-        self._playing.set()
-        self._paused.clear()
+        sid = self.get_session_id(message)
+        self._playing_sessions.add(sid)
+        self._paused_sessions.discard(sid)
         if self.__playback_handler:
             params = signature(self.__playback_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             self.__playback_handler(**kwargs)
-            self.bus.emit(Message("ovos.common_play.player.state",
-                                  {"state": PlayerState.PLAYING}))
+            self.bus.emit(message.reply("ovos.common_play.player.state",
+                                        {"state": PlayerState.PLAYING}))
         else:
             LOG.error(f"Playback requested but {self.skill_id} handler not "
                       "implemented")
@@ -474,13 +506,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         
         If no pause handler is implemented, logs an error.
         """
-        self._paused.set()
+        sid = self.get_session_id(message)
+        self._paused_sessions.add(sid)
         if self.__pause_handler:
             params = signature(self.__pause_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             if self.__pause_handler(**kwargs):
-                self.bus.emit(Message("ovos.common_play.player.state",
-                                      {"state": PlayerState.PAUSED}))
+                self.bus.emit(message.reply("ovos.common_play.player.state",
+                                            {"state": PlayerState.PAUSED}))
         else:
             LOG.error(f"Pause requested but {self.skill_id} handler not "
                       "implemented")
@@ -489,13 +522,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         """
         Handles OCP resume requests by invoking the registered resume handler and updating the player state to PLAYING if successful. Logs an error if no resume handler is implemented.
         """
-        self._paused.clear()
+        sid = self.get_session_id(message)
+        self._paused_sessions.discard(sid)
         if self.__resume_handler:
             params = signature(self.__resume_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             if self.__resume_handler(**kwargs):
-                self.bus.emit(Message("ovos.common_play.player.state",
-                                      {"state": PlayerState.PLAYING}))
+                self.bus.emit(message.reply("ovos.common_play.player.state",
+                                            {"state": PlayerState.PLAYING}))
         else:
             LOG.error(f"Resume requested but {self.skill_id} handler not "
                       "implemented")
@@ -520,13 +554,14 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def __handle_ocp_stop(self, message):
         # for skills managing their own playback
-        if self._playing.is_set():
-            self._paused.clear()
+        sid = self.get_session_id(message)
+        if sid in self._playing_sessions:
+            self._paused_sessions.discard(sid)
             self.stop()
             self.gui.release()
-            self.bus.emit(Message("ovos.common_play.player.state",
-                                  {"state": PlayerState.STOPPED}))
-            self._playing.clear()
+            self.bus.emit(message.reply("ovos.common_play.player.state",
+                                        {"state": PlayerState.STOPPED}))
+            self._playing_sessions.discard(sid)
 
     def __handle_stop_search(self, message):
         self._stop_event.set()
