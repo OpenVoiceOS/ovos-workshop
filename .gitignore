@@ -20,3 +20,8 @@ dist
 .pytest_cache/
 /.gtm/
 .env
+
+# agent scratch
+AGENTS.md
+TODO.md
+.claude/
