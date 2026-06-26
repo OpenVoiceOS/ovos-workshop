@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # START_VERSION_BLOCK
-VERSION_MAJOR = 8
-VERSION_MINOR = 3
+VERSION_MAJOR = 9
+VERSION_MINOR = 0
 VERSION_BUILD = 0
 VERSION_ALPHA = 1
 # END_VERSION_BLOCK
