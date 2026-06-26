@@ -106,6 +106,11 @@ FourLayerDemoSkill.handle_status = intent_handler(
 class IntentLayersE2ETest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # MiniCroft binds the live stack onto the class-level SessionManager.bus;
+        # remember the prior value so we can restore it and not leak this (soon
+        # to be stopped) bus into unrelated tests that share the global
+        # SessionManager (e.g. get_response / killable intents).
+        cls._orig_session_bus = SessionManager.bus
         cls.core = MiniCroft(
             [],
             extra_skills={SKILL_ID: FourLayerDemoSkill},
@@ -131,6 +136,10 @@ class IntentLayersE2ETest(unittest.TestCase):
             cls.core.stop()
         except Exception:
             pass
+        finally:
+            # restore the global SessionManager bus so the stopped MiniCroft bus
+            # does not leak into other tests sharing the class-level state
+            SessionManager.bus = cls._orig_session_bus
 
     def setUp(self):
         self.skill.intent_layers.reset()

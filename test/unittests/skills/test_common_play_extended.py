@@ -89,13 +89,16 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
     def test_search_handlers_initially_empty(self) -> None:
         self.assertIsInstance(self.skill._search_handlers, list)
 
-    def test_playing_event_not_set(self) -> None:
-        """_playing event is not set on init (not actively playing)."""
-        self.assertFalse(self.skill._playing.is_set())
+    def test_no_playing_sessions_on_init(self) -> None:
+        """No session is marked as playing on init (not actively playing)."""
+        self.assertEqual(self.skill._playing_sessions, set())
+        self.assertEqual(self.skill.playing_sessions, [])
+        self.assertFalse(self.skill.is_playing)
 
-    def test_paused_event_not_set(self) -> None:
-        """_paused event is not set on init."""
-        self.assertFalse(self.skill._paused.is_set())
+    def test_no_paused_sessions_on_init(self) -> None:
+        """No session is marked as paused on init."""
+        self.assertEqual(self.skill._paused_sessions, set())
+        self.assertFalse(self.skill.is_paused)
 
     def test_register_media_type(self) -> None:
         """register_media_type adds a new type to supported_media."""
