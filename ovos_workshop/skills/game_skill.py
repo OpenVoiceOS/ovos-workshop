@@ -8,10 +8,9 @@ from ovos_utils.parse import match_one, MatchStrategy
 
 from ovos_workshop.decorators import ocp_featured_media, ocp_search
 from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill
-from ovos_workshop.skills.converse import ConversationalSkill
 
 
-class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
+class OVOSGameSkill(OVOSCommonPlaybackSkill):
     """ To integrate with the OpenVoiceOS Common Playback framework
 
     "play" intent is shared with media and managed by OCP pipeline
@@ -83,8 +82,13 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
             entry.match_confidence = conf
             yield entry
 
-    # is_playing / is_paused (and per-session variants) are provided by
-    # OVOSCommonPlaybackSkill and are session aware.
+    @property
+    def is_playing(self) -> bool:
+        return self._playing.is_set()
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused.is_set()
 
     @abc.abstractmethod
     def on_play_game(self):
@@ -115,14 +119,13 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
 
     def stop_game(self):
         """to be called by skills if they want to stop game programatically"""
-        sid = self.get_session_id()
-        if self.is_playing_in(sid):
-            self._paused_sessions.discard(sid)
+        if self.is_playing:
+            self._paused.clear()
             self.gui.release()
             self.log.debug("changing OCP state: PlayerState.STOPPED ")
             self.bus.emit(Message("ovos.common_play.player.state",
                                   {"state": PlayerState.STOPPED}))
-            self._playing_sessions.discard(sid)
+            self._playing.clear()
             self.on_stop_game()
             return True
         return False
@@ -131,35 +134,17 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill, ConversationalSkill):
         """NOTE: not meant to be called by the skill, this is a callback"""
         return self.stop_game()
 
-    # pipelines that are NOT a real intent match (they should not count when a
-    # game asks "would an intent be selected for this utterance?")
-    _NON_INTENT_PIPELINES = ("converse", "fallback", "common_query", "stop")
-
     def calc_intent(self, utterance: str, lang: str, timeout=1.0) -> Optional[Dict[str, str]]:
-        """helper to check what intent would be selected by ovos-core
-
-        NOTE: converse, common_query, stop and fallbacks are intentionally
-        ignored here - this reports only a genuine intent-parser match (adapt /
-        padatious / padacioso), which is what gates whether a layer intent will
-        fire for the utterance.
-        """
+        """helper to check what intent would be selected by ovos-core"""
         # let's see what intent ovos-core will assign to the utterance
+        # NOTE: converse, common_query and fallbacks are not included in this check
         response = self.bus.wait_for_response(Message("intent.service.intent.get",
                                                       {"utterance": utterance, "lang": lang}),
                                               "intent.service.intent.reply",
                                               timeout=timeout)
         if not response:
             return None
-        intent = response.data.get("intent")
-        if not intent:
-            return None
-        # the full pipeline runs converse first; a game is "active" so converse
-        # would always claim the utterance. Ignore non-intent-parser pipelines so
-        # this reflects whether a *layer intent* would actually match.
-        pipeline = (intent.get("intent_service") or "").lower()
-        if any(p in pipeline for p in self._NON_INTENT_PIPELINES):
-            return None
-        return intent
+        return response.data["intent"]
 
 
 class ConversationalGameSkill(OVOSGameSkill):
@@ -173,20 +158,16 @@ class ConversationalGameSkill(OVOSGameSkill):
         self.speak_dialog("cant_load_game")
 
     def on_pause_game(self):
-        """called by ocp_pipeline on 'pause' if game is being played
-
-        NOTE: the per-session paused state is already set by the OCP framework
-        before this handler runs."""
+        """called by ocp_pipeline on 'pause' if game is being played"""
+        self._paused.set()
         self.acknowledge()
         # individual skills can change default value if desired
         if self.settings.get("pause_dialog", False):
             self.speak_dialog("game_pause")
 
     def on_resume_game(self):
-        """called by ocp_pipeline on 'resume/unpause' if game is being played and paused
-
-        NOTE: the per-session paused state is already cleared by the OCP
-        framework before this handler runs."""
+        """called by ocp_pipeline on 'resume/unpause' if game is being played and paused"""
+        self._paused.clear()
         self.acknowledge()
         # individual skills can change default value if desired
         if self.settings.get("pause_dialog", False):
@@ -202,14 +183,10 @@ class ConversationalGameSkill(OVOSGameSkill):
         auto-save may be implemented here"""
 
     @abc.abstractmethod
-    def on_game_command(self, utterance: str, lang: str,
-                        message: Optional[Message] = None):
+    def on_game_command(self, utterance: str, lang: str):
         """pipe user input that wasnt caught by intents to the game
         do any intent matching or normalization here
         don't forget to self.speak the game output too!
-
-        @param message: the utterance Message (carries the session); use it to
-            key per-session game state so several sessions can play at once.
         """
 
     def on_abandon_game(self):
@@ -221,33 +198,6 @@ class ConversationalGameSkill(OVOSGameSkill):
         on_game_stop will be called after this handler"""
 
     # converse
-    def can_converse(self, message: Message) -> bool:
-        """A game wants to converse while it is being played (or paused), EXCEPT
-        when one of its own context-gated layer intents would match the
-        utterance - those must be handled by the intent pipeline (adapt), not
-        swallowed by converse.
-
-        This lets the converse pipeline route only the free-form input that no
-        layer intent matched into `on_game_command`.
-        """
-        if not (self.is_playing or self.is_paused):
-            return False
-        try:
-            utterance = message.data.get("utterances", [""])[0]
-            lang = get_message_lang(message)
-            # The converse pipeline runs *before* adapt, so while a game is
-            # active converse would otherwise always claim the utterance and
-            # prevent layer intents from matching. Probe the intent service
-            # (read-only) excluding the converse stage (to avoid re-entering
-            # this very check); if one of our context-gated layer intents would
-            # match, let adapt handle it instead of swallowing it here.
-            if utterance and self.skill_will_match(
-                    utterance, lang, exclude_pipeline=["ovos-converse-pipeline-plugin"]):
-                return False
-        except Exception as e:
-            self.log.debug(f"can_converse intent-gate failed: {e}")
-        return True
-
     def skill_will_trigger(self, utterance: str, lang: str, skill_id: Optional[str] = None, timeout=0.8) -> bool:
         """helper to check if this skill would be selected by ovos-core with the given utterance
 
@@ -280,17 +230,15 @@ class ConversationalGameSkill(OVOSGameSkill):
         utterance = message.data["utterances"][0]
         lang = get_message_lang(message)
         self.log.debug(f"Piping utterance to game: {utterance}")
-        self.on_game_command(utterance, lang, message)
+        self.on_game_command(utterance, lang)
 
     def converse(self, message: Message) -> bool:
         try:
             utterance = message.data["utterances"][0]
             lang = get_message_lang(message)
-            # let the user implemented (context-gated) intents do the job if they
-            # can handle the utterance, otherwise pipe utterance to the game
-            # handler. Probe excludes converse to avoid re-entrancy.
-            if self.skill_will_match(utterance, lang,
-                                     exclude_pipeline=["ovos-converse-pipeline-plugin"]):
+            # let the user implemented intents do the job if they can handle the utterance
+            # otherwise pipe utterance to the game handler
+            if self.skill_will_trigger(utterance, lang):
                 self.log.debug("Skill intent will trigger, don't pipe utterance to game")
                 return False
 

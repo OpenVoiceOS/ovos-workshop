@@ -27,24 +27,19 @@ def _make_game_skill(bus: FakeBus, skill_id: str = "test.game"):
         """Minimal concrete subclass implementing all abstract methods."""
 
         def on_play_game(self):
-            sid = self.get_session_id()
-            self._playing_sessions.add(sid)
-            self._paused_sessions.discard(sid)
+            self._playing.set()
 
         def on_pause_game(self):
-            sid = self.get_session_id()
-            self._paused_sessions.add(sid)
-            self._playing_sessions.discard(sid)
+            self._paused.set()
+            self._playing.clear()
 
         def on_resume_game(self):
-            sid = self.get_session_id()
-            self._paused_sessions.discard(sid)
-            self._playing_sessions.add(sid)
+            self._paused.clear()
+            self._playing.set()
 
         def on_stop_game(self):
-            sid = self.get_session_id()
-            self._playing_sessions.discard(sid)
-            self._paused_sessions.discard(sid)
+            self._playing.clear()
+            self._paused.clear()
 
         def on_save_game(self):
             pass
@@ -163,13 +158,13 @@ class TestOVOSGameSkillStop(unittest.TestCase):
 
     def test_stop_game_when_playing_returns_true(self) -> None:
         """stop_game returns True when game is playing."""
-        self.skill._playing_sessions.add(self.skill.get_session_id())
+        self.skill._playing.set()
         result = self.skill.stop_game()
         self.assertTrue(result)
 
     def test_stop_game_clears_playing(self) -> None:
-        """stop_game clears the per-session playing state."""
-        self.skill._playing_sessions.add(self.skill.get_session_id())
+        """stop_game clears the _playing event."""
+        self.skill._playing.set()
         self.skill.stop_game()
         self.assertFalse(self.skill.is_playing)
 
