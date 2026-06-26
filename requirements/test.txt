@@ -1,5 +1,6 @@
 ovos-core>=0.0.8a50
 ovoscope>=0.1.0
+ovos-adapt-parser>=1.0.9
 pytest
 pytest-cov
 ovos-translate-server-plugin
