@@ -23,6 +23,8 @@ jobs:
         python -m pip install build wheel
     - name: Install repo
       run: |
+        # intent-definition primitives now live in ovos-spec-tools (unpublished branch)
+        pip install git+https://github.com/OpenVoiceOS/ovos-spec-tools@feat/intent-primitives
         pip install -e .
     - name: Install test dependencies
       run: |
