@@ -21,7 +21,7 @@ dependencies = [
     "ovos-plugin-manager>=2.4.0a1,<3.0.0",
     "rapidfuzz",
     "langcodes",
-    "padacioso>=1.0.0, <2.0.0",
+    "padacioso>=1.0.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
