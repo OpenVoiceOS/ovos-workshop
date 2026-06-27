@@ -14,11 +14,13 @@ payloads:
 """
 import os
 import unittest
+from hashlib import md5
 
 from ovos_spec_tools import SpecMessage
 from ovos_utils.fakebus import FakeBus
 
-from ovos_workshop.intents import IntentServiceInterface, IntentBuilder
+from ovos_workshop.intents import (IntentServiceInterface, IntentBuilder,
+                                    munge_intent_parser, to_alnum)
 
 
 class CapturingBus(FakeBus):
@@ -192,6 +194,83 @@ class PadatiousSpecTest(unittest.TestCase):
         self.assertEqual(data["samples"], ["spotify", "youtube music"])
         self.assertEqual(context["skill_id"], "music.skill")
         self.assertEqual(len(self.bus.of_type("padatious:register_entity")), 1)
+
+
+class RealMungedFlowSpecTest(unittest.TestCase):
+    """Reproduce the *real* skill registration flow (munged vocab names,
+    `<skill_id>:<file>.intent` intent ids, `<basename>_<md5>` entity ids) and
+    assert the emitted spec payload carries the clean/correct values.
+
+    The direct-call tests above pass even with the producer bugs because they
+    feed already-clean inputs; these reproduce the munging OVOSSkill applies
+    before calling IntentServiceInterface, which is where the 3 INTENT-4
+    producer divergences surface.
+    """
+
+    SKILL_ID = "music.skill"
+
+    def setUp(self):
+        self.bus = CapturingBus()
+        self.iface = IntentServiceInterface(self.bus)
+        self.iface.set_id(self.SKILL_ID)
+
+    # --- Divergence 1: §5.2 `excluded` descriptors must survive munging ---
+    def test_excluded_survives_munged_flow(self):
+        prefix = to_alnum(self.SKILL_ID)
+        # vocab is registered under MUNGED names (alphanumeric_skill_id prefix),
+        # exactly as OVOSSkill.load_vocab_files does
+        self.iface.register_adapt_keyword(prefix + "setKW", "set",
+                                          aliases=["change"], lang="en-US")
+        self.iface.register_adapt_keyword(prefix + "questionKW", "what is",
+                                          lang="en-US")
+        # the skill builds the parser with UN-munged names, then munges it
+        parser = (IntentBuilder("set_brightness")
+                  .require("setKW")
+                  .exclude("questionKW")
+                  .build())
+        munge_intent_parser(parser, "set_brightness", self.SKILL_ID)
+        self.iface.register_adapt_intent("set_brightness", parser)
+
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)[0]
+        # the excluded descriptor must be present with its samples inlined,
+        # un-munged on the wire
+        exc = {d["name"]: d["samples"] for d in data["excluded"]}
+        self.assertEqual(exc, {"questionKW": ["what is"]})
+        req = {d["name"]: d["samples"] for d in data["required"]}
+        self.assertEqual(req, {"setKW": ["set", "change"]})
+
+    # --- Divergence 2: §6 template intent_name must drop `.intent` suffix ---
+    def test_template_intent_name_strips_dot_intent(self):
+        intent_file = "/tmp/intent4_real_play.intent"
+        with open(intent_file, "w") as f:
+            f.write("(play|put on) {query}\n")
+        try:
+            # OVOSSkill.register_intent_file builds `<skill_id>:<file>.intent`
+            internal_name = f"{self.SKILL_ID}:play.intent"
+            self.iface.register_padatious_intent(internal_name, intent_file,
+                                                 lang="en-US")
+            data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+            self.assertEqual(data["intent_name"], "play")
+        finally:
+            os.remove(intent_file)
+
+    # --- Divergence 3: §7 entity_name must drop the `_<md5>` hash munge ---
+    def test_entity_name_strips_hash_munge(self):
+        entity_file = "/tmp/intent4_real_engine.entity"
+        with open(entity_file, "w") as f:
+            f.write("spotify\nyoutube music\n")
+        try:
+            # OVOSSkill.register_entity_file builds
+            # `<skill_id>:<basename>_<md5(entity_file)>`
+            basename = "engine"
+            digest = md5("engine".encode("utf-8")).hexdigest()
+            internal_name = f"{self.SKILL_ID}:{basename}_{digest}"
+            self.iface.register_padatious_entity(internal_name, entity_file,
+                                                 lang="en-US")
+            data, _ = self.bus.of_type(SpecMessage.ENTITY_REGISTER)[0]
+            self.assertEqual(data["entity_name"], "engine")
+        finally:
+            os.remove(entity_file)
 
 
 if __name__ == "__main__":

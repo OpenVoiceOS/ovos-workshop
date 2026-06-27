@@ -35,9 +35,12 @@ For §8.2 ``ovos.intent.deregister`` the opposite holds: ``detach_intent`` *is*
 in the MIGRATION_MAP, so with bridging off we can assert the producer emits the
 spec topic and does NOT itself hand-emit the legacy one.
 
-The real munged path exposes two §5/§6/§7 divergences the unit test (which
-bypasses ``munge_intent_parser`` and skill-level resource loading) does not —
-these are marked ``xfail``; everything else is expected green.
+The real munged path exposes three §5/§6/§7 divergences the unit test (which
+bypasses ``munge_intent_parser`` and skill-level resource loading) does not:
+``excluded`` vocab dropped (§5.2), the ``.intent`` suffix leaking into the
+template ``intent_name`` (§6), and the hash-munged entity resource id leaking
+into ``entity_name`` (§7). All three are now cleaned in the producer's spec
+emission path, so every assertion here is expected green.
 """
 import sys
 from os.path import dirname
@@ -137,16 +140,6 @@ class TestIntent4ProducerE2E:
         opt = {d["name"]: d["samples"] for d in data["optional"]}
         assert opt["politeKW"] == ["please"]
 
-    @pytest.mark.xfail(reason="INTENT-4 §5.2: 'excluded' carries the excluded "
-                              "vocabulary descriptors; on the real stack "
-                              "munge_intent_parser does NOT munge "
-                              "intent_parser.excludes (stays 'questionKW') while "
-                              "register_vocabulary caches samples under the "
-                              "munged key ('<alnum_skill_id>questionKW'), so "
-                              "_spec_keyword_descriptors finds no samples and the "
-                              "producer emits excluded=[] (excluded vocab silently "
-                              "dropped on the munged e2e path)",
-                       strict=False)
     def test_excluded_descriptor_present(self):
         data, _ = _of_type(self.mc, SpecMessage.INTENT_REGISTER_KEYWORD)[0]
         exc = {d["name"]: d["samples"] for d in data["excluded"]}
@@ -172,14 +165,6 @@ class TestIntent4ProducerE2E:
         assert data["blacklist"] == []
         assert context["skill_id"] == SKILL_ID
 
-    @pytest.mark.xfail(reason="INTENT-4 §6: 'intent_name' is the skill-local "
-                              "intent name; on the real stack a skill registers "
-                              "a padatious intent by its resource *filename* "
-                              "('play.intent'), and the producer's "
-                              "intent_name.split(':')[-1] keeps the '.intent' "
-                              "suffix, so the wire intent_name is 'play.intent' "
-                              "rather than the clean 'play'",
-                       strict=False)
     def test_template_intent_name_clean(self):
         data, _ = _of_type(self.mc, SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
         assert data["intent_name"] == "play"
@@ -201,13 +186,6 @@ class TestIntent4ProducerE2E:
         assert data["samples"] == ["spotify", "youtube music"]
         assert context["skill_id"] == SKILL_ID
 
-    @pytest.mark.xfail(reason="INTENT-4 §7: 'entity_name' is the skill-local "
-                              "entity name; on the real stack the skill-level "
-                              "register_entity_file munges the entity name with a "
-                              "hash (e.g. 'engine_<md5>'), and the producer's "
-                              "entity_name.split(':')[-1] preserves that munged "
-                              "name rather than the clean 'engine'",
-                       strict=False)
     def test_entity_name_clean(self):
         data, _ = _of_type(self.mc, SpecMessage.ENTITY_REGISTER)[0]
         assert data["entity_name"] == "engine"
