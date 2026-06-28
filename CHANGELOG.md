@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.2a1) (2026-06-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a5...9.0.2a1)
+
+**Merged pull requests:**
+
+- fix: stop emitting ovos.utterance.handled when ovos-core owns it \(PIPELINE-1 §9.5\) [\#442](https://github.com/OpenVoiceOS/ovos-workshop/pull/442) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.0.1a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a5) (2026-06-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a4...9.0.1a5)
@@ -78,19 +86,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
-
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 **Merged pull requests:**
 
