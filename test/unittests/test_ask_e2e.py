@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 from ovos_bus_client.message import Message
 from ovos_bus_client.session import SessionManager, Session
+from ovos_spec_tools import SpecMessage
 from ovos_utils.log import LOG
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -34,7 +35,7 @@ class AskYesNoSkill(OVOSSkill):
     def handle_yesno(self, message: Message):
         answer = self.ask_yesno("do you want tea")
         self.bus.emit(message.forward("test.yesno.result", {"answer": answer}))
-        self.bus.emit(message.forward("ovos.utterance.handled"))
+        self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
 
 
 class AskSelectionSkill(OVOSSkill):
@@ -45,7 +46,7 @@ class AskSelectionSkill(OVOSSkill):
         options = message.data.get("options", ["alpha", "beta", "gamma"])
         answer = self.ask_selection(options, numeric=True)
         self.bus.emit(message.forward("test.selection.result", {"answer": answer}))
-        self.bus.emit(message.forward("ovos.utterance.handled"))
+        self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
 
 
 def _inject_response(mc, skill_id: str, utterance: str, session: Session):
