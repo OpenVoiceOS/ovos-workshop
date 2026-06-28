@@ -33,6 +33,7 @@ from ovos_bus_client.apis.enclosure import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
+from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
@@ -1454,10 +1455,11 @@ class OVOSSkill:
         """
         if handler_info:
             # internal workshop->core done-signal (see docstring); NOT a spec
-            # topic -> emits mycroft.skill.handler.start
-            msg_type = handler_info + '.start'
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # topic -> emits mycroft.skill.handler.start. Delegated to the
+            # shared ovos-bus-client HandlerLifecycle util (DRY; same topic,
+            # payload and context["skill_id"] as before).
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).start()
 
     def _on_event_end(self, message: Message, handler_info: str,
                       skill_data: dict, is_intent: bool = False):
@@ -1467,10 +1469,10 @@ class OVOSSkill:
         """
         if handler_info:
             # internal workshop->core done-signal (see _on_event_start); NOT a
-            # spec topic -> emits mycroft.skill.handler.complete
-            msg_type = handler_info + '.complete'
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # spec topic -> emits mycroft.skill.handler.complete. Delegated to
+            # the shared HandlerLifecycle util (same topic/payload/context).
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).complete()
         if is_intent:
             self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED, skill_data))
 
@@ -1492,15 +1494,15 @@ class OVOSSkill:
         if speak_errors:
             self.speak(speech)
         self.log.exception(error)
-        # append exception information in message
-        skill_data['exception'] = repr(error)
         if handler_info:
             # internal workshop->core done-signal (see _on_event_start); NOT a
-            # spec topic -> emits mycroft.skill.handler.error
-            msg_type = handler_info + '.error'
+            # spec topic -> emits mycroft.skill.handler.error. Delegated to the
+            # shared HandlerLifecycle util, which merges {"exception": repr(...)}
+            # into the payload (same topic/payload/context as before). The util
+            # deliberately does NOT speak; the spoken-error UX above stays here.
             message = message or Message("")
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).error(error)
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
