@@ -297,17 +297,97 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
+    def _capture(self, fn, *args, **kwargs):
+        """Run an _on_event_* callback against a private FakeBus and return the
+        list of (type, data, context) tuples it emitted on the topics of
+        interest (the handler trio + ovos.utterance.handled)."""
+        from ovos_spec_tools import SpecMessage
+        skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
+        captured = []
+        topics = ["mycroft.skill.handler.start",
+                  "mycroft.skill.handler.complete",
+                  "mycroft.skill.handler.error",
+                  SpecMessage.UTTERANCE_HANDLED.value]
+        for t in topics:
+            skill.bus.on(t, lambda m: captured.append(
+                (m.msg_type, m.data, dict(m.context))))
+        fn(skill, *args, **kwargs)
+        return captured
+
     def test_on_event_start(self):
-        # TODO
-        pass
+        from ovos_bus_client.message import Message
+        msg = Message("trigger", {}, {"session": {"session_id": "sess1"}})
+        skill_data = {"name": "TestSkill.handle_test"}
+        captured = self._capture(OVOSSkill._on_event_start, msg,
+                                 "mycroft.skill.handler", dict(skill_data))
+        # exactly one emission: the .start done-signal
+        starts = [c for c in captured
+                  if c[0] == "mycroft.skill.handler.start"]
+        self.assertEqual(len(starts), 1)
+        mtype, data, context = starts[0]
+        # byte-identical topic + payload
+        self.assertEqual(mtype, "mycroft.skill.handler.start")
+        self.assertEqual(data, {"name": "TestSkill.handle_test"})
+        # context carries skill_id + preserves originating session
+        self.assertEqual(context["skill_id"], self.skill_id)
+        self.assertEqual(context["session"]["session_id"], "sess1")
+        # original message context not mutated by the util
+        self.assertNotIn("skill_id", msg.context)
+        # empty/false handler_info disables emission entirely
+        none_captured = self._capture(OVOSSkill._on_event_start, msg, "",
+                                      dict(skill_data))
+        self.assertEqual(
+            [c for c in none_captured
+             if c[0].startswith("mycroft.skill.handler")], [])
 
     def test_on_event_end(self):
-        # TODO
-        pass
+        from ovos_bus_client.message import Message
+        msg = Message("trigger", {}, {"session": {"session_id": "sess1"}})
+        skill_data = {"name": "TestSkill.handle_test"}
+        captured = self._capture(OVOSSkill._on_event_end, msg,
+                                 "mycroft.skill.handler", dict(skill_data))
+        completes = [c for c in captured
+                     if c[0] == "mycroft.skill.handler.complete"]
+        self.assertEqual(len(completes), 1)
+        mtype, data, context = completes[0]
+        self.assertEqual(mtype, "mycroft.skill.handler.complete")
+        self.assertEqual(data, {"name": "TestSkill.handle_test"})
+        self.assertEqual(context["skill_id"], self.skill_id)
+        self.assertEqual(context["session"]["session_id"], "sess1")
+
+    def test_on_event_end_is_intent_still_emits_utterance_handled(self):
+        # the ovos.utterance.handled emission must be PRESERVED alongside the
+        # delegated .complete done-signal when is_intent=True
+        from ovos_bus_client.message import Message
+        from ovos_spec_tools import SpecMessage
+        msg = Message("trigger", {}, {})
+        skill_data = {"name": "TestSkill.handle_test"}
+        captured = self._capture(OVOSSkill._on_event_end, msg,
+                                 "mycroft.skill.handler", dict(skill_data),
+                                 True)
+        types = [c[0] for c in captured]
+        self.assertIn("mycroft.skill.handler.complete", types)
+        self.assertIn(SpecMessage.UTTERANCE_HANDLED.value, types)
 
     def test_on_event_error(self):
-        # TODO
-        pass
+        from ovos_bus_client.message import Message
+        msg = Message("trigger", {}, {"session": {"session_id": "sess1"}})
+        skill_data = {"name": "TestSkill.handle_test"}
+        err = "boom"  # workshop passes str(error)
+        captured = self._capture(OVOSSkill._on_event_error, err, msg,
+                                 "mycroft.skill.handler", dict(skill_data),
+                                 False)
+        errors = [c for c in captured
+                  if c[0] == "mycroft.skill.handler.error"]
+        self.assertEqual(len(errors), 1)
+        mtype, data, context = errors[0]
+        self.assertEqual(mtype, "mycroft.skill.handler.error")
+        # payload = original {name} + repr(error) under "exception" (identical
+        # to the pre-refactor skill_data['exception'] = repr(error))
+        self.assertEqual(data, {"name": "TestSkill.handle_test",
+                                "exception": repr(err)})
+        self.assertEqual(context["skill_id"], self.skill_id)
+        self.assertEqual(context["session"]["session_id"], "sess1")
 
     def test_add_event(self):
         # TODO
