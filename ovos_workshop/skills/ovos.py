@@ -1429,12 +1429,32 @@ class OVOSSkill:
         """
         Indicate that the skill handler is starting.
 
+        Emits ``mycroft.skill.handler.start`` (when ``handler_info`` is set).
+
+        .. note::
+           ``mycroft.skill.handler.{start,complete,error}`` are an **internal
+           ovos-workshop → ovos-core synchronization signal** — workshop's way
+           of reporting "I started / ended / errored" running a handler. They
+           are **explicitly NOT part of any OVOS specification**; they are an
+           implementation detail that exists only because skills (ovos-workshop)
+           run in a **separate process** from the orchestrator (ovos-core). If
+           core manipulated skill objects directly, in-process, this bus
+           round-trip would not be needed.
+
+           ovos-core consumes these as a private *done-signal* to emit the
+           authoritative PIPELINE-1 §8 handler-lifecycle trio
+           (``ovos.intent.handler.{start,complete,error}``). The legacy
+           ``mycroft.skill.handler.*`` names are permanently ovos-workshop
+           event-wrapper signals and do **not** bridge to the spec namespace
+           (ovos-spec-tools MIGRATION_MAP deliberately excludes the trio).
+
         activation  (bool, optional): activate skill if True,
                                       deactivate if False,
                                       do nothing if None
         """
         if handler_info:
-            # Indicate that the skill handler is starting if requested
+            # internal workshop->core done-signal (see docstring); NOT a spec
+            # topic -> emits mycroft.skill.handler.start
             msg_type = handler_info + '.start'
             message.context["skill_id"] = self.skill_id
             self.bus.emit(message.forward(msg_type, skill_data))
@@ -1446,6 +1466,8 @@ class OVOSSkill:
         completed.
         """
         if handler_info:
+            # internal workshop->core done-signal (see _on_event_start); NOT a
+            # spec topic -> emits mycroft.skill.handler.complete
             msg_type = handler_info + '.complete'
             message.context["skill_id"] = self.skill_id
             self.bus.emit(message.forward(msg_type, skill_data))
@@ -1473,7 +1495,8 @@ class OVOSSkill:
         # append exception information in message
         skill_data['exception'] = repr(error)
         if handler_info:
-            # Indicate that the skill handler errored
+            # internal workshop->core done-signal (see _on_event_start); NOT a
+            # spec topic -> emits mycroft.skill.handler.error
             msg_type = handler_info + '.error'
             message = message or Message("")
             message.context["skill_id"] = self.skill_id
