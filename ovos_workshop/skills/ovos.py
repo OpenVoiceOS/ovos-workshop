@@ -68,6 +68,30 @@ from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
 
 
+def _core_owns_utterance_handled() -> bool:
+    """PIPELINE-1 §9.5: ``ovos.utterance.handled`` is the orchestrator's universal
+    end-marker — ovos-core owns it on EVERY terminal path, the matched path included.
+
+    ovos-core began emitting it on the matched path in **2.3.0** (the §9.5 change
+    landed on the 2.2.x line, so by semver the first release carrying it is the next
+    minor, 2.3.0a1). When the installed core is that version or newer this returns
+    ``True`` and the skill framework must NOT also emit it, or consumers would see
+    the end-marker twice.
+
+    During the migration window an older core (or none, e.g. a workshop-only test
+    env) does not emit it on the matched path, so the framework still must. This
+    returns ``False`` then — including when core is absent/unknown — so the framework
+    keeps emitting (back-compat). Double emits are tolerated by spec consumers, so
+    erring toward the framework emitting is the safe default.
+    """
+    try:
+        from importlib.metadata import version
+        from packaging.version import parse
+        return parse(version("ovos-core")) >= parse("2.3.0a1")
+    except Exception:
+        return False  # core absent/unknown -> framework keeps emitting (back-compat)
+
+
 class OVOSSkill:
     """
     Base class for OpenVoiceOS skills providing common behaviour and parameters
@@ -1473,7 +1497,10 @@ class OVOSSkill:
             # the shared HandlerLifecycle util (same topic/payload/context).
             HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
                              data=skill_data, handler_info=handler_info).complete()
-        if is_intent:
+        if is_intent and not _core_owns_utterance_handled():
+            # PIPELINE-1 §9.5: the orchestrator owns ovos.utterance.handled. With a
+            # core that emits it on the matched path (>=2.3.0a1) we must not also
+            # emit it; only emit for an older/absent core during the migration window.
             self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED, skill_data))
 
         try:
