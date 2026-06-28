@@ -20,6 +20,7 @@ from time import sleep
 from ovos_workshop.skill_launcher import SkillLoader
 from ovos_utils.fakebus import FakeBus
 from ovos_bus_client.message import Message
+from ovos_spec_tools import SpecMessage
 
 
 class TestDecorators(unittest.TestCase):
@@ -108,7 +109,7 @@ class TestKillableIntents(unittest.TestCase):
         """Assert that a speak message with the given utterance was emitted,
         regardless of the active language tag."""
         spoken = [m for m in self.bus.emitted_msgs
-                  if m.get("type") == "ovos.utterance.speak"
+                  if m.get("type") == SpecMessage.SPEAK.value
                   and m.get("data", {}).get("utterance") == utterance]
         self.assertTrue(spoken, f"No speak message with utterance {utterance!r} found "
                                 f"in: {self.bus.emitted_msgs}")

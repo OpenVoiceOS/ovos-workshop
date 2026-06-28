@@ -17,6 +17,7 @@ from typing import Callable, Optional, List
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
+from ovos_spec_tools import SpecMessage
 from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
@@ -157,7 +158,7 @@ class FallbackSkill(OVOSSkill):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
-        self.bus.emit(message.forward("ovos.utterance.handled"))
+        self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
 
     def register_fallback(self, handler: Callable, priority: int) -> None:
         """

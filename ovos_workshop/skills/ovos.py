@@ -1472,7 +1472,7 @@ class OVOSSkill:
             message.context["skill_id"] = self.skill_id
             self.bus.emit(message.forward(msg_type, skill_data))
         if is_intent:
-            self.bus.emit(message.forward("ovos.utterance.handled", skill_data))
+            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED, skill_data))
 
         try:
             if self.settings != self._initial_settings:

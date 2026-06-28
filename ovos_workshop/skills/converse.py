@@ -6,6 +6,7 @@ from langcodes import closest_match
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_config.config import Configuration
+from ovos_spec_tools import SpecMessage
 from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
@@ -200,9 +201,9 @@ class ConversationalSkill(OVOSSkill):
 
         self.bus.emit(response_message)
         if is_latest:
-            self.bus.emit(message.forward("ovos.utterance.handled"))
+            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
         else:
-            self.bus.emit(message.reply("ovos.utterance.handled"))
+            self.bus.emit(message.reply(SpecMessage.UTTERANCE_HANDLED))
 
     def _handle_converse_intents(self, message):
         """ called before converse method
