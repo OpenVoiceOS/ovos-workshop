@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a3) (2026-06-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a2...9.0.1a3)
+
+**Merged pull requests:**
+
+- docs: mark mycroft.skill.handler.\* as internal workshop-\>core sync \(not spec\) [\#436](https://github.com/OpenVoiceOS/ovos-workshop/pull/436) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a2) (2026-06-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a1...9.0.1a2)
