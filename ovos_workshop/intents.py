@@ -1,6 +1,8 @@
 from os.path import exists
+from pathlib import Path
 from threading import RLock
 from typing import List, Optional
+import re
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.util import get_mycroft_bus
@@ -11,9 +13,17 @@ from ovos_utils.log import LOG, log_deprecation
 # their long-standing `from ovos_workshop.intents import IntentBuilder` import while
 # the single source of truth is the spec.
 from ovos_spec_tools import Intent, IntentBuilder, open_intent_envelope, SpecMessage
+from ovos_spec_tools.resources import read_resource_file
+
+from ovos_workshop.version import VERSION_MAJOR
+
+# Breaking changes follow semver: the deprecated adapt/padatious shims below are
+# removed in the next MAJOR release. Compute the target dynamically from version.py
+# so this never drifts from the actual shipped version.
+_DEPRECATION_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 
 
-def _legacy_warn(msg, version="0.1.0"):
+def _legacy_warn(msg, version=_DEPRECATION_VERSION):
     """Standard deprecation warning for legacy mixin methods."""
     log_deprecation(msg, version)
     warnings.warn(msg, DeprecationWarning, stacklevel=3)
@@ -82,12 +92,31 @@ class _AdaptMixin:
 
     def register_adapt_regex(self, regex: str, lang: str = None):
         _legacy_warn("register_adapt_regex is deprecated, "
-                     "migrate to spec-compliant regex registration")
+                     "use register_regex")
         self.register_regex(regex, lang)
+
+    def register_regex(self, regex: str, lang: str = None):
+        """Register a regex intent (adapt-engine only).
+
+        Regex intents are an adapt-era concept with no spec equivalent; this
+        method and the adapt engine itself are slated for removal. Munging of
+        named-group prefixes (the adapt flat-namespace workaround) is done
+        here so callers never touch ``munge_regex`` directly.
+        """
+        _legacy_warn("register_regex is deprecated; regex intents are "
+                     "adapt-engine only and will be removed with the adapt "
+                     f"engine in {_DEPRECATION_VERSION}")
+        regex = self.munge_regex(regex, self.skill_id)
+        msg = dig_for_message() or Message("")
+        self.bus.emit(msg.forward("register_vocab",
+                                  {'regex': regex, 'lang': lang}))
 
     def register_adapt_intent(self, name: str, intent_parser: object):
         _legacy_warn("register_adapt_intent is deprecated, "
-                     "migrate to spec-compliant intent registration")
+                     "use register_intent")
+        # munging is an adapt-era namespace hack; it must stay inside the
+        # adapt mixin so the spec-compliant register_intent never touches it.
+        self.munge_intent_parser(intent_parser, name, self.skill_id)
         self.register_intent(name, intent_parser)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
@@ -124,9 +153,7 @@ class _PadatiousMixin:
             raise ValueError('Filename path must be a string')
         if not exists(filename):
             raise FileNotFoundError(f'Unable to find "{filename}"')
-        with open(filename) as f:
-            samples = [_ for _ in f.read().split("\n") if _
-                       and not _.startswith("#")]
+        samples = read_resource_file(Path(filename))
         self.register_template(intent_name, samples, lang, string_blacklist,
                                file_name=filename)
 
@@ -138,9 +165,7 @@ class _PadatiousMixin:
             raise ValueError('Filename path must be a string')
         if not exists(filename):
             raise FileNotFoundError('Unable to find "{}"'.format(filename))
-        with open(filename) as f:
-            samples = [_ for _ in f.read().split("\n") if _
-                       and not _.startswith("#")]
+        samples = read_resource_file(Path(filename))
         self.register_entity(entity_name, samples, lang,
                              file_name=filename)
 
@@ -213,11 +238,6 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
             compatibility_data = {'start': alias, 'end': vocab_type}
             self.bus.emit(msg.forward("register_vocab",
                                       {**alias_data, **compatibility_data}))
-
-    def register_regex(self, regex: str, lang: str = None):
-        msg = dig_for_message() or Message("")
-        self.bus.emit(msg.forward("register_vocab",
-                                  {'regex': regex, 'lang': lang}))
 
     def _unmunge_vocab_name(self, vocab_type: str) -> str:
         prefix = _AdaptMixin.to_alnum(self.skill_id)

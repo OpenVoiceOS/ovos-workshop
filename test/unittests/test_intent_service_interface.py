@@ -112,12 +112,16 @@ class KeywordIntentRegistrationTest(unittest.TestCase):
         self.emitter.reset()
 
         intent = IntentBuilder("test").require("testA").optionally("testB")
+        # register_adapt_intent munges the parser (adapt-era namespace prefixing
+        # with to_alnum(skill_id)); IntentServiceInterface's default skill_id is
+        # the class name, so names get the "IntentServiceInterface" prefix.
+        sid = "IntentServiceInterface"
         intent_service.register_adapt_intent("test", intent)
         expected_data = {'at_least_one': [],
-                         'name': 'test',
+                         'name': f'{sid}:test',
                          'excludes': [],
-                         'optional': [('testB', 'testB')],
-                         'requires': [('testA', 'testA')]}
+                         'optional': [(f'{sid}testB', f'{sid}testB')],
+                         'requires': [(f'{sid}testA', f'{sid}testA')]}
         self.check_emitter([expected_data])
 
 

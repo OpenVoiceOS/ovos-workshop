@@ -24,6 +24,7 @@ from hashlib import md5
 from inspect import signature
 from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
+from pathlib import Path
 from threading import Event, RLock
 from typing import Dict, Callable, List, Optional, Union
 
@@ -38,6 +39,7 @@ from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
 from ovos_spec_tools import SpecMessage
+from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
@@ -1342,9 +1344,7 @@ class OVOSSkill:
                 continue
             filename = str(resource_file.file_path)
 
-            with open(filename) as f:
-                samples = [_ for _ in f.read().split("\n") if _
-                           and not _.startswith("#")]
+            samples = read_resource_file(Path(filename))
 
             disallowed_strings = []
             for enty in voc_blacklist or []:
@@ -1383,9 +1383,7 @@ class OVOSSkill:
             filename = str(entity.file_path)
             name = f"{self.skill_id}:{basename(entity_file)}_" \
                    f"{md5(entity_file.encode('utf-8')).hexdigest()}"
-            with open(filename) as f:
-                samples = [_ for _ in f.read().split("\n") if _
-                           and not _.startswith("#")]
+            samples = read_resource_file(Path(filename))
             self.intent_service.register_entity(name, samples, lang)
 
     def register_vocabulary(self, entity: str, entity_type: str,
@@ -1408,9 +1406,10 @@ class OVOSSkill:
         @param lang: language of regex_str (default self.lang)
         """
         self.log.debug('registering regex string: ' + regex_str)
-        regex = self.intent_service.munge_regex(regex_str, self.skill_id)
-        re.compile(regex)  # validate regex
-        self.intent_service.register_regex(regex, lang=standardize_lang_tag(lang or self.lang))
+        re.compile(regex_str)  # validate regex on the raw string (munging only
+                               # prefixes named groups, so validity is preserved)
+        self.intent_service.register_regex(
+            regex_str, lang=standardize_lang_tag(lang or self.lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -1569,8 +1568,10 @@ class OVOSSkill:
                 not self.intent_service.intent_is_detached(name):
             raise ValueError(f'The intent name {name} is already taken')
 
-        self.intent_service.munge_intent_parser(intent_parser, name, self.skill_id)
-        self.intent_service.register_intent(name, intent_parser)
+        # munging (adapt-era namespace prefixing) is performed inside the
+        # adapt mixin's register_adapt_intent so OVOSSkill never calls the
+        # munge helpers directly.
+        self.intent_service.register_adapt_intent(name, intent_parser)
         if handler:
             self.add_event(intent_parser.name, handler,
                            'mycroft.skill.handler',
