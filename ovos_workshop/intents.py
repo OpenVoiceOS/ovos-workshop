@@ -78,6 +78,13 @@ class _AdaptMixin:
             element = [sid + e.replace(sid, '') for e in i]
             at_least_one.append(tuple(element))
         intent_parser.at_least_one = at_least_one
+        excludes = []
+        for e in getattr(intent_parser, "excludes", []):
+            if not e.startswith(sid):
+                excludes.append(sid + e)
+            else:
+                excludes.append(e)
+        intent_parser.excludes = excludes
 
     # ------------------------------------------------------------------
     #  adapt bus protocol
@@ -108,6 +115,8 @@ class _AdaptMixin:
                      f"engine in {_DEPRECATION_VERSION}")
         regex = self.munge_regex(regex, self.skill_id)
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward("register_vocab",
                                   {'regex': regex, 'lang': lang}))
 
@@ -216,6 +225,8 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                          aliases: Optional[List[str]] = None,
                          lang: str = None):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         aliases = aliases or []
 
         samples = self._adapt_keyword_samples.setdefault((vocab_type, lang), [])
@@ -245,11 +256,27 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
             return vocab_type[len(prefix):]
         return vocab_type
 
+    def _get_keyword_samples(self, vocab_type: str, lang: str
+                             ) -> Optional[List[str]]:
+        """Look up cached samples for a (possibly munged) vocab type.
+
+        The intent parser's requires/optional/at_least_one/excludes always
+        carry the munged (skill_id-prefixed) name (munge_intent_parser), but
+        the vocab cache may hold either form depending on whether the caller
+        pre-munged before calling register_adapt_keyword (the real skill flow
+        does; direct/legacy callers may not) — try both.
+        """
+        samples = self._adapt_keyword_samples.get((vocab_type, lang))
+        if samples is None:
+            samples = self._adapt_keyword_samples.get(
+                (self._unmunge_vocab_name(vocab_type), lang))
+        return samples
+
     def _spec_keyword_descriptors(self, vocab_types: List[str], lang: str
                                   ) -> List[dict]:
         descriptors = []
         for vocab_type in vocab_types:
-            samples = self._adapt_keyword_samples.get((vocab_type, lang))
+            samples = self._get_keyword_samples(vocab_type, lang)
             if not samples:
                 continue
             descriptors.append({"name": self._unmunge_vocab_name(vocab_type),
@@ -267,8 +294,9 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                      set(excluded_names)
         for group in one_of_groups:
             referenced |= set(group)
-        langs = {l for (vt, l) in self._adapt_keyword_samples
-                 if vt in referenced}
+        langs = {l for vt in referenced
+                 for l in {l for (cvt, l) in self._adapt_keyword_samples
+                          if cvt == vt or cvt == self._unmunge_vocab_name(vt)}}
         if not langs:
             LOG.debug(f"no cached adapt vocab samples for intent {name}; "
                       f"skipping {SpecMessage.INTENT_REGISTER_KEYWORD} emit")
@@ -292,17 +320,32 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
 
     def register_intent(self, name: str, intent_parser: object):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
         self._emit_spec_keyword_intent(msg, name, intent_parser)
         self.registered_intents.append((name, intent_parser))
         self.detached_intents = [detached for detached in self.detached_intents
                                  if detached[0] != name]
 
+    @staticmethod
+    def _clean_padatious_name(name: str) -> str:
+        """Strip the ``<skill_id>:`` prefix, a trailing ``.intent`` suffix
+        (``register_intent_file`` internal naming) and a trailing
+        ``_<md5>`` hash munge (``register_entity_file`` internal naming)."""
+        name = name.split(':')[-1]
+        if name.endswith('.intent'):
+            name = name[:-len('.intent')]
+        name = re.sub(r'_[0-9a-f]{32}$', '', name)
+        return name
+
     def register_entity(self, entity_name: str, samples: List[str],
                         lang: str,
                         blacklisted_words: Optional[List[str]] = None,
                         file_name: str = ''):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward("padatious:register_entity",
                                   {'file_name': file_name,
                                    "samples": samples,
@@ -310,7 +353,7 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                                    'lang': lang}))
         self.bus.emit(msg.forward(SpecMessage.ENTITY_REGISTER,
                                   {"skill_id": self.skill_id,
-                                   "entity_name": entity_name.split(':')[-1],
+                                   "entity_name": self._clean_padatious_name(entity_name),
                                    "lang": lang,
                                    "samples": samples}))
 
@@ -319,6 +362,8 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                           blacklisted_words: Optional[List[str]] = None,
                           file_name: str = ''):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward("padatious:register_intent",
                                   {'file_name': file_name,
                                    "samples": samples,
@@ -327,7 +372,7 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                                    'blacklisted_words': blacklisted_words}))
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
-                                   "intent_name": intent_name.split(':')[-1],
+                                   "intent_name": self._clean_padatious_name(intent_name),
                                    "lang": lang,
                                    "samples": samples,
                                    "blacklist": blacklisted_words or []}))
@@ -340,18 +385,24 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
 
     def set_context(self, context: str, word: str, origin: str):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward('add_context',
                                   {'context': context, 'word': word,
                                    'origin': origin}))
 
     def remove_context(self, context: str):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         self.bus.emit(msg.forward('remove_context', {'context': context}))
 
     # -- lifecycle ------------------------------------------------------
 
     def remove_intent(self, intent_name: str):
         msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
         if intent_name in self.intent_names:
             LOG.info(f"Detaching intent: {intent_name}")
             self.detached_intents.append((intent_name,
