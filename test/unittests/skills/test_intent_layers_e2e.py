@@ -177,11 +177,6 @@ class IntentLayersE2ETest(unittest.TestCase):
                 SessionManager.default_session.context.get_context()]
 
     # tests ------------------------------------------------------------------
-    @pytest.mark.xfail(reason="pre-existing failure on dev, unrelated to "
-                       "OVOS-INTENT-4 producer changes: layer context "
-                       "token is never applied, so gated intents never "
-                       "match (ovos_workshop/decorators/layers.py)",
-                       strict=False)
     def test_layers_advance_in_sequence_and_gate_intents(self):
         skill = self.skill
 
@@ -238,11 +233,6 @@ class IntentLayersE2ETest(unittest.TestCase):
         self.assertEqual(skill.reached,
                          ["begin", "layer0", "layer1", "layer2", "layer3"])
 
-    @pytest.mark.xfail(reason="pre-existing failure on dev, unrelated to "
-                       "OVOS-INTENT-4 producer changes: layer context "
-                       "token is never applied, so gated intents never "
-                       "match (ovos_workshop/decorators/layers.py)",
-                       strict=False)
     def test_inactive_layer_intents_do_not_match(self):
         """With only layer0 active, layer1/2/3 intents must not be selectable."""
         skill = self.skill
