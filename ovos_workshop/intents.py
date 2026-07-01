@@ -5,6 +5,7 @@ from typing import List, Optional
 import re
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
+from ovos_bus_client.session import Session, SessionManager
 from ovos_bus_client.util import get_mycroft_bus
 from ovos_utils.log import LOG, log_deprecation
 
@@ -127,6 +128,24 @@ class _AdaptMixin:
         # adapt mixin so the spec-compliant register_intent never touches it.
         self.munge_intent_parser(intent_parser, name, self.skill_id)
         self.register_intent(name, intent_parser)
+
+    def set_context(self, context: str, word: str, origin: str):
+        """Add adapt-engine context (adapt-only; no OVOS-CONTEXT-1 spec
+        equivalent — see IntentServiceInterface.set_intent_context for the
+        session-based, engine-agnostic spec mechanism)."""
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward('add_context',
+                                  {'context': context, 'word': word,
+                                   'origin': origin}))
+
+    def remove_context(self, context: str):
+        """Remove adapt-engine context (adapt-only; see set_context)."""
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward('remove_context', {'context': context}))
 
     def set_adapt_context(self, context: str, word: str, origin: str):
         _legacy_warn("set_adapt_context is deprecated")
@@ -383,19 +402,80 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
                                          'lang': lang,
                                          'blacklisted_words': blacklisted_words}))
 
-    def set_context(self, context: str, word: str, origin: str):
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('add_context',
-                                  {'context': context, 'word': word,
-                                   'origin': origin}))
+    @staticmethod
+    def _intent_context_key(owner_id: str, key: str, scope: str) -> str:
+        if scope not in ("private", "shared"):
+            raise ValueError("scope must be 'private' or 'shared'")
+        return key if scope == "shared" else f"{owner_id}:{key}"
 
-    def remove_context(self, context: str):
+    def _sync_intent_context(self, msg: Message, delta: dict):
+        """OVOS-CONTEXT-1 §5.3 — apply `delta` to the local session copy and
+        broadcast it as the `ovos.session.sync` sync payload.
+
+        `delta` maps stored keys (already scope-prefixed) to either an entry
+        object (set/replace) or None (delete) — the spec's entry-level merge
+        semantics (`SessionManager.merge_intent_context`).
+        """
+        session = Session.from_message(msg)
+        # update the local copy so a caller chaining set_intent_context calls
+        # within the same handler sees its own writes immediately
+        session.intent_context = SessionManager.merge_intent_context(
+            dict(session.intent_context or {}), delta)
+        # the sync payload carries ONLY the delta (§5.3 entry-level merge —
+        # the orchestrator treats every other key as unchanged); a full
+        # snapshot of the local `intent_context` would wrongly signal
+        # "unchanged" for every key this call didn't touch, and any key this
+        # call *removed* would simply be absent rather than null-deleted
+        sync_session = session.serialize()
+        sync_session["intent_context"] = delta
+        # OVOS-SESSION-2 §2.7: the sync content is the explicit
+        # `Message.data.session`; `Message.context.session` is the ambient
+        # MSG-1 carrier and is refreshed (to the full local copy) so
+        # downstream forwards of this very Message also see the update.
+        derived = msg.forward(SpecMessage.SESSION_SYNC, {"session": sync_session})
+        derived.context["session"] = session.serialize()
+        self.bus.emit(derived)
+
+    def set_intent_context(self, key: str, value: Optional[str] = None,
+                           scope: str = "private",
+                           turns_remaining: Optional[int] = None,
+                           expires_at: Optional[float] = None):
+        """OVOS-CONTEXT-1 §5.3 — write/replace a session intent-context
+        entry and sync it to the orchestrator.
+
+        @param key: caller-chosen sub-key (no ``:``). Stored under
+            ``<skill_id>:<key>`` for the default ``scope="private"`` (§3),
+            visible only to this skill's own intents; ``scope="shared"``
+            stores the bare ``key``, visible to every skill.
+        @param value: entry value, or None for a presence-only flag (§2).
+        @param turns_remaining: entry survives this many more utterance
+            dispatches (§2, §4).
+        @param expires_at: absolute Unix-seconds wall-clock expiry (§2, §4).
+        """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('remove_context', {'context': context}))
+        stored_key = self._intent_context_key(self.skill_id, key, scope)
+        entry = {"value": value}
+        if turns_remaining is not None:
+            entry["turns_remaining"] = turns_remaining
+        if expires_at is not None:
+            entry["expires_at"] = expires_at
+        self._sync_intent_context(msg, {stored_key: entry})
+
+    def remove_intent_context(self, key: str, scope: str = "private"):
+        """OVOS-CONTEXT-1 §5.3 — remove a session intent-context entry.
+
+        @param key: the same caller-chosen sub-key passed to
+            :meth:`set_intent_context`.
+        @param scope: the same scope passed to :meth:`set_intent_context`
+            for this key.
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        stored_key = self._intent_context_key(self.skill_id, key, scope)
+        self._sync_intent_context(msg, {stored_key: None})
 
     # -- lifecycle ------------------------------------------------------
 
