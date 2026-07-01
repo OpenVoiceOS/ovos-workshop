@@ -33,7 +33,6 @@ from ovos_bus_client.apis.enclosure import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
-from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
@@ -62,34 +61,10 @@ from ovos_yes_no import HeuristicYesNoEngine
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
-from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
+from ovos_workshop.intents import IntentBuilder, Intent, IntentServiceInterface
 from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
-
-
-def _core_owns_utterance_handled() -> bool:
-    """PIPELINE-1 §9.5: ``ovos.utterance.handled`` is the orchestrator's universal
-    end-marker — ovos-core owns it on EVERY terminal path, the matched path included.
-
-    ovos-core began emitting it on the matched path in **2.3.0** (the §9.5 change
-    landed on the 2.2.x line, so by semver the first release carrying it is the next
-    minor, 2.3.0a1). When the installed core is that version or newer this returns
-    ``True`` and the skill framework must NOT also emit it, or consumers would see
-    the end-marker twice.
-
-    During the migration window an older core (or none, e.g. a workshop-only test
-    env) does not emit it on the matched path, so the framework still must. This
-    returns ``False`` then — including when core is absent/unknown — so the framework
-    keeps emitting (back-compat). Double emits are tolerated by spec consumers, so
-    erring toward the framework emitting is the safe default.
-    """
-    try:
-        from importlib.metadata import version
-        from packaging.version import parse
-        return parse(version("ovos-core")) >= parse("2.3.0a1")
-    except Exception:
-        return False  # core absent/unknown -> framework keeps emitting (back-compat)
 
 
 class OVOSSkill:
@@ -1400,7 +1375,7 @@ class OVOSSkill:
         @param lang: language of regex_str (default self.lang)
         """
         self.log.debug('registering regex string: ' + regex_str)
-        regex = munge_regex(regex_str, self.skill_id)
+        regex = self.intent_service.munge_regex(regex_str, self.skill_id)
         re.compile(regex)  # validate regex
         self.intent_service.register_adapt_regex(regex, lang=standardize_lang_tag(lang or self.lang))
 
@@ -1479,11 +1454,10 @@ class OVOSSkill:
         """
         if handler_info:
             # internal workshop->core done-signal (see docstring); NOT a spec
-            # topic -> emits mycroft.skill.handler.start. Delegated to the
-            # shared ovos-bus-client HandlerLifecycle util (DRY; same topic,
-            # payload and context["skill_id"] as before).
-            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
-                             data=skill_data, handler_info=handler_info).start()
+            # topic -> emits mycroft.skill.handler.start
+            msg_type = handler_info + '.start'
+            message.context["skill_id"] = self.skill_id
+            self.bus.emit(message.forward(msg_type, skill_data))
 
     def _on_event_end(self, message: Message, handler_info: str,
                       skill_data: dict, is_intent: bool = False):
@@ -1493,15 +1467,12 @@ class OVOSSkill:
         """
         if handler_info:
             # internal workshop->core done-signal (see _on_event_start); NOT a
-            # spec topic -> emits mycroft.skill.handler.complete. Delegated to
-            # the shared HandlerLifecycle util (same topic/payload/context).
-            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
-                             data=skill_data, handler_info=handler_info).complete()
-        if is_intent and not _core_owns_utterance_handled():
-            # PIPELINE-1 §9.5: the orchestrator owns ovos.utterance.handled. With a
-            # core that emits it on the matched path (>=2.3.0a1) we must not also
-            # emit it; only emit for an older/absent core during the migration window.
-            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED, skill_data))
+            # spec topic -> emits mycroft.skill.handler.complete
+            msg_type = handler_info + '.complete'
+            message.context["skill_id"] = self.skill_id
+            self.bus.emit(message.forward(msg_type, skill_data))
+        if is_intent:
+            self.bus.emit(message.forward("ovos.utterance.handled", skill_data))
 
         try:
             if self.settings != self._initial_settings:
@@ -1521,15 +1492,15 @@ class OVOSSkill:
         if speak_errors:
             self.speak(speech)
         self.log.exception(error)
+        # append exception information in message
+        skill_data['exception'] = repr(error)
         if handler_info:
             # internal workshop->core done-signal (see _on_event_start); NOT a
-            # spec topic -> emits mycroft.skill.handler.error. Delegated to the
-            # shared HandlerLifecycle util, which merges {"exception": repr(...)}
-            # into the payload (same topic/payload/context as before). The util
-            # deliberately does NOT speak; the spoken-error UX above stays here.
+            # spec topic -> emits mycroft.skill.handler.error
+            msg_type = handler_info + '.error'
             message = message or Message("")
-            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
-                             data=skill_data, handler_info=handler_info).error(error)
+            message.context["skill_id"] = self.skill_id
+            self.bus.emit(message.forward(msg_type, skill_data))
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
@@ -1561,7 +1532,7 @@ class OVOSSkill:
                 not self.intent_service.intent_is_detached(name):
             raise ValueError(f'The intent name {name} is already taken')
 
-        munge_intent_parser(intent_parser, name, self.skill_id)
+        self.intent_service.munge_intent_parser(intent_parser, name, self.skill_id)
         self.intent_service.register_adapt_intent(name, intent_parser)
         if handler:
             self.add_event(intent_parser.name, handler,
