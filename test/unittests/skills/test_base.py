@@ -338,6 +338,8 @@ class TestOVOSSkill(unittest.TestCase):
         # context carries skill_id + preserves originating session
         self.assertEqual(context["skill_id"], self.skill_id)
         self.assertEqual(context["session"]["session_id"], "sess1")
+        # original message context not mutated by the util
+        self.assertNotIn("skill_id", msg.context)
         # empty/false handler_info disables emission entirely
         none_captured = self._capture(OVOSSkill._on_event_start, msg, "",
                                       dict(skill_data))
@@ -362,17 +364,41 @@ class TestOVOSSkill(unittest.TestCase):
 
     def test_on_event_end_is_intent_still_emits_utterance_handled(self):
         # the ovos.utterance.handled emission must be PRESERVED alongside the
-        # delegated .complete done-signal when is_intent=True
+        # delegated .complete done-signal when is_intent=True AND the installed
+        # core does not own it (older/absent core). Patch the version guard so
+        # the test is deterministic regardless of the installed ovos-core.
+        from unittest.mock import patch
         from ovos_bus_client.message import Message
         from ovos_spec_tools import SpecMessage
+        import ovos_workshop.skills.ovos as ovos_mod
         msg = Message("trigger", {}, {})
         skill_data = {"name": "TestSkill.handle_test"}
-        captured = self._capture(OVOSSkill._on_event_end, msg,
-                                 "mycroft.skill.handler", dict(skill_data),
-                                 True)
+        with patch.object(ovos_mod, "_core_owns_utterance_handled",
+                          return_value=False):
+            captured = self._capture(OVOSSkill._on_event_end, msg,
+                                     "mycroft.skill.handler",
+                                     dict(skill_data), True)
         types = [c[0] for c in captured]
         self.assertIn("mycroft.skill.handler.complete", types)
         self.assertIn(SpecMessage.UTTERANCE_HANDLED.value, types)
+
+    def test_on_event_end_core_owns_suppresses_utterance_handled(self):
+        # PIPELINE-1 §9.5: when the installed core owns ovos.utterance.handled
+        # (>=2.3.0a1) the framework must NOT also emit it on the matched path.
+        from unittest.mock import patch
+        from ovos_bus_client.message import Message
+        from ovos_spec_tools import SpecMessage
+        import ovos_workshop.skills.ovos as ovos_mod
+        msg = Message("trigger", {}, {})
+        skill_data = {"name": "TestSkill.handle_test"}
+        with patch.object(ovos_mod, "_core_owns_utterance_handled",
+                          return_value=True):
+            captured = self._capture(OVOSSkill._on_event_end, msg,
+                                     "mycroft.skill.handler",
+                                     dict(skill_data), True)
+        types = [c[0] for c in captured]
+        self.assertIn("mycroft.skill.handler.complete", types)
+        self.assertNotIn(SpecMessage.UTTERANCE_HANDLED.value, types)
 
     def test_on_event_error(self):
         from ovos_bus_client.message import Message
