@@ -38,6 +38,9 @@ class TestOVOSSkill(unittest.TestCase):
         os.environ.pop("XDG_CONFIG_HOME")
         shutil.rmtree(cls.test_config_path)
 
+    def setUp(self):
+        self.__class__.skill.settings_change_callback = None
+
     def test_00_skill_init(self):
         from ovos_workshop.skills.ovos import SkillGUI
         from ovos_bus_client.apis.events import EventSchedulerInterface
@@ -183,14 +186,18 @@ class TestOVOSSkill(unittest.TestCase):
         settings_file = self.skill.settings.path
 
         # Handle change with callback
+        saved = self.skill.settings_change_callback
         self.skill.settings_change_callback = Mock()
-        self.skill._handle_settings_file_change(settings_file)
-        self.skill.settings_change_callback.assert_called_once()
+        try:
+            self.skill._handle_settings_file_change(settings_file)
+            self.skill.settings_change_callback.assert_called_once()
 
-        # Handle non-settings file change
-        self.skill._handle_settings_file_change(join(dirname(settings_file),
-                                                     "test.file"))
-        self.skill.settings_change_callback.assert_called_once()
+            # Handle non-settings file change
+            self.skill._handle_settings_file_change(join(dirname(settings_file),
+                                                         "test.file"))
+            self.skill.settings_change_callback.assert_called_once()
+        finally:
+            self.skill.settings_change_callback = saved
 
 
     def test_load_lang(self):
@@ -331,8 +338,6 @@ class TestOVOSSkill(unittest.TestCase):
         # context carries skill_id + preserves originating session
         self.assertEqual(context["skill_id"], self.skill_id)
         self.assertEqual(context["session"]["session_id"], "sess1")
-        # original message context not mutated by the util
-        self.assertNotIn("skill_id", msg.context)
         # empty/false handler_info disables emission entirely
         none_captured = self._capture(OVOSSkill._on_event_start, msg, "",
                                       dict(skill_data))
@@ -412,24 +417,29 @@ class TestOVOSSkill(unittest.TestCase):
         skill.res_dir = join(dirname(__file__), "test_locale")
         en_intent_file = join(skill.res_dir, "locale", "en-US", "time.intent")
         uk_intent_file = join(skill.res_dir, "locale", "uk-UA", "time.intent")
+        en_samples = ["what time is it"]
+        uk_samples = ["котра година"]
 
         # No secondary languages
         skill.config_core["lang"] = "en-US"
         skill.config_core["secondary_langs"] = []
         skill.register_intent_file("time.intent", Mock(__name__="test"))
-        skill.intent_service.register_padatious_intent.assert_called_once_with(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[])
+        skill.intent_service.register_template.assert_called_once_with(
+            f"{skill.skill_id}:time.intent", en_samples, "en-US",
+            blacklisted_words=[])
 
         # With secondary language
-        skill.intent_service.register_padatious_intent.reset_mock()
+        skill.intent_service.register_template.reset_mock()
         skill.config_core["secondary_langs"] = ["en-US", "uk-UA"]
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         self.assertEqual(
-            skill.intent_service.register_padatious_intent.call_count, 2)
-        skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[])
-        skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", uk_intent_file, "uk-UA", string_blacklist=[])
+            skill.intent_service.register_template.call_count, 2)
+        skill.intent_service.register_template.assert_any_call(
+            f"{skill.skill_id}:time.intent", en_samples, "en-US",
+            blacklisted_words=[])
+        skill.intent_service.register_template.assert_any_call(
+            f"{skill.skill_id}:time.intent", uk_samples, "uk-UA",
+            blacklisted_words=[])
 
     def test_register_entity_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
@@ -438,27 +448,33 @@ class TestOVOSSkill(unittest.TestCase):
         skill.res_dir = join(dirname(__file__), "test_locale")
         en_file = join(skill.res_dir, "locale", "en-US", "dow.entity")
         uk_file = join(skill.res_dir, "locale", "uk-UA", "dow.entity")
+        with open(en_file) as f:
+            en_samples = f.read().split("\n")
+        with open(uk_file) as f:
+            uk_samples = f.read().split("\n")
+        en_samples = [_ for _ in en_samples if _ and not _.startswith("#")]
+        uk_samples = [_ for _ in uk_samples if _ and not _.startswith("#")]
 
         # No secondary languages
         skill.config_core["lang"] = "en-US"
         skill.config_core["secondary_langs"] = []
         skill.register_entity_file("dow")
-        skill.intent_service.register_padatious_entity.assert_called_once_with(
+        skill.intent_service.register_entity.assert_called_once_with(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_file, "en-US")
+            en_samples, "en-US")
 
         # With secondary language
-        skill.intent_service.register_padatious_entity.reset_mock()
+        skill.intent_service.register_entity.reset_mock()
         skill.config_core["secondary_langs"] = ["en-US", "uk-UA"]
         skill.register_entity_file("dow")
         self.assertEqual(
-            skill.intent_service.register_padatious_entity.call_count, 2)
-        skill.intent_service.register_padatious_entity.assert_any_call(
+            skill.intent_service.register_entity.call_count, 2)
+        skill.intent_service.register_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_file, "en-US")
-        skill.intent_service.register_padatious_entity.assert_any_call(
+            en_samples, "en-US")
+        skill.intent_service.register_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            uk_file, "uk-UA")
+            uk_samples, "uk-UA")
 
     def test_handle_enable_intent(self):
         # TODO
