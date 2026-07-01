@@ -25,20 +25,35 @@ _DEPRECATION_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 
 
 def _legacy_warn(msg, version=_DEPRECATION_VERSION):
-    """Standard deprecation warning for legacy mixin methods."""
+    """Standard deprecation warning for legacy engine-API methods."""
     log_deprecation(msg, version)
     warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
-class _AdaptMixin:
+class _AdaptIntentApi:
     """Adapt engine protocol — delete when Adapt support is dropped.
 
     Everything in this class is a backward-compatibility shim for the
     adapt intent engine (register_vocab, register_intent, add_context bus
-    topics).  The munge_* helpers prefix namespacing is an adapt-era
+    topics). The munge_* helpers prefix namespacing is an adapt-era
     workaround for a flat keyword namespace; spec-compliant registration
     uses ``skill_id:intent_name`` dispatch keys and needs none of this.
+
+    Composed onto ``IntentServiceInterface`` as ``self._adapt`` (not
+    inherited): the dependency runs one way, from the spec-compliant
+    producer into this legacy shim (for dual-emit), never the reverse.
     """
+
+    def __init__(self, iface: "IntentServiceInterface"):
+        self._iface = iface
+
+    @property
+    def bus(self):
+        return self._iface.bus
+
+    @property
+    def skill_id(self) -> str:
+        return self._iface.skill_id
 
     # ------------------------------------------------------------------
     #  munging — adapt-era namespace hacks
@@ -50,7 +65,7 @@ class _AdaptMixin:
 
     @staticmethod
     def munge_regex(regex: str, skill_id: str) -> str:
-        base = '(?P<' + _AdaptMixin.to_alnum(skill_id)
+        base = '(?P<' + _AdaptIntentApi.to_alnum(skill_id)
         return base.join(regex.split('(?P<'))
 
     @staticmethod
@@ -59,7 +74,7 @@ class _AdaptMixin:
             intent_parser.name = str(skill_id) + ':' + name
         else:
             intent_parser.name = name
-        sid = _AdaptMixin.to_alnum(skill_id)
+        sid = _AdaptIntentApi.to_alnum(skill_id)
         reqs = []
         for i in intent_parser.requires:
             if not i[0].startswith(sid):
@@ -88,6 +103,50 @@ class _AdaptMixin:
         intent_parser.excludes = excludes
 
     # ------------------------------------------------------------------
+    #  legacy bus emits — called by the spec-compliant producer for
+    #  dual-emit (see IntentServiceInterface.register_keyword/register_intent)
+    # ------------------------------------------------------------------
+
+    def emit_legacy_register_vocab(self, vocab_type: str, entity: str,
+                                   aliases: Optional[List[str]] = None,
+                                   lang: str = None):
+        """Emit the legacy adapt ``register_vocab`` topic (entity + aliases).
+
+        # TODO: remove this call (and this method) once the adapt pipeline
+        # plugin consumes ``ovos.intent.register.keyword`` (INTENT-4 §5)
+        # directly instead of the legacy per-value ``register_vocab`` topic.
+        """
+        aliases = aliases or []
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        entity_data = {'entity_value': entity,
+                       'entity_type': vocab_type,
+                       'lang': lang}
+        compatibility_data = {'start': entity, 'end': vocab_type}
+        self.bus.emit(msg.forward("register_vocab",
+                                  {**entity_data, **compatibility_data}))
+        for alias in aliases:
+            alias_data = {
+                'entity_value': alias,
+                'entity_type': vocab_type,
+                'alias_of': entity,
+                'lang': lang}
+            compatibility_data = {'start': alias, 'end': vocab_type}
+            self.bus.emit(msg.forward("register_vocab",
+                                      {**alias_data, **compatibility_data}))
+
+    def emit_legacy_register_intent(self, msg: Message, intent_parser: object):
+        """Emit the legacy adapt ``register_intent`` topic.
+
+        # TODO: remove this call (and this method) once the adapt pipeline
+        # plugin consumes ``ovos.intent.register.keyword`` (INTENT-4 §5)
+        # directly instead of the legacy serialized-parser ``register_intent``
+        # topic.
+        """
+        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
+
+    # ------------------------------------------------------------------
     #  adapt bus protocol
     # ------------------------------------------------------------------
 
@@ -96,7 +155,7 @@ class _AdaptMixin:
                                lang: str = None):
         _legacy_warn("register_adapt_keyword is deprecated, "
                      "migrate to spec-compliant keyword registration")
-        self.register_keyword(vocab_type, entity, aliases, lang)
+        self._iface.register_keyword(vocab_type, entity, aliases, lang)
 
     def register_adapt_regex(self, regex: str, lang: str = None):
         _legacy_warn("register_adapt_regex is deprecated, "
@@ -125,9 +184,9 @@ class _AdaptMixin:
         _legacy_warn("register_adapt_intent is deprecated, "
                      "use register_intent")
         # munging is an adapt-era namespace hack; it must stay inside the
-        # adapt mixin so the spec-compliant register_intent never touches it.
+        # adapt API so the spec-compliant register_intent never touches it.
         self.munge_intent_parser(intent_parser, name, self.skill_id)
-        self.register_intent(name, intent_parser)
+        self._iface.register_intent(name, intent_parser)
 
     def set_context(self, context: str, word: str, origin: str):
         """Add adapt-engine context (adapt-only; no OVOS-CONTEXT-1 spec
@@ -162,15 +221,73 @@ class _AdaptMixin:
     def detach_intent(self, intent_name: str):
         _legacy_warn("detach_intent is deprecated, use remove_intent")
         name = intent_name.split(':')[1]
-        self.remove_intent(name)
+        self._iface.remove_intent(name)
 
     def get_intent_names(self):
         _legacy_warn("get_intent_names is deprecated, use intent_names property")
-        return self.intent_names
+        return self._iface.intent_names
 
 
-class _PadatiousMixin:
-    """Padatious engine protocol — delete when Padatious support is dropped."""
+class _PadatiousIntentApi:
+    """Padatious engine protocol — delete when Padatious support is dropped.
+
+    Composed onto ``IntentServiceInterface`` as ``self._padatious`` (not
+    inherited): the dependency runs one way, from the spec-compliant
+    producer into this legacy shim (for dual-emit), never the reverse.
+    """
+
+    def __init__(self, iface: "IntentServiceInterface"):
+        self._iface = iface
+
+    @property
+    def bus(self):
+        return self._iface.bus
+
+    @property
+    def skill_id(self) -> str:
+        return self._iface.skill_id
+
+    # ------------------------------------------------------------------
+    #  legacy bus emits — called by the spec-compliant producer for
+    #  dual-emit (see IntentServiceInterface.register_entity/register_template)
+    # ------------------------------------------------------------------
+
+    def emit_legacy_register_entity(self, msg: Message, entity_name: str,
+                                     samples: List[str], lang: str,
+                                     file_name: str = ''):
+        """Emit the legacy ``padatious:register_entity`` topic.
+
+        # TODO: remove this call (and this method) once the padatious
+        # pipeline plugin consumes ``ovos.entity.register`` (INTENT-4 §7)
+        # directly instead of the legacy ``padatious:register_entity`` topic.
+        """
+        self.bus.emit(msg.forward("padatious:register_entity",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': entity_name,
+                                   'lang': lang}))
+
+    def emit_legacy_register_template(self, msg: Message, intent_name: str,
+                                       samples: List[str], lang: str,
+                                       blacklisted_words: Optional[List[str]] = None,
+                                       file_name: str = ''):
+        """Emit the legacy ``padatious:register_intent`` topic.
+
+        # TODO: remove this call (and this method) once the padatious
+        # pipeline plugin consumes ``ovos.intent.register.template``
+        # (INTENT-4 §6) directly instead of the legacy
+        # ``padatious:register_intent`` topic.
+        """
+        self.bus.emit(msg.forward("padatious:register_intent",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': intent_name,
+                                   'lang': lang,
+                                   'blacklisted_words': blacklisted_words}))
+
+    # ------------------------------------------------------------------
+    #  padatious bus protocol
+    # ------------------------------------------------------------------
 
     def register_padatious_intent(self, intent_name: str, filename: str,
                                   lang: str,
@@ -182,8 +299,8 @@ class _PadatiousMixin:
         if not exists(filename):
             raise FileNotFoundError(f'Unable to find "{filename}"')
         samples = read_resource_file(Path(filename))
-        self.register_template(intent_name, samples, lang, string_blacklist,
-                               file_name=filename)
+        self._iface.register_template(intent_name, samples, lang, string_blacklist,
+                                      file_name=filename)
 
     def register_padatious_entity(self, entity_name: str, filename: str,
                                   lang: str):
@@ -194,17 +311,21 @@ class _PadatiousMixin:
         if not exists(filename):
             raise FileNotFoundError('Unable to find "{}"'.format(filename))
         samples = read_resource_file(Path(filename))
-        self.register_entity(entity_name, samples, lang,
-                             file_name=filename)
+        self._iface.register_entity(entity_name, samples, lang,
+                                    file_name=filename)
 
 
-class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
-    """OVOS-INTENT-4 producer — spec registration topics (INTENT-4 §§5-8).
+class IntentServiceInterface:
+    """OVOS-INTENT-4 / OVOS-CONTEXT-1 producer — spec registration and
+    session intent-context topics (INTENT-4 §§5-8, CONTEXT-1 §5.3).
 
-    Skills interact with the intent service through this class.  Adapt and
-    Padatious engine protocols live in the ``_AdaptMixin`` and
-    ``_PadatiousMixin`` parent classes; remove those parents from the MRO
-    when the corresponding engine support is dropped.
+    Skills interact with the intent service through this class, which
+    exclusively implements the official spec surface. Adapt and Padatious
+    engine protocols (and every other deprecated/backwards-compatibility
+    method) live on the composed ``self._adapt`` / ``self._padatious``
+    objects (``_AdaptIntentApi`` / ``_PadatiousIntentApi``) — delete those
+    attributes and the classes backing them when the corresponding engine
+    support is dropped.
     """
 
     def __init__(self, bus=None):
@@ -214,6 +335,8 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
         self.detached_intents: List[tuple] = []
         self._iterator_lock = RLock()
         self._adapt_keyword_samples: dict = {}
+        self._adapt = _AdaptIntentApi(self)
+        self._padatious = _PadatiousIntentApi(self)
 
     # -- bus plumbing ---------------------------------------------------
 
@@ -253,24 +376,12 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
             if value and value not in samples:
                 samples.append(value)
 
-        entity_data = {'entity_value': entity,
-                       'entity_type': vocab_type,
-                       'lang': lang}
-        compatibility_data = {'start': entity, 'end': vocab_type}
-        self.bus.emit(msg.forward("register_vocab",
-                                  {**entity_data, **compatibility_data}))
-        for alias in aliases:
-            alias_data = {
-                'entity_value': alias,
-                'entity_type': vocab_type,
-                'alias_of': entity,
-                'lang': lang}
-            compatibility_data = {'start': alias, 'end': vocab_type}
-            self.bus.emit(msg.forward("register_vocab",
-                                      {**alias_data, **compatibility_data}))
+        # TODO: remove this call — legacy adapt dual-emit, see
+        # _AdaptIntentApi.emit_legacy_register_vocab
+        self._adapt.emit_legacy_register_vocab(vocab_type, entity, aliases, lang)
 
     def _unmunge_vocab_name(self, vocab_type: str) -> str:
-        prefix = _AdaptMixin.to_alnum(self.skill_id)
+        prefix = _AdaptIntentApi.to_alnum(self.skill_id)
         if prefix and vocab_type.startswith(prefix):
             return vocab_type[len(prefix):]
         return vocab_type
@@ -341,7 +452,9 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
+        # TODO: remove this call — legacy adapt dual-emit, see
+        # _AdaptIntentApi.emit_legacy_register_intent
+        self._adapt.emit_legacy_register_intent(msg, intent_parser)
         self._emit_spec_keyword_intent(msg, name, intent_parser)
         self.registered_intents.append((name, intent_parser))
         self.detached_intents = [detached for detached in self.detached_intents
@@ -365,11 +478,10 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("padatious:register_entity",
-                                  {'file_name': file_name,
-                                   "samples": samples,
-                                   'name': entity_name,
-                                   'lang': lang}))
+        # TODO: remove this call — legacy padatious dual-emit, see
+        # _PadatiousIntentApi.emit_legacy_register_entity
+        self._padatious.emit_legacy_register_entity(msg, entity_name, samples,
+                                                     lang, file_name)
         self.bus.emit(msg.forward(SpecMessage.ENTITY_REGISTER,
                                   {"skill_id": self.skill_id,
                                    "entity_name": self._clean_padatious_name(entity_name),
@@ -383,12 +495,11 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("padatious:register_intent",
-                                  {'file_name': file_name,
-                                   "samples": samples,
-                                   'name': intent_name,
-                                   'lang': lang,
-                                   'blacklisted_words': blacklisted_words}))
+        # TODO: remove this call — legacy padatious dual-emit, see
+        # _PadatiousIntentApi.emit_legacy_register_template
+        self._padatious.emit_legacy_register_template(msg, intent_name, samples,
+                                                       lang, blacklisted_words,
+                                                       file_name)
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
                                    "intent_name": self._clean_padatious_name(intent_name),
@@ -531,10 +642,58 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
     def __contains__(self, val):
         return val in [i[0] for i in self.registered_intents]
 
+    # -- backward-compat facade ------------------------------------------
+    # Composition (self._adapt / self._padatious), not inheritance, means
+    # these do not resolve automatically via MRO. External callers
+    # (OVOSSkill, existing tests) call them directly on IntentServiceInterface,
+    # so keep them as thin delegates rather than breaking that surface.
+
+    def register_adapt_keyword(self, vocab_type: str, entity: str,
+                               aliases: Optional[List[str]] = None,
+                               lang: str = None):
+        return self._adapt.register_adapt_keyword(vocab_type, entity, aliases, lang)
+
+    def register_adapt_regex(self, regex: str, lang: str = None):
+        return self._adapt.register_adapt_regex(regex, lang)
+
+    def register_regex(self, regex: str, lang: str = None):
+        return self._adapt.register_regex(regex, lang)
+
+    def register_adapt_intent(self, name: str, intent_parser: object):
+        return self._adapt.register_adapt_intent(name, intent_parser)
+
+    def set_context(self, context: str, word: str, origin: str):
+        return self._adapt.set_context(context, word, origin)
+
+    def remove_context(self, context: str):
+        return self._adapt.remove_context(context)
+
+    def set_adapt_context(self, context: str, word: str, origin: str):
+        return self._adapt.set_adapt_context(context, word, origin)
+
+    def remove_adapt_context(self, context: str):
+        return self._adapt.remove_adapt_context(context)
+
+    def detach_intent(self, intent_name: str):
+        return self._adapt.detach_intent(intent_name)
+
+    def get_intent_names(self):
+        return self._adapt.get_intent_names()
+
+    def register_padatious_intent(self, intent_name: str, filename: str,
+                                  lang: str,
+                                  string_blacklist: Optional[List[str]] = None):
+        return self._padatious.register_padatious_intent(
+            intent_name, filename, lang, string_blacklist)
+
+    def register_padatious_entity(self, entity_name: str, filename: str,
+                                  lang: str):
+        return self._padatious.register_padatious_entity(entity_name, filename, lang)
+
 
 # ── backward-compat module-level aliases ──────────────────────────────
 # External code that does ``from ovos_workshop.intents import munge_regex``
-# still works; the real implementations are on _AdaptMixin.
-to_alnum = _AdaptMixin.to_alnum
-munge_regex = _AdaptMixin.munge_regex
-munge_intent_parser = _AdaptMixin.munge_intent_parser
+# still works; the real implementations are on _AdaptIntentApi.
+to_alnum = _AdaptIntentApi.to_alnum
+munge_regex = _AdaptIntentApi.munge_regex
+munge_intent_parser = _AdaptIntentApi.munge_intent_parser
