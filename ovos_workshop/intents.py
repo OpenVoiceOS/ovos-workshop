@@ -78,61 +78,25 @@ class _AdaptMixin:
                                lang: str = None):
         _legacy_warn("register_adapt_keyword is deprecated, "
                      "migrate to spec-compliant keyword registration")
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        aliases = aliases or []
-        entity_data = {'entity_value': entity,
-                       'entity_type': vocab_type,
-                       'lang': lang}
-        compatibility_data = {'start': entity, 'end': vocab_type}
-        self.bus.emit(msg.forward("register_vocab",
-                                  {**entity_data, **compatibility_data}))
-        for alias in aliases:
-            alias_data = {
-                'entity_value': alias,
-                'entity_type': vocab_type,
-                'alias_of': entity,
-                'lang': lang}
-            compatibility_data = {'start': alias, 'end': vocab_type}
-            self.bus.emit(msg.forward("register_vocab",
-                                      {**alias_data, **compatibility_data}))
+        self.register_keyword(vocab_type, entity, aliases, lang)
 
     def register_adapt_regex(self, regex: str, lang: str = None):
         _legacy_warn("register_adapt_regex is deprecated, "
                      "migrate to spec-compliant regex registration")
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_vocab",
-                                  {'regex': regex, 'lang': lang}))
+        self.register_regex(regex, lang)
 
     def register_adapt_intent(self, name: str, intent_parser: object):
         _legacy_warn("register_adapt_intent is deprecated, "
                      "migrate to spec-compliant intent registration")
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
-        self.registered_intents.append((name, intent_parser))
-        self.detached_intents = [detached for detached in self.detached_intents
-                                 if detached[0] != name]
+        self.register_intent(name, intent_parser)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
         _legacy_warn("set_adapt_context is deprecated")
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('add_context',
-                                  {'context': context, 'word': word,
-                                   'origin': origin}))
+        self.set_context(context, word, origin)
 
     def remove_adapt_context(self, context: str):
         _legacy_warn("remove_adapt_context is deprecated")
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('remove_context', {'context': context}))
+        self.remove_context(context)
 
     # ------------------------------------------------------------------
     #  deprecated lifecycle helpers
@@ -163,16 +127,8 @@ class _PadatiousMixin:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
-        data = {'file_name': filename,
-                "samples": samples,
-                'name': intent_name,
-                'lang': lang,
-                'blacklisted_words': string_blacklist}
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("padatious:register_intent", data))
-        self.registered_intents.append((intent_name.split(':')[-1], data))
+        self.register_template(intent_name, samples, lang, string_blacklist,
+                               file_name=filename)
 
     def register_padatious_entity(self, entity_name: str, filename: str,
                                   lang: str):
@@ -185,14 +141,8 @@ class _PadatiousMixin:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('padatious:register_entity',
-                                  {'file_name': filename,
-                                   "samples": samples,
-                                   'name': entity_name,
-                                   'lang': lang}))
+        self.register_entity(entity_name, samples, lang,
+                             file_name=filename)
 
 
 class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
@@ -233,6 +183,94 @@ class IntentServiceInterface(_AdaptMixin, _PadatiousMixin):
 
     def set_id(self, skill_id: str):
         self.skill_id = skill_id
+
+    # -- spec-compliant registration -----------------------------------
+
+    def register_keyword(self, vocab_type: str, entity: str,
+                         aliases: Optional[List[str]] = None,
+                         lang: str = None):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        aliases = aliases or []
+        entity_data = {'entity_value': entity,
+                       'entity_type': vocab_type,
+                       'lang': lang}
+        compatibility_data = {'start': entity, 'end': vocab_type}
+        self.bus.emit(msg.forward("register_vocab",
+                                  {**entity_data, **compatibility_data}))
+        for alias in aliases:
+            alias_data = {
+                'entity_value': alias,
+                'entity_type': vocab_type,
+                'alias_of': entity,
+                'lang': lang}
+            compatibility_data = {'start': alias, 'end': vocab_type}
+            self.bus.emit(msg.forward("register_vocab",
+                                      {**alias_data, **compatibility_data}))
+
+    def register_regex(self, regex: str, lang: str = None):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward("register_vocab",
+                                  {'regex': regex, 'lang': lang}))
+
+    def register_intent(self, name: str, intent_parser: object):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
+        self.registered_intents.append((name, intent_parser))
+        self.detached_intents = [detached for detached in self.detached_intents
+                                 if detached[0] != name]
+
+    def register_entity(self, entity_name: str, samples: List[str],
+                        lang: str,
+                        blacklisted_words: Optional[List[str]] = None,
+                        file_name: str = ''):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward("padatious:register_entity",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': entity_name,
+                                   'lang': lang}))
+
+    def register_template(self, intent_name: str, samples: List[str],
+                          lang: str,
+                          blacklisted_words: Optional[List[str]] = None,
+                          file_name: str = ''):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward("padatious:register_intent",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': intent_name,
+                                   'lang': lang,
+                                   'blacklisted_words': blacklisted_words}))
+        self.registered_intents.append((intent_name.split(':')[-1],
+                                        {'file_name': file_name,
+                                         "samples": samples,
+                                         'name': intent_name,
+                                         'lang': lang,
+                                         'blacklisted_words': blacklisted_words}))
+
+    def set_context(self, context: str, word: str, origin: str):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward('add_context',
+                                  {'context': context, 'word': word,
+                                   'origin': origin}))
+
+    def remove_context(self, context: str):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward('remove_context', {'context': context}))
 
     # -- lifecycle ------------------------------------------------------
 

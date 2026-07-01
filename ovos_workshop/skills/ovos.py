@@ -594,7 +594,7 @@ class OVOSSkill:
                     for line in skill_vocabulary[vocab_type]:
                         entity = line[0]
                         aliases = line[1:]
-                        self.intent_service.register_adapt_keyword(
+                        self.intent_service.register_keyword(
                             vocab_type, entity, aliases, lang)
 
     def load_regex_files(self, root_directory: Optional[str] = None) -> None:
@@ -605,7 +605,7 @@ class OVOSSkill:
             if resources.types.regex.base_directory is not None:
                 regexes = resources.load_skill_regex(self.alphanumeric_skill_id)
                 for regex in regexes:
-                    self.intent_service.register_adapt_regex(regex, lang)
+                    self.intent_service.register_regex(regex, lang)
 
     def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
                       lang: Optional[str] = None) -> Optional[str]:
@@ -1240,7 +1240,7 @@ class OVOSSkill:
         """
         for (name, _) in self.intent_service:
             name = f'{self.skill_id}:{name}'
-            self.intent_service.detach_intent(name)
+            self.intent_service.remove_intent(name)
 
     # intents / resource files management
     def register_intent_layer(self, layer_name: str,
@@ -1317,11 +1317,16 @@ class OVOSSkill:
                 continue
             filename = str(resource_file.file_path)
 
+            with open(filename) as f:
+                samples = [_ for _ in f.read().split("\n") if _
+                           and not _.startswith("#")]
+
             disallowed_strings = []
             for enty in voc_blacklist or []:
                 disallowed_strings += self.voc_list(enty, lang=lang)
 
-            self.intent_service.register_padatious_intent(name, filename, lang, string_blacklist=disallowed_strings)
+            self.intent_service.register_template(name, samples, lang,
+                                                   blacklisted_words=disallowed_strings)
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
@@ -1353,7 +1358,10 @@ class OVOSSkill:
             filename = str(entity.file_path)
             name = f"{self.skill_id}:{basename(entity_file)}_" \
                    f"{md5(entity_file.encode('utf-8')).hexdigest()}"
-            self.intent_service.register_padatious_entity(name, filename, lang)
+            with open(filename) as f:
+                samples = [_ for _ in f.read().split("\n") if _
+                           and not _.startswith("#")]
+            self.intent_service.register_entity(name, samples, lang)
 
     def register_vocabulary(self, entity: str, entity_type: str,
                             lang: Optional[str] = None):
@@ -1365,8 +1373,8 @@ class OVOSSkill:
         """
         keyword_type = self.alphanumeric_skill_id + entity_type
         lang = standardize_lang_tag(lang or self.lang)
-        self.intent_service.register_adapt_keyword(keyword_type, entity,
-                                                   lang=lang)
+        self.intent_service.register_keyword(keyword_type, entity,
+                                                    lang=lang)
 
     def register_regex(self, regex_str: str, lang: Optional[str] = None):
         """
@@ -1377,7 +1385,7 @@ class OVOSSkill:
         self.log.debug('registering regex string: ' + regex_str)
         regex = self.intent_service.munge_regex(regex_str, self.skill_id)
         re.compile(regex)  # validate regex
-        self.intent_service.register_adapt_regex(regex, lang=standardize_lang_tag(lang or self.lang))
+        self.intent_service.register_regex(regex, lang=standardize_lang_tag(lang or self.lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -1533,7 +1541,7 @@ class OVOSSkill:
             raise ValueError(f'The intent name {name} is already taken')
 
         self.intent_service.munge_intent_parser(intent_parser, name, self.skill_id)
-        self.intent_service.register_adapt_intent(name, intent_parser)
+        self.intent_service.register_intent(name, intent_parser)
         if handler:
             self.add_event(intent_parser.name, handler,
                            'mycroft.skill.handler',
@@ -2315,12 +2323,12 @@ class OVOSSkill:
         if intent_name in self.intent_service:
             self.log.info('Disabling intent ' + intent_name)
             name = f'{self.skill_id}:{intent_name}'
-            self.intent_service.detach_intent(name)
+            self.intent_service.remove_intent(name)
 
             langs = [self.core_lang] + self.secondary_langs
             for lang in langs:
                 lang_intent_name = f'{name}_{lang}'
-                self.intent_service.detach_intent(lang_intent_name)
+                self.intent_service.remove_intent(lang_intent_name)
             return True
         else:
             self.log.error(f'Could not disable {intent_name}, it hasn\'t been registered.')
@@ -2403,7 +2411,7 @@ class OVOSSkill:
             raise ValueError('Word should be a string')
 
         context = self.alphanumeric_skill_id + context
-        self.intent_service.set_adapt_context(context, word, origin)
+        self.intent_service.set_context(context, word, origin)
 
     def remove_context(self, context: str):
         """
@@ -2412,7 +2420,7 @@ class OVOSSkill:
         if not isinstance(context, str):
             raise ValueError('context should be a string')
         context = self.alphanumeric_skill_id + context
-        self.intent_service.remove_adapt_context(context)
+        self.intent_service.remove_context(context)
 
     def set_cross_skill_context(self, context: str, word: str = ''):
         """
