@@ -41,6 +41,7 @@ SkillResourceTypes = namedtuple(
         "template",
         "vocabulary",
         "word",
+        "blacklist",
         "qml",
         "json"
     ]
@@ -258,6 +259,7 @@ class ResourceType:
             template="dialog",
             vocab="vocab",
             word="dialog",
+            blacklist="vocab",
             qml="gui"
         )
 
@@ -549,6 +551,23 @@ class WordFile(ResourceFile):
         return word
 
 
+class BlacklistFile(ResourceFile):
+    """Defines a blacklist file, a slot-free list of phrases that should
+    prevent the sibling intent (same base name) from matching."""
+
+    def load(self) -> List[str]:
+        """Load the phrases contained in a blacklist file.
+
+        Returns:
+            A list of phrases, one per line.
+        """
+        phrases = []
+        if self.file_path is not None:
+            for line in self._read():
+                phrases.append(line.lower())
+        return phrases
+
+
 class SkillResources:
     def __init__(self, skill_directory: str,
                  language: str,
@@ -609,6 +628,7 @@ class SkillResources:
             template=ResourceType("template", ".template", self.language),
             vocabulary=ResourceType("vocab", ".voc", self.language),
             word=ResourceType("word", ".word", self.language),
+            blacklist=ResourceType("blacklist", ".blacklist", self.language),
             qml=ResourceType("qml", ".qml"),
             json=ResourceType("json", ".json", self.language)
         )
@@ -662,6 +682,21 @@ class SkillResources:
         intent_file = IntentFile(self.types.intent, name)
         intent_file.data = data
         return intent_file.load(entities)
+
+    def load_blacklist_file(self, name: str) -> List[str]:
+        """
+        Loads the phrases contained in a blacklist file.
+
+        A blacklist file is a slot-free list of phrases that suppress the
+        sibling intent (the ``.intent`` sharing its base name) from matching.
+
+        Args:
+            name: name of the blacklist file (no extension needed)
+        Returns:
+            A list of blacklisted phrases
+        """
+        blacklist_file = BlacklistFile(self.types.blacklist, name)
+        return blacklist_file.load()
 
     def locate_qml_file(self, name: str) -> str:
         qml_file = QmlFile(self.types.qml, name)
