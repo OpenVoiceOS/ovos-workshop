@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.3a1) (2026-07-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.2a1...9.0.3a1)
+
+**Merged pull requests:**
+
+- fix: intent-layers e2e + utterance.handled test, bump pins [\#446](https://github.com/OpenVoiceOS/ovos-workshop/pull/446) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.2a1) (2026-06-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a5...9.0.2a1)
