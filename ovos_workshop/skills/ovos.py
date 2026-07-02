@@ -1369,10 +1369,14 @@ class OVOSSkill:
             for enty in voc_blacklist or []:
                 disallowed_strings += self.voc_list(enty, lang=lang)
 
+            ctx_kwargs = {}
+            if requires_context is not None:
+                ctx_kwargs["requires_context"] = requires_context
+            if excludes_context is not None:
+                ctx_kwargs["excludes_context"] = excludes_context
             self.intent_service.register_template(name, samples, lang,
                                                    blacklisted_words=disallowed_strings,
-                                                   requires_context=requires_context,
-                                                   excludes_context=excludes_context)
+                                                   **ctx_kwargs)
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
