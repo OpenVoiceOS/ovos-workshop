@@ -1346,6 +1346,11 @@ class OVOSSkill:
             for enty in voc_blacklist or []:
                 disallowed_strings += self.voc_list(enty, lang=lang)
 
+            # OVOS-INTENT-2: a sibling "<intent>.blacklist" locale file lists
+            # slot-free phrases that should suppress this intent from matching
+            blacklist_name = intent_file.rsplit(".", 1)[0]
+            disallowed_strings += resources.load_blacklist_file(blacklist_name)
+
             self.intent_service.register_padatious_intent(name, filename, lang, string_blacklist=disallowed_strings)
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',

@@ -143,3 +143,51 @@ class TestSkillNew(unittest.TestCase):
         self.assertEqual(args.skill_id, "args")
         self.assertEqual(args.bus, bus)
         self.assertEqual(args.gui, gui)
+
+
+class TestIntentBlacklistFile(unittest.TestCase):
+    """OVOS-INTENT-2: a sibling '<intent>.blacklist' locale file feeds the
+    intent registration blacklist alongside the 'voc_blacklist' param."""
+
+    def setUp(self):
+        self.bus = FakeBus()
+        self.bus.emitted_msgs = []
+
+        def get_msg(msg):
+            self.bus.emitted_msgs.append(json.loads(msg))
+
+        self.bus.on("message", get_msg)
+
+        res_dir = f"{dirname(__file__)}/ovos_tskill_blacklist"
+        self.skill = OVOSSkill(skill_id="blacklist.test", bus=self.bus,
+                               resources_dir=res_dir)
+
+    def _register_payload(self, intent_name):
+        for msg in self.bus.emitted_msgs:
+            if msg["type"] == "padatious:register_intent" and \
+                    msg["data"]["name"].endswith(intent_name):
+                return msg["data"]
+        return None
+
+    def test_intent_with_blacklist_file(self):
+        self.bus.emitted_msgs = []
+        self.skill.register_intent_file("foo.intent", None)
+        data = self._register_payload("foo.intent")
+        self.assertIsNotNone(data)
+        self.assertIn("turn on the news", data["blacklisted_words"])
+        self.assertIn("activate the alarm", data["blacklisted_words"])
+
+    def test_intent_without_blacklist_file(self):
+        self.bus.emitted_msgs = []
+        self.skill.register_intent_file("bar.intent", None)
+        data = self._register_payload("bar.intent")
+        self.assertIsNotNone(data)
+        self.assertEqual(data["blacklisted_words"], [])
+
+    def test_voc_blacklist_param_still_merges(self):
+        self.bus.emitted_msgs = []
+        # even without any matching voc, the .blacklist phrases must be present
+        self.skill.register_intent_file("foo.intent", None, voc_blacklist=[])
+        data = self._register_payload("foo.intent")
+        self.assertIsNotNone(data)
+        self.assertIn("turn on the news", data["blacklisted_words"])
