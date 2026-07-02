@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.0a1) (2026-07-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.4a1...9.1.0a1)
+
+**Merged pull requests:**
+
+- feat: support .blacklist locale resource for intents \(OVOS-INTENT-2\) [\#450](https://github.com/OpenVoiceOS/ovos-workshop/pull/450) ([JarbasAl](https://github.com/JarbasAl))
+
+## [9.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.4a1) (2026-07-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.3a1...9.0.4a1)
+
 ## [9.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.3a1) (2026-07-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.2a1...9.0.3a1)
