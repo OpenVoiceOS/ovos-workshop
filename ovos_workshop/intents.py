@@ -158,11 +158,6 @@ class _AdaptIntentApi:
         self._iface.register_keyword(vocab_type, entity, aliases, lang)
 
     def register_adapt_regex(self, regex: str, lang: str = None):
-        _legacy_warn("register_adapt_regex is deprecated, "
-                     "use register_regex")
-        self.register_regex(regex, lang)
-
-    def register_regex(self, regex: str, lang: str = None):
         """Register a regex intent (adapt-engine only).
 
         Regex intents are an adapt-era concept with no spec equivalent; this
@@ -170,7 +165,7 @@ class _AdaptIntentApi:
         named-group prefixes (the adapt flat-namespace workaround) is done
         here so callers never touch ``munge_regex`` directly.
         """
-        _legacy_warn("register_regex is deprecated; regex intents are "
+        _legacy_warn("register_adapt_regex is deprecated; regex intents are "
                      "adapt-engine only and will be removed with the adapt "
                      f"engine in {_DEPRECATION_VERSION}")
         regex = self.munge_regex(regex, self.skill_id)
@@ -651,43 +646,65 @@ class IntentServiceInterface:
     def register_adapt_keyword(self, vocab_type: str, entity: str,
                                aliases: Optional[List[str]] = None,
                                lang: str = None):
+        _legacy_warn("IntentServiceInterface.register_adapt_keyword is "
+                     "deprecated; migrate to spec-compliant keyword "
+                     "registration (register_keyword)")
         return self._adapt.register_adapt_keyword(vocab_type, entity, aliases, lang)
 
     def register_adapt_regex(self, regex: str, lang: str = None):
+        _legacy_warn("IntentServiceInterface.register_adapt_regex is "
+                     "deprecated; regex intents are adapt-engine only and "
+                     f"will be removed with the adapt engine in {_DEPRECATION_VERSION}")
         return self._adapt.register_adapt_regex(regex, lang)
 
-    def register_regex(self, regex: str, lang: str = None):
-        return self._adapt.register_regex(regex, lang)
-
     def register_adapt_intent(self, name: str, intent_parser: object):
+        _legacy_warn("IntentServiceInterface.register_adapt_intent is "
+                     "deprecated; migrate to spec-compliant intent "
+                     "registration (register_intent)")
         return self._adapt.register_adapt_intent(name, intent_parser)
 
     def set_context(self, context: str, word: str, origin: str):
+        _legacy_warn("IntentServiceInterface.set_context is deprecated; use "
+                     "set_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.set_context(context, word, origin)
 
     def remove_context(self, context: str):
+        _legacy_warn("IntentServiceInterface.remove_context is deprecated; use "
+                     "remove_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.remove_context(context)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
+        _legacy_warn("IntentServiceInterface.set_adapt_context is deprecated; "
+                     "use set_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.set_adapt_context(context, word, origin)
 
     def remove_adapt_context(self, context: str):
+        _legacy_warn("IntentServiceInterface.remove_adapt_context is "
+                     "deprecated; use remove_intent_context (OVOS-CONTEXT-1)")
         return self._adapt.remove_adapt_context(context)
 
     def detach_intent(self, intent_name: str):
+        _legacy_warn("IntentServiceInterface.detach_intent is deprecated; "
+                     "migrate to spec-compliant deregistration")
         return self._adapt.detach_intent(intent_name)
 
     def get_intent_names(self):
+        _legacy_warn("IntentServiceInterface.get_intent_names is deprecated")
         return self._adapt.get_intent_names()
 
     def register_padatious_intent(self, intent_name: str, filename: str,
                                   lang: str,
                                   string_blacklist: Optional[List[str]] = None):
+        _legacy_warn("IntentServiceInterface.register_padatious_intent is "
+                     "deprecated; migrate to spec-compliant template "
+                     "registration (register_template)")
         return self._padatious.register_padatious_intent(
             intent_name, filename, lang, string_blacklist)
 
     def register_padatious_entity(self, entity_name: str, filename: str,
                                   lang: str):
+        _legacy_warn("IntentServiceInterface.register_padatious_entity is "
+                     "deprecated; migrate to spec-compliant entity registration")
         return self._padatious.register_padatious_entity(entity_name, filename, lang)
 
 
