@@ -632,7 +632,7 @@ class OVOSSkill:
             if resources.types.regex.base_directory is not None:
                 regexes = resources.load_skill_regex(self.alphanumeric_skill_id)
                 for regex in regexes:
-                    self.intent_service.register_regex(regex, lang)
+                    self.intent_service.register_adapt_regex(regex, lang)
 
     def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
                       lang: Optional[str] = None) -> Optional[str]:
@@ -1408,7 +1408,7 @@ class OVOSSkill:
         self.log.debug('registering regex string: ' + regex_str)
         re.compile(regex_str)  # validate regex on the raw string (munging only
                                # prefixes named groups, so validity is preserved)
-        self.intent_service.register_regex(
+        self.intent_service.register_adapt_regex(
             regex_str, lang=standardize_lang_tag(lang or self.lang))
 
     # event/intent registering internal handlers
