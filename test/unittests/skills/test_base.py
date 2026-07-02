@@ -355,16 +355,41 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertEqual(context["skill_id"], self.skill_id)
         self.assertEqual(context["session"]["session_id"], "sess1")
 
-    def test_on_event_end_is_intent_still_emits_utterance_handled(self):
-        # the ovos.utterance.handled emission must be PRESERVED alongside the
-        # delegated .complete done-signal when is_intent=True
+    def test_on_event_end_intent_defers_utterance_handled_to_core(self):
+        # PIPELINE-1 §9.5: with a modern ovos-core (>=2.3.0a1) the orchestrator
+        # owns the universal `ovos.utterance.handled` end-marker on every
+        # terminal path — the matched path included. Workshop must NOT also
+        # emit it (consumers would see the marker twice); only the delegated
+        # `mycroft.skill.handler.complete` done-signal is emitted here.
+        from unittest.mock import patch
         from ovos_bus_client.message import Message
         from ovos_spec_tools import SpecMessage
         msg = Message("trigger", {}, {})
         skill_data = {"name": "TestSkill.handle_test"}
-        captured = self._capture(OVOSSkill._on_event_end, msg,
-                                 "mycroft.skill.handler", dict(skill_data),
-                                 True)
+        with patch("ovos_workshop.skills.ovos._core_owns_utterance_handled",
+                   return_value=True):
+            captured = self._capture(OVOSSkill._on_event_end, msg,
+                                      "mycroft.skill.handler",
+                                      dict(skill_data), True)
+        types = [c[0] for c in captured]
+        self.assertIn("mycroft.skill.handler.complete", types)
+        self.assertNotIn(SpecMessage.UTTERANCE_HANDLED.value, types)
+
+    def test_on_event_end_intent_emits_utterance_handled_legacy(self):
+        # Migration-window back-compat: with an absent/old ovos-core that does
+        # not yet emit `ovos.utterance.handled` on the matched path, workshop
+        # must still emit it alongside the delegated `.complete` done-signal so
+        # spec consumers always observe exactly one end-marker.
+        from unittest.mock import patch
+        from ovos_bus_client.message import Message
+        from ovos_spec_tools import SpecMessage
+        msg = Message("trigger", {}, {})
+        skill_data = {"name": "TestSkill.handle_test"}
+        with patch("ovos_workshop.skills.ovos._core_owns_utterance_handled",
+                   return_value=False):
+            captured = self._capture(OVOSSkill._on_event_end, msg,
+                                      "mycroft.skill.handler",
+                                      dict(skill_data), True)
         types = [c[0] for c in captured]
         self.assertIn("mycroft.skill.handler.complete", types)
         self.assertIn(SpecMessage.UTTERANCE_HANDLED.value, types)
