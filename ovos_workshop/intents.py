@@ -175,13 +175,16 @@ class _AdaptIntentApi:
         self.bus.emit(msg.forward("register_vocab",
                                   {'regex': regex, 'lang': lang}))
 
-    def register_adapt_intent(self, name: str, intent_parser: object):
+    def register_adapt_intent(self, name: str, intent_parser: object,
+                              requires_context: Optional[List] = None,
+                              excludes_context: Optional[List] = None):
         _legacy_warn("register_adapt_intent is deprecated, "
                      "use register_intent")
         # munging is an adapt-era namespace hack; it must stay inside the
         # adapt API so the spec-compliant register_intent never touches it.
         self.munge_intent_parser(intent_parser, name, self.skill_id)
-        self._iface.register_intent(name, intent_parser)
+        self._iface.register_intent(name, intent_parser,
+                                    requires_context, excludes_context)
 
     def set_context(self, context: str, word: str, origin: str):
         """Add adapt-engine context (adapt-only; no OVOS-CONTEXT-1 spec
@@ -409,7 +412,9 @@ class IntentServiceInterface:
         return descriptors
 
     def _emit_spec_keyword_intent(self, msg: Message, name: str,
-                                  intent_parser: object):
+                                  intent_parser: object,
+                                  requires_context: Optional[List] = None,
+                                  excludes_context: Optional[List] = None):
         required_names = [r[0] for r in getattr(intent_parser, "requires", [])]
         optional_names = [o[0] for o in getattr(intent_parser, "optional", [])]
         one_of_groups = [list(g) for g in getattr(intent_parser, "at_least_one", [])]
@@ -438,19 +443,26 @@ class IntentServiceInterface:
                 "one_of": [self._spec_keyword_descriptors(group, lang)
                            for group in one_of_groups],
                 "excluded": self._spec_keyword_descriptors(excluded_names, lang),
+                # OVOS-CONTEXT-1 §6/§6.1 — optional gating declarations, each a
+                # list of bare-string keys or {"key", "scope"} mappings
+                "requires_context": list(requires_context or []),
+                "excludes_context": list(excludes_context or []),
             }
             payload["one_of"] = [g for g in payload["one_of"] if g]
             self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_KEYWORD,
                                       payload))
 
-    def register_intent(self, name: str, intent_parser: object):
+    def register_intent(self, name: str, intent_parser: object,
+                        requires_context: Optional[List] = None,
+                        excludes_context: Optional[List] = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
         # TODO: remove this call — legacy adapt dual-emit, see
         # _AdaptIntentApi.emit_legacy_register_intent
         self._adapt.emit_legacy_register_intent(msg, intent_parser)
-        self._emit_spec_keyword_intent(msg, name, intent_parser)
+        self._emit_spec_keyword_intent(msg, name, intent_parser,
+                                       requires_context, excludes_context)
         self.registered_intents.append((name, intent_parser))
         self.detached_intents = [detached for detached in self.detached_intents
                                  if detached[0] != name]
@@ -486,7 +498,9 @@ class IntentServiceInterface:
     def register_template(self, intent_name: str, samples: List[str],
                           lang: str,
                           blacklisted_words: Optional[List[str]] = None,
-                          file_name: str = ''):
+                          file_name: str = '',
+                          requires_context: Optional[List] = None,
+                          excludes_context: Optional[List] = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
@@ -500,7 +514,10 @@ class IntentServiceInterface:
                                    "intent_name": self._clean_padatious_name(intent_name),
                                    "lang": lang,
                                    "samples": samples,
-                                   "blacklist": blacklisted_words or []}))
+                                   "blacklist": blacklisted_words or [],
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating declarations
+                                   "requires_context": list(requires_context or []),
+                                   "excludes_context": list(excludes_context or [])}))
         self.registered_intents.append((intent_name.split(':')[-1],
                                         {'file_name': file_name,
                                          "samples": samples,
@@ -657,11 +674,15 @@ class IntentServiceInterface:
                      f"will be removed with the adapt engine in {_DEPRECATION_VERSION}")
         return self._adapt.register_adapt_regex(regex, lang)
 
-    def register_adapt_intent(self, name: str, intent_parser: object):
+    def register_adapt_intent(self, name: str, intent_parser: object,
+                              requires_context: Optional[List] = None,
+                              excludes_context: Optional[List] = None):
         _legacy_warn("IntentServiceInterface.register_adapt_intent is "
                      "deprecated; migrate to spec-compliant intent "
                      "registration (register_intent)")
-        return self._adapt.register_adapt_intent(name, intent_parser)
+        return self._adapt.register_adapt_intent(name, intent_parser,
+                                                 requires_context,
+                                                 excludes_context)
 
     def set_context(self, context: str, word: str, origin: str):
         _legacy_warn("IntentServiceInterface.set_context is deprecated; use "

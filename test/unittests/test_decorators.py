@@ -46,6 +46,29 @@ class TestDecorators(unittest.TestCase):
         self.assertEqual(test_handler.intents, ["test_intent", mock_intent])
         self.assertFalse(called)
 
+    def test_intent_handler_context_declarations(self):
+        from ovos_workshop.decorators import intent_handler
+
+        @intent_handler("test_intent",
+                        requires_context=["kitchen"],
+                        excludes_context=[{"key": "sleeping", "scope": "shared"}])
+        def test_handler():
+            pass
+
+        self.assertEqual(test_handler.requires_context, ["kitchen"])
+        self.assertEqual(test_handler.excludes_context,
+                         [{"key": "sleeping", "scope": "shared"}])
+
+    def test_intent_handler_context_defaults_empty(self):
+        from ovos_workshop.decorators import intent_handler
+
+        @intent_handler("test_intent")
+        def test_handler():
+            pass
+
+        self.assertEqual(test_handler.requires_context, [])
+        self.assertEqual(test_handler.excludes_context, [])
+
     def test_skill_api_method(self):
         from ovos_workshop.decorators import skill_api_method
         called = False
