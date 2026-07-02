@@ -540,6 +540,19 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
+    def test_targeted_stop_colon_topic(self):
+        # OVOS-STOP-1 §2: a skill answers a targeted stop dispatched on the
+        # reserved intent_name `stop` (`<skill_id>:stop`) exactly as it does the
+        # legacy `<skill_id>.stop` topic.
+        from ovos_bus_client.message import Message
+        responses = []
+        self.bus.on(f"{self.skill_id}.stop.response",
+                    lambda m: responses.append(m))
+        self.skill.stop = Mock(return_value=True)
+        self.bus.emit(Message(f"{self.skill_id}:stop", {}, {}))
+        self.skill.stop.assert_called_once()
+        self.assertTrue(responses, "no stop.response for the <skill_id>:stop dispatch")
+
     def test_stop(self):
         self.skill.stop()
 

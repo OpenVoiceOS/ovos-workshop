@@ -1098,6 +1098,9 @@ class OVOSSkill:
         """
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
+        # OVOS-STOP-1 §2: a targeted stop is dispatched on the reserved
+        # intent_name `stop`, i.e. the PIPELINE-1 `<skill_id>:stop` topic.
+        self.add_event(f"{self.skill_id}:stop", self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
