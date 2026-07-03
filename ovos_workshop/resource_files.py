@@ -26,6 +26,7 @@ from langcodes import tag_distance
 from ovos_config.locations import get_xdg_data_save_path
 from ovos_utils import flatten_list
 from ovos_utils.bracket_expansion import expand_template
+from ovos_spec_tools import inline_keywords
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
 from ovos_utils.log import LOG
 
@@ -442,6 +443,9 @@ class IntentFile(ResourceFile):
     def __init__(self, resource_type, resource_name):
         super().__init__(resource_type, resource_name)
         self.data = None
+        # {name: members} of the sibling .voc files, so an inline <name>
+        # reference (OVOS-INTENT-1 §3.7) resolves in place at load time.
+        self.vocabularies = None
 
     def load(self, entities: bool = True) -> List[str]:
         """Load file containing intents.
@@ -454,8 +458,12 @@ class IntentFile(ResourceFile):
         intents = []
         if self.file_path is not None:
             for line in self._read():
-                line = line.replace("{{", "{").replace("}}", "}")
-                intents.extend(flatten_list(expand_template(line.lower())))
+                line = line.replace("{{", "{").replace("}}", "}").lower()
+                if self.vocabularies and "<" in line:
+                    # OVOS-INTENT-1 §3.7: inline every <name> reference from the
+                    # sibling vocabulary as an (a|b|c) group before expanding.
+                    line = inline_keywords(line, self.vocabularies)
+                intents.extend(flatten_list(expand_template(line)))
             if not entities:
                 intents = [re.sub(r'{.*?}\s?', '', intent).strip() for intent in intents]
             elif self.data:
@@ -555,6 +563,12 @@ class BlacklistFile(ResourceFile):
     """Defines a blacklist file, a slot-free list of phrases that should
     prevent the sibling intent (same base name) from matching."""
 
+    def __init__(self, resource_type, resource_name):
+        super().__init__(resource_type, resource_name)
+        # {name: members} of the sibling .voc files, so an inline <name>
+        # reference (OVOS-INTENT-1 §3.7) resolves in place at load time.
+        self.vocabularies = None
+
     def load(self) -> List[str]:
         """Load the phrases contained in a blacklist file.
 
@@ -564,7 +578,14 @@ class BlacklistFile(ResourceFile):
         phrases = []
         if self.file_path is not None:
             for line in self._read():
-                phrases.append(line.lower())
+                line = line.lower()
+                if self.vocabularies and "<" in line:
+                    # OVOS-INTENT-1 §3.7: inline every <name> reference from the
+                    # sibling vocabulary and enumerate the resulting phrases.
+                    line = inline_keywords(line, self.vocabularies)
+                    phrases.extend(flatten_list(expand_template(line)))
+                else:
+                    phrases.append(line)
         return phrases
 
 
@@ -681,7 +702,40 @@ class SkillResources:
         """
         intent_file = IntentFile(self.types.intent, name)
         intent_file.data = data
+        intent_file.vocabularies = self._locale_vocabularies()
         return intent_file.load(entities)
+
+    def _locale_vocabularies(self) -> Dict[str, List[str]]:
+        """Build a ``{name: members}`` map from every ``.voc`` in this
+        language's locale tree.
+
+        Feeds the inline ``<name>`` resolution required by OVOS-INTENT-1 §3.7:
+        a reference in an ``.intent`` or ``.blacklist`` expands from the sibling
+        vocabulary of that name. User overrides take precedence over the skill's
+        own resources, which take precedence over workshop-shipped resources.
+        """
+        vocabularies: Dict[str, List[str]] = {}
+        vocab_type = self.types.vocabulary
+        for base in (vocab_type.user_directory,
+                     vocab_type.base_directory,
+                     vocab_type.workshop_directory):
+            if not base:
+                continue
+            for directory, _, files in walk(str(base)):
+                for file_name in files:
+                    if not file_name.endswith(".voc"):
+                        continue
+                    name = file_name[:-len(".voc")].lower()
+                    if name in vocabularies:
+                        continue
+                    members = []
+                    with open(Path(directory, file_name)) as voc_file:
+                        for line in (ln.strip() for ln in voc_file):
+                            if line and not line.startswith("#"):
+                                members.append(line.lower())
+                    if members:
+                        vocabularies[name] = members
+        return vocabularies
 
     def load_blacklist_file(self, name: str) -> List[str]:
         """
@@ -696,6 +750,7 @@ class SkillResources:
             A list of blacklisted phrases
         """
         blacklist_file = BlacklistFile(self.types.blacklist, name)
+        blacklist_file.vocabularies = self._locale_vocabularies()
         return blacklist_file.load()
 
     def locate_qml_file(self, name: str) -> str:
