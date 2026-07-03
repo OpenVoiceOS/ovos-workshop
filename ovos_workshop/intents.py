@@ -1,6 +1,6 @@
 from os.path import exists
 from threading import RLock
-from typing import List, Optional
+from typing import Dict, List, Optional
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.util import get_mycroft_bus
@@ -270,13 +270,19 @@ class IntentServiceInterface:
         self.bus.emit(msg.forward('remove_context', {'context': context}))
 
     def register_padatious_intent(self, intent_name: str, filename: str,
-                                  lang: str, string_blacklist: Optional[List[str]] = None):
+                                  lang: str, string_blacklist: Optional[List[str]] = None,
+                                  slot_blacklist: Optional[Dict[str, List[str]]] = None):
         """
         Register a Padatious intent file with the intent service.
         @param intent_name: Unique intent identifier
             (usually `skill_id`:`filename`)
         @param filename: Absolute file path to entity file
         @param lang: BCP-47 language code of registered intent
+        @param string_blacklist: OVOS-INTENT-2 §4.3 phrases that suppress this
+            intent from matching (the sibling `<intent>.blacklist`).
+        @param slot_blacklist: OVOS-INTENT-2 §4.3 slot-value exclusions keyed by
+            slot name, ``{slot: [excluded phrases]}`` — values that MUST NOT
+            fill the named ``{slot}`` (each slot's sibling `<slot>.blacklist`).
         """
         if not isinstance(filename, str):
             raise ValueError('Filename path must be a string')
@@ -289,7 +295,8 @@ class IntentServiceInterface:
                 "samples": samples,
                 'name': intent_name,
                 'lang': lang,
-                'blacklisted_words': string_blacklist}
+                'blacklisted_words': string_blacklist,
+                'slot_blacklist': slot_blacklist or {}}
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
@@ -297,13 +304,17 @@ class IntentServiceInterface:
         self.registered_intents.append((intent_name.split(':')[-1], data))
 
     def register_padatious_entity(self, entity_name: str, filename: str,
-                                  lang: str):
+                                  lang: str,
+                                  blacklist: Optional[List[str]] = None):
         """
         Register a Padatious entity file with the intent service.
         @param entity_name: Unique entity identifier
             (usually `skill_id`:`filename`)
         @param filename: Absolute file path to entity file
         @param lang: BCP-47 language code of registered intent
+        @param blacklist: OVOS-INTENT-2 §4.3 slot-value exclusions — phrases
+            that MUST NOT fill the ``{slot}`` this entity supplies (the sibling
+            `<entity>.blacklist`).
         """
         if not isinstance(filename, str):
             raise ValueError('Filename path must be a string')
@@ -319,7 +330,8 @@ class IntentServiceInterface:
                                   {'file_name': filename,
                                    "samples": samples,
                                    'name': entity_name,
-                                   'lang': lang}))
+                                   'lang': lang,
+                                   'blacklist': blacklist or []}))
 
     def get_intent_names(self):
         log_deprecation("Reference `intent_names` directly", "0.1.0")

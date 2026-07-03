@@ -1346,12 +1346,28 @@ class OVOSSkill:
             for enty in voc_blacklist or []:
                 disallowed_strings += self.voc_list(enty, lang=lang)
 
-            # OVOS-INTENT-2: a sibling "<intent>.blacklist" locale file lists
-            # slot-free phrases that should suppress this intent from matching
+            # OVOS-INTENT-2 §4.3: a sibling "<intent>.blacklist" locale file
+            # lists slot-free phrases that should suppress this intent from
+            # matching
             blacklist_name = intent_file.rsplit(".", 1)[0]
             disallowed_strings += resources.load_blacklist_file(blacklist_name)
 
-            self.intent_service.register_padatious_intent(name, filename, lang, string_blacklist=disallowed_strings)
+            # OVOS-INTENT-2 §4.3: for each "{slot}" the template declares, a
+            # sibling "<slot>.blacklist" locale file lists slot-value
+            # exclusions — values that MUST NOT bind to that slot (the
+            # canonical use is keeping anaphoric pronouns out of a referential
+            # slot). Keyed by slot name so consuming engines can drop them.
+            slot_blacklist = {}
+            with open(filename) as f:
+                slots = set(re.findall(r"{(.+?)}", f.read()))
+            for slot in slots:
+                phrases = resources.load_blacklist_file(slot)
+                if phrases:
+                    slot_blacklist[slot] = phrases
+
+            self.intent_service.register_padatious_intent(
+                name, filename, lang, string_blacklist=disallowed_strings,
+                slot_blacklist=slot_blacklist)
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
@@ -1383,7 +1399,13 @@ class OVOSSkill:
             filename = str(entity.file_path)
             name = f"{self.skill_id}:{basename(entity_file)}_" \
                    f"{md5(entity_file.encode('utf-8')).hexdigest()}"
-            self.intent_service.register_padatious_entity(name, filename, lang)
+            # OVOS-INTENT-2 §4.3: a sibling "<entity>.blacklist" locale file
+            # lists slot-free phrases that MUST NOT fill the {slot} this entity
+            # supplies (e.g. a "person.blacklist" of pronouns keeps "he" out of
+            # the {person} slot)
+            blacklist = resources.load_blacklist_file(entity_file)
+            self.intent_service.register_padatious_entity(name, filename, lang,
+                                                          blacklist=blacklist)
 
     def register_vocabulary(self, entity: str, entity_type: str,
                             lang: Optional[str] = None):
