@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.1.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.1a1) (2026-07-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.1.0a1...9.1.1a1)
+
+**Merged pull requests:**
+
+- fix: resolve inline \<voc\> references when loading .intent/.blacklist [\#455](https://github.com/OpenVoiceOS/ovos-workshop/pull/455) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.0a1) (2026-07-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.4a1...9.1.0a1)
