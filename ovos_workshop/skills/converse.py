@@ -14,7 +14,7 @@ from padacioso import IntentContainer
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.resource_files import ResourceFile
-from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
 
 
 class ConversationalSkill(OVOSSkill):
@@ -200,10 +200,15 @@ class ConversationalSkill(OVOSSkill):
                 response_message.data["error"] =  repr(e)
 
         self.bus.emit(response_message)
-        if is_latest:
-            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
-        else:
-            self.bus.emit(message.reply(SpecMessage.UTTERANCE_HANDLED))
+        if not _core_owns_utterance_handled():
+            # PIPELINE-1 §9.5: the orchestrator owns ovos.utterance.handled. With a
+            # core that emits it on every terminal path (>=2.3.0a1) we must not also
+            # emit it here, or consumers see the end-marker twice; only emit for an
+            # older/absent core during the migration window.
+            if is_latest:
+                self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
+            else:
+                self.bus.emit(message.reply(SpecMessage.UTTERANCE_HANDLED))
 
     def _handle_converse_intents(self, message):
         """ called before converse method
