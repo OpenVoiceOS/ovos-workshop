@@ -23,7 +23,7 @@ from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event
-from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
 
 
 class FallbackSkill(OVOSSkill):
@@ -158,7 +158,12 @@ class FallbackSkill(OVOSSkill):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
-        self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
+        if not _core_owns_utterance_handled():
+            # PIPELINE-1 §9.5: the orchestrator owns ovos.utterance.handled. With a
+            # core that emits it on every terminal path (>=2.3.0a1) we must not also
+            # emit it here, or consumers see the end-marker twice; only emit for an
+            # older/absent core during the migration window.
+            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
 
     def register_fallback(self, handler: Callable, priority: int) -> None:
         """

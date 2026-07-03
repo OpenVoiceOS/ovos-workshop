@@ -88,12 +88,17 @@ class KeywordRegistrationTest(unittest.TestCase):
 
 class KeywordIntentRegistrationTest(unittest.TestCase):
     def check_emitter(self, expected_message_data):
-        """Verify that the registration messages matches the expected."""
-        for msg_type in self.emitter.get_types():
-            self.assertEqual(msg_type, 'register_intent')
+        """Verify that the legacy registration messages match the expected.
+
+        register_adapt_intent dual-emits the OVOS-INTENT-4 §5
+        `ovos.intent.register.keyword` topic; filter to the legacy
+        `register_intent` topic here (the spec emit has its own test).
+        """
+        legacy = [data for mtype, data
+                  in zip(self.emitter.get_types(), self.emitter.get_results())
+                  if mtype == 'register_intent']
         self.assertEqual(
-            sorted(self.emitter.get_results(),
-                   key=lambda d: sorted(d.items())),
+            sorted(legacy, key=lambda d: sorted(d.items())),
             sorted(expected_message_data, key=lambda d: sorted(d.items())))
         self.emitter.reset()
 
@@ -107,25 +112,33 @@ class KeywordIntentRegistrationTest(unittest.TestCase):
         self.emitter.reset()
 
         intent = IntentBuilder("test").require("testA").optionally("testB")
+        # register_adapt_intent munges the parser (adapt-era namespace prefixing
+        # with to_alnum(skill_id)); IntentServiceInterface's default skill_id is
+        # the class name, so names get the "IntentServiceInterface" prefix.
+        sid = "IntentServiceInterface"
         intent_service.register_adapt_intent("test", intent)
         expected_data = {'at_least_one': [],
-                         'name': 'test',
+                         'name': f'{sid}:test',
                          'excludes': [],
-                         'optional': [('testB', 'testB')],
-                         'requires': [('testA', 'testA')]}
+                         'optional': [(f'{sid}testB', f'{sid}testB')],
+                         'requires': [(f'{sid}testA', f'{sid}testA')]}
         self.check_emitter([expected_data])
 
 
 
 class UtteranceIntentRegistrationTest(unittest.TestCase):
     def check_emitter(self, expected_message_data):
-        """Verify that the registration messages matches the expected."""
-        for msg_type in self.emitter.get_types():
-            self.assertEqual(msg_type, 'padatious:register_intent')
+        """Verify that the legacy registration messages match the expected.
 
+        register_padatious_intent dual-emits the OVOS-INTENT-4 §6
+        `ovos.intent.register.template` topic; filter to the legacy
+        `padatious:register_intent` topic here (the spec emit has its own test).
+        """
+        legacy = [data for mtype, data
+                  in zip(self.emitter.get_types(), self.emitter.get_results())
+                  if mtype == 'padatious:register_intent']
         self.assertEqual(
-            sorted(self.emitter.get_results(),
-                   key=lambda d: sorted(d.items())),
+            sorted(legacy, key=lambda d: sorted(d.items())),
             sorted(expected_message_data, key=lambda d: sorted(d.items())))
         self.emitter.reset()
 

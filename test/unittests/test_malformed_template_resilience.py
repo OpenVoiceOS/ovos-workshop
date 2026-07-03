@@ -11,6 +11,7 @@ from os.path import join
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from ovos_spec_tools import SpecMessage
 from ovos_workshop.intents import IntentServiceInterface
 from ovos_workshop.resource_files import SkillResources
 
@@ -102,6 +103,9 @@ class TestWireEmissionResilience(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
+    def _of_type(self, msg_type):
+        return [m for m in self.emitter.messages if m.msg_type == msg_type]
+
     def _write(self, name, lines):
         path = join(self._tmp.name, name)
         with open(path, "w") as f:
@@ -116,10 +120,13 @@ class TestWireEmissionResilience(unittest.TestCase):
         with patch("ovos_workshop.intents.LOG.warning") as warn:
             self.interface.register_padatious_intent(
                 "test.skill:play.intent", path, "de-de")
-        self.assertEqual(len(self.emitter.messages), 1)
-        msg = self.emitter.messages[0]
-        self.assertEqual(msg.msg_type, "padatious:register_intent")
-        self.assertEqual(msg.data["samples"],
+        legacy = self._of_type("padatious:register_intent")
+        self.assertEqual(len(legacy), 1)
+        self.assertEqual(legacy[0].data["samples"],
+                         ["play {media}", "start {media}"])
+        spec = self._of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)
+        self.assertEqual(len(spec), 1)
+        self.assertEqual(spec[0].data["samples"],
                          ["play {media}", "start {media}"])
         self.assertEqual(warn.call_count, 2)
         logged = " ".join(str(c) for c in warn.call_args_list)
@@ -134,8 +141,9 @@ class TestWireEmissionResilience(unittest.TestCase):
         with patch("ovos_workshop.intents.LOG.warning"):
             self.interface.register_padatious_intent(
                 "test.skill:play.intent", path, "en-US")
-        self.assertEqual(self.emitter.messages[0].data["samples"],
-                         ["play <thing>"])
+        self.assertEqual(
+            self._of_type("padatious:register_intent")[0].data["samples"],
+            ["play <thing>"])
 
     def test_register_intent_skipped_when_no_valid_samples(self):
         path = self._write("play.intent", ["play {Medien}", "on {location"])
@@ -152,9 +160,12 @@ class TestWireEmissionResilience(unittest.TestCase):
         with patch("ovos_workshop.intents.LOG.warning") as warn:
             self.interface.register_padatious_entity(
                 "test.skill:thing", path, "de-de")
-        self.assertEqual(len(self.emitter.messages), 1)
-        self.assertEqual(self.emitter.messages[0].data["samples"],
-                         ["a movie", "a song"])
+        legacy = self._of_type("padatious:register_entity")
+        self.assertEqual(len(legacy), 1)
+        self.assertEqual(legacy[0].data["samples"], ["a movie", "a song"])
+        spec = self._of_type(SpecMessage.ENTITY_REGISTER)
+        self.assertEqual(len(spec), 1)
+        self.assertEqual(spec[0].data["samples"], ["a movie", "a song"])
         self.assertEqual(warn.call_count, 1)
 
     def test_register_entity_skipped_when_no_valid_samples(self):
