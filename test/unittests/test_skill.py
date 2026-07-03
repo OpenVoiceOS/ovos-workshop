@@ -191,3 +191,64 @@ class TestIntentBlacklistFile(unittest.TestCase):
         data = self._register_payload("foo.intent")
         self.assertIsNotNone(data)
         self.assertIn("turn on the news", data["blacklisted_words"])
+
+
+class TestSlotBlacklistFile(unittest.TestCase):
+    """OVOS-INTENT-2 §4.3: a sibling '<slot>.blacklist' / '<entity>.blacklist'
+    locale file feeds slot-value exclusions into the entity/intent
+    registration payload so engines can drop blacklisted slot values."""
+
+    def setUp(self):
+        self.bus = FakeBus()
+        self.bus.emitted_msgs = []
+
+        def get_msg(msg):
+            self.bus.emitted_msgs.append(json.loads(msg))
+
+        self.bus.on("message", get_msg)
+
+        res_dir = f"{dirname(__file__)}/ovos_tskill_blacklist"
+        self.skill = OVOSSkill(skill_id="blacklist.test", bus=self.bus,
+                               resources_dir=res_dir)
+
+    def _payload(self, msg_type, name_part):
+        for msg in self.bus.emitted_msgs:
+            if msg["type"] == msg_type and \
+                    name_part in msg["data"]["name"]:
+                return msg["data"]
+        return None
+
+    def test_entity_with_blacklist_file(self):
+        self.bus.emitted_msgs = []
+        self.skill.register_entity_file("person.entity")
+        data = self._payload("padatious:register_entity", "person")
+        self.assertIsNotNone(data)
+        self.assertEqual(data["samples"], ["alice", "bob"])
+        self.assertIn("he", data["blacklist"])
+        self.assertIn("she", data["blacklist"])
+
+    def test_entity_without_blacklist_file(self):
+        self.bus.emitted_msgs = []
+        # bar has no sibling .blacklist -> empty, back-compat
+        self.skill.register_entity_file("bar.entity")
+        data = self._payload("padatious:register_entity", "bar")
+        # bar.entity does not exist; nothing registered
+        self.assertIsNone(data)
+
+    def test_intent_slot_blacklist_keyed_by_slot(self):
+        self.bus.emitted_msgs = []
+        # foo.intent declares {thing}; sibling thing.blacklist excludes values
+        self.skill.register_intent_file("foo.intent", None)
+        data = self._payload("padatious:register_intent", "foo.intent")
+        self.assertIsNotNone(data)
+        self.assertIn("thing", data["slot_blacklist"])
+        self.assertIn("the news", data["slot_blacklist"]["thing"])
+        self.assertIn("the alarm", data["slot_blacklist"]["thing"])
+
+    def test_intent_without_slot_blacklist(self):
+        self.bus.emitted_msgs = []
+        # bar.intent has no slots -> empty map, back-compat
+        self.skill.register_intent_file("bar.intent", None)
+        data = self._payload("padatious:register_intent", "bar.intent")
+        self.assertIsNotNone(data)
+        self.assertEqual(data["slot_blacklist"], {})

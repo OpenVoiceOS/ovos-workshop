@@ -443,7 +443,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.config_core["secondary_langs"] = []
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         skill.intent_service.register_padatious_intent.assert_called_once_with(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[])
+            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={})
 
         # With secondary language
         skill.intent_service.register_padatious_intent.reset_mock()
@@ -452,9 +452,9 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertEqual(
             skill.intent_service.register_padatious_intent.call_count, 2)
         skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[])
+            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={})
         skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", uk_intent_file, "uk-UA", string_blacklist=[])
+            f"{skill.skill_id}:time.intent", uk_intent_file, "uk-UA", string_blacklist=[], slot_blacklist={})
 
     def test_register_entity_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
@@ -470,7 +470,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.register_entity_file("dow")
         skill.intent_service.register_padatious_entity.assert_called_once_with(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_file, "en-US")
+            en_file, "en-US", blacklist=[])
 
         # With secondary language
         skill.intent_service.register_padatious_entity.reset_mock()
@@ -480,10 +480,10 @@ class TestOVOSSkill(unittest.TestCase):
             skill.intent_service.register_padatious_entity.call_count, 2)
         skill.intent_service.register_padatious_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_file, "en-US")
+            en_file, "en-US", blacklist=[])
         skill.intent_service.register_padatious_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            uk_file, "uk-UA")
+            uk_file, "uk-UA", blacklist=[])
 
     def test_handle_enable_intent(self):
         # TODO
