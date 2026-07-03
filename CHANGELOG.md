@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.0a1) (2026-07-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.1.1a1...9.2.0a1)
+
+**Merged pull requests:**
+
+- feat: emit OVOS-INTENT-2 §4.3 entity/slot blacklist on registration [\#454](https://github.com/OpenVoiceOS/ovos-workshop/pull/454) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.1.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.1a1) (2026-07-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.1.0a1...9.1.1a1)
@@ -114,19 +122,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
-
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 **Merged pull requests:**
 
