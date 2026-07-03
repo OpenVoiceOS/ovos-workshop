@@ -19,7 +19,7 @@ import unittest
 from logging import Logger
 from threading import Event, Thread
 from time import time
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 from os.path import join, dirname, isdir
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -443,7 +443,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.config_core["secondary_langs"] = []
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         skill.intent_service.register_padatious_intent.assert_called_once_with(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={})
+            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={}, vocabs=ANY)
 
         # With secondary language
         skill.intent_service.register_padatious_intent.reset_mock()
@@ -452,9 +452,9 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertEqual(
             skill.intent_service.register_padatious_intent.call_count, 2)
         skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={})
+            f"{skill.skill_id}:time.intent", en_intent_file, "en-US", string_blacklist=[], slot_blacklist={}, vocabs=ANY)
         skill.intent_service.register_padatious_intent.assert_any_call(
-            f"{skill.skill_id}:time.intent", uk_intent_file, "uk-UA", string_blacklist=[], slot_blacklist={})
+            f"{skill.skill_id}:time.intent", uk_intent_file, "uk-UA", string_blacklist=[], slot_blacklist={}, vocabs=ANY)
 
     def test_register_entity_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)

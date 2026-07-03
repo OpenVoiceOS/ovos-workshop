@@ -13,7 +13,7 @@ from ovos_utils.log import LOG, log_deprecation
 # the single source of truth is the spec. The `IntentServiceInterface` producer
 # (and the munge_* helpers) below consume these definitions.
 from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
-                             expand, MalformedTemplate)
+                             inline_keywords, expand, MalformedTemplate)
 
 
 def _drop_malformed_samples(samples: List[str], name: str, lang: str,
@@ -294,7 +294,8 @@ class IntentServiceInterface:
 
     def register_padatious_intent(self, intent_name: str, filename: str,
                                   lang: str, string_blacklist: Optional[List[str]] = None,
-                                  slot_blacklist: Optional[Dict[str, List[str]]] = None):
+                                  slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                                  vocabs: Optional[Dict[str, List[str]]] = None):
         """
         Register a Padatious intent file with the intent service.
         @param intent_name: Unique intent identifier
@@ -306,6 +307,11 @@ class IntentServiceInterface:
         @param slot_blacklist: OVOS-INTENT-2 §4.3 slot-value exclusions keyed by
             slot name, ``{slot: [excluded phrases]}`` — values that MUST NOT
             fill the named ``{slot}`` (each slot's sibling `<slot>.blacklist`).
+        @param vocabs: ``{name: members}`` of the sibling vocabularies, so an
+            inline ``<name>`` reference (OVOS-INTENT-1 §3.7) is baked into the
+            samples as an ``(a|b|c)`` group before they reach the engine — the
+            padatious/padacioso bus protocol carries only samples, never the
+            ``.voc`` content, so the reference must be resolved here.
         """
         if not isinstance(filename, str):
             raise ValueError('Filename path must be a string')
@@ -314,6 +320,9 @@ class IntentServiceInterface:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
+        if vocabs:
+            # OVOS-INTENT-1 §3.7: resolve every inline <name> in place
+            samples = [inline_keywords(s, vocabs) for s in samples]
         samples = _drop_malformed_samples(samples, intent_name, lang,
                                           self.skill_id)
         if not samples:
