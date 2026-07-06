@@ -13,7 +13,7 @@
 # limitations under the License.
 import abc
 import operator
-from typing import Callable, Optional, List
+from typing import Callable, Optional
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
