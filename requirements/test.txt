@@ -1,5 +1,5 @@
 ovos-core>=0.0.8a50
-ovoscope>=0.1.0
+ovoscope>=1.5.0
 ovos-adapt-parser>=1.4.2a1
 pytest
 pytest-cov
