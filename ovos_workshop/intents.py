@@ -12,22 +12,18 @@ from ovos_utils.log import LOG, log_deprecation
 # their long-standing `from ovos_workshop.intents import IntentBuilder` import while
 # the single source of truth is the spec. The `IntentServiceInterface` producer
 # (and the munge_* helpers) below consume these definitions.
-from ovos_spec_tools import Intent, IntentBuilder, open_intent_envelope
-from ovos_spec_tools import expand, MalformedTemplate
+from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
+                             expand, MalformedTemplate)
 
 
 def _drop_malformed_samples(samples: List[str], name: str, lang: str,
                             skill_id: str) -> List[str]:
-    """Filter out sample lines that are not valid OVOS-INTENT-1 templates.
+    """Skip-and-warn sample lines that are not valid OVOS-INTENT-1 templates,
+    so one broken locale line cannot abort the whole registration.
 
-    Locale files sometimes carry broken template lines — translated slot
-    names, truncated or adjacent slots. A single such line must not prevent
-    the remaining valid lines from being registered, so each malformed line
-    is skipped with a warning instead of aborting the registration.
-
-    ``<name>`` vocabulary references resolve downstream at match time, so
-    they are replaced by a literal placeholder for validation only; the
-    emitted samples keep the original lines.
+    ``<name>`` vocabulary references resolve downstream at match time; they
+    are replaced by a literal placeholder for validation only, and the
+    returned samples keep the original lines.
     """
     valid = []
     for sample in samples:

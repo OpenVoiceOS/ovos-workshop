@@ -283,12 +283,8 @@ class ResourceFile:
         self.file_path = self._locate()
 
     def _warn_malformed_line(self, line: str, error: Exception):
-        """Log a malformed template line that is being skipped.
-
-        A single broken line (e.g. a translated slot name or a truncated
-        slot in one language's locale file) must not prevent the remaining
-        valid lines of the resource from loading.
-        """
+        """Log a malformed template line that is skipped so the rest of the
+        resource can still load."""
         LOG.warning(
             f"Skipping malformed template line in {self.file_path} "
             f"(skill_id={self.skill_id}, resource={self.resource_name}, "

@@ -5,6 +5,7 @@ Translated locale files sometimes carry broken templates — translated slot
 names (``{Medien}``), truncated slots (``{location``), adjacent slots — and
 one such line must be skipped with a warning, not abort the whole resource.
 """
+import os
 import unittest
 from os.path import join
 from tempfile import TemporaryDirectory
@@ -27,7 +28,6 @@ class TestResourceLoadResilience(unittest.TestCase):
         self._tmp = TemporaryDirectory()
         self.skill_dir = self._tmp.name
         self.locale = join(self.skill_dir, "locale", "de-de")
-        import os
         os.makedirs(self.locale)
 
     def tearDown(self):
