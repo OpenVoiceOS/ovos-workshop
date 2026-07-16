@@ -499,8 +499,14 @@ class IntentServiceInterface:
                         lang: str,
                         blacklisted_words: Optional[List[str]] = None,
                         file_name: str = ''):
+        samples = [s for s in samples or [] if s and s.strip()]
         samples = _drop_malformed_samples(samples, entity_name, lang,
                                           self.skill_id)
+        if not samples:
+            # INTENT-4 §7.2: an entity with no valid samples is malformed
+            LOG.warning(f"{self.skill_id}: not registering entity "
+                        f"'{entity_name}' ({lang}), it has no valid samples")
+            return
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
@@ -520,8 +526,14 @@ class IntentServiceInterface:
                           blacklisted_words: Optional[List[str]] = None,
                           file_name: str = '',
                           slot_blacklist: Optional[Dict[str, List[str]]] = None):
+        samples = [s for s in samples or [] if s and s.strip()]
         samples = _drop_malformed_samples(samples, intent_name, lang,
                                           self.skill_id)
+        if not samples:
+            # INTENT-4 §6.3: a template with no valid samples is malformed
+            LOG.warning(f"{self.skill_id}: not registering template "
+                        f"'{intent_name}' ({lang}), it has no valid samples")
+            return
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id

@@ -338,5 +338,30 @@ class RegexRegistrationTest(unittest.TestCase):
         self.assertEqual(context["skill_id"], "re.skill")
 
 
+class MalformedRegistrationTests(unittest.TestCase):
+    """INTENT-4 §6.3 / §7.2: a registration whose samples are all empty
+    carries nothing indexable, so the producer never puts it on the bus."""
+
+    def setUp(self):
+        self.bus = CapturingBus()
+        self.iface = IntentServiceInterface(self.bus)
+        self.iface.set_id("empty.skill")
+
+    def test_template_with_no_valid_samples_is_not_registered(self):
+        self.iface.register_template("empty.skill:play.intent", ["", "   "],
+                                     "en-US")
+        self.assertEqual(self.bus.captured, [])
+
+    def test_entity_with_no_valid_samples_is_not_registered(self):
+        self.iface.register_entity("empty.skill:engine", [], "en-US")
+        self.assertEqual(self.bus.captured, [])
+
+    def test_blank_samples_are_dropped_from_valid_registration(self):
+        self.iface.register_template("empty.skill:play.intent",
+                                     ["play {thing}", "  ", ""], "en-US")
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+        self.assertEqual(data["samples"], ["play {thing}"])
+
+
 if __name__ == "__main__":
     unittest.main()
