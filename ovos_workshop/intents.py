@@ -1,3 +1,4 @@
+import re
 from os.path import exists
 from threading import RLock
 from typing import Dict, List, Optional
@@ -12,6 +13,32 @@ from ovos_utils.log import LOG, log_deprecation
 # the single source of truth is the spec. The `IntentServiceInterface` producer
 # (and the munge_* helpers) below consume these definitions.
 from ovos_spec_tools import Intent, IntentBuilder, open_intent_envelope
+from ovos_spec_tools import expand, MalformedTemplate
+
+
+def _drop_malformed_samples(samples: List[str], name: str, lang: str,
+                            skill_id: str) -> List[str]:
+    """Filter out sample lines that are not valid OVOS-INTENT-1 templates.
+
+    Locale files sometimes carry broken template lines — translated slot
+    names, truncated or adjacent slots. A single such line must not prevent
+    the remaining valid lines from being registered, so each malformed line
+    is skipped with a warning instead of aborting the registration.
+
+    ``<name>`` vocabulary references resolve downstream at match time, so
+    they are replaced by a literal placeholder for validation only; the
+    emitted samples keep the original lines.
+    """
+    valid = []
+    for sample in samples:
+        try:
+            expand(re.sub(r"<\s*([a-z0-9_]+)\s*>", "placeholder", sample))
+            valid.append(sample)
+        except MalformedTemplate as err:
+            LOG.warning(f"Skipping malformed template line in '{name}' "
+                        f"(skill_id={skill_id}, lang={lang}): "
+                        f"{sample!r} ({err})")
+    return valid
 
 
 def to_alnum(skill_id: str) -> str:
@@ -291,6 +318,13 @@ class IntentServiceInterface:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
+        samples = _drop_malformed_samples(samples, intent_name, lang,
+                                          self.skill_id)
+        if not samples:
+            LOG.warning(f"Not registering intent '{intent_name}' "
+                        f"(skill_id={self.skill_id}, lang={lang}): "
+                        f"no valid template lines in {filename}")
+            return
         data = {'file_name': filename,
                 "samples": samples,
                 'name': intent_name,
@@ -323,6 +357,13 @@ class IntentServiceInterface:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
+        samples = _drop_malformed_samples(samples, entity_name, lang,
+                                          self.skill_id)
+        if not samples:
+            LOG.warning(f"Not registering entity '{entity_name}' "
+                        f"(skill_id={self.skill_id}, lang={lang}): "
+                        f"no valid template lines in {filename}")
+            return
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
