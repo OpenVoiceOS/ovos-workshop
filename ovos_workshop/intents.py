@@ -107,6 +107,9 @@ class IntentServiceInterface:
         # TODO: Consider using properties with setters to prevent duplicates
         self.registered_intents: List[Tuple[str, object]] = []
         self.detached_intents: List[Tuple[str, object]] = []
+        # registration payloads recorded for replay (reregister_all)
+        self.registered_vocab: List[dict] = []
+        self.registered_entities: List[dict] = []
         self._iterator_lock = RLock()
 
     @property
@@ -154,8 +157,9 @@ class IntentServiceInterface:
                        'lang': lang}
         compatibility_data = {'start': entity, 'end': vocab_type}
 
-        self.bus.emit(msg.forward("register_vocab",
-                                  {**entity_data, **compatibility_data}))
+        payload = {**entity_data, **compatibility_data}
+        self.registered_vocab.append(payload)
+        self.bus.emit(msg.forward("register_vocab", payload))
         for alias in aliases:
             alias_data = {
                 'entity_value': alias,
@@ -163,8 +167,9 @@ class IntentServiceInterface:
                 'alias_of': entity,
                 'lang': lang}
             compatibility_data = {'start': alias, 'end': vocab_type}
-            self.bus.emit(msg.forward("register_vocab",
-                                      {**alias_data, **compatibility_data}))
+            payload = {**alias_data, **compatibility_data}
+            self.registered_vocab.append(payload)
+            self.bus.emit(msg.forward("register_vocab", payload))
 
     def register_adapt_regex(self, regex: str, lang: str = None):
         """
@@ -176,8 +181,9 @@ class IntentServiceInterface:
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_vocab",
-                                  {'regex': regex, 'lang': lang}))
+        payload = {'regex': regex, 'lang': lang}
+        self.registered_vocab.append(payload)
+        self.bus.emit(msg.forward("register_vocab", payload))
 
     def register_adapt_intent(self, name: str, intent_parser: object):
         """
@@ -326,12 +332,51 @@ class IntentServiceInterface:
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('padatious:register_entity',
-                                  {'file_name': filename,
-                                   "samples": samples,
-                                   'name': entity_name,
-                                   'lang': lang,
-                                   'blacklist': blacklist or []}))
+        payload = {'file_name': filename,
+                   "samples": samples,
+                   'name': entity_name,
+                   'lang': lang,
+                   'blacklist': blacklist or []}
+        self.registered_entities.append(payload)
+        self.bus.emit(msg.forward('padatious:register_entity', payload))
+
+    def reregister_all(self):
+        """
+        Re-emit every recorded registration currently in effect.
+
+        The intent matchers hold registrations in memory, built from
+        registration broadcasts. Those broadcasts are load-time announcements
+        (OVOS-INTENT-4 §10): a matcher (re)constructed after this skill loaded
+        has missed them and matches nothing until they are replayed.
+        Re-registration is implicit replacement (OVOS-INTENT-4 §8.1), so
+        replaying is safe even for a matcher that never lost them. Detached
+        intents are not replayed and stay detached.
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        # vocabulary/entities first so intents never reference a keyword the
+        # matcher has not (re)learned yet
+        for payload in list(self.registered_vocab):
+            self.bus.emit(msg.forward("register_vocab", payload))
+        for payload in list(self.registered_entities):
+            self.bus.emit(msg.forward("padatious:register_entity", payload))
+        with self._iterator_lock:
+            snapshot = list(self.registered_intents)
+        for name, intent in snapshot:
+            if isinstance(intent, dict):
+                # padatious consumers key intents by name and retrain, so a
+                # plain re-register replaces any previous definition
+                self.bus.emit(msg.forward("padatious:register_intent", intent))
+            else:
+                # legacy adapt consumers append parsers instead of replacing;
+                # detach first so the replay can never duplicate the parser
+                full_name = getattr(intent, "name",
+                                    f"{self.skill_id}:{name}")
+                self.bus.emit(msg.forward("detach_intent",
+                                          {"intent_name": full_name}))
+                self.bus.emit(msg.forward("register_intent",
+                                          intent.__dict__))
 
     def get_intent_names(self):
         log_deprecation("Reference `intent_names` directly", "0.1.0")
@@ -353,6 +398,8 @@ class IntentServiceInterface:
             LOG.error(f"Expected an empty list; got: {self.registered_intents}")
             self.registered_intents = []
         self.detached_intents = []  # Explicitly remove all intent references
+        self.registered_vocab = []
+        self.registered_entities = []
 
     def get_intent(self, intent_name: str) -> Optional[object]:
         """

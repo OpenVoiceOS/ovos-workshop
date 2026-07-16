@@ -1116,6 +1116,42 @@ class OVOSSkill:
         # homescreen might load after this skill and miss the original events
         self.add_event("homescreen.metadata.get", self.handle_homescreen_loaded, speak_errors=False)
 
+        # the intent matchers might (re)load after this skill and miss the
+        # original registration broadcasts (OVOS-INTENT-4 §10 — load-time
+        # announcements with no catch-up channel); replay them on request
+        self.add_event("intent.service.pipelines.loaded",
+                       self._handle_intents_reset, speak_errors=False)
+        # a messagebus restart drops and re-opens the websocket; replay so a
+        # matcher that (re)started while this process was disconnected can
+        # never be left without this skill's registrations
+        self.bus.on("open", self._handle_bus_reconnect)
+
+    def _handle_intents_reset(self, message: Optional[Message] = None):
+        """
+        The intent service (re)loaded its pipeline plugins; freshly
+        constructed matchers have empty compiled state, replay this skill's
+        registrations so its intents keep matching.
+        """
+        self._re_register_intents()
+
+    def _handle_bus_reconnect(self, *_):
+        """
+        The websocket to the messagebus was re-established after a drop.
+        """
+        self._re_register_intents()
+
+    def _re_register_intents(self):
+        """
+        Replay every intent/vocabulary registration currently in effect.
+        Re-registration is implicit replacement (OVOS-INTENT-4 §8.1), so this
+        is safe for matchers that never lost the originals.
+        """
+        if not self._init_event.is_set():
+            # initial registration still in progress; nothing to replay
+            return
+        self.log.info(f"re-registering intents for {self.skill_id}")
+        self.intent_service.reregister_all()
+
     def _send_public_api(self, message: Message):
         """
         Respond with the skill's public api.
@@ -1244,6 +1280,12 @@ class OVOSSkill:
                 self.events.clear()
         except Exception as e:
             self.log.error(f"Failed to remove events for {self.skill_id}: {e}")
+
+        try:
+            self.bus.remove("open", self._handle_bus_reconnect)
+        except Exception as e:
+            self.log.error(f"Failed to remove bus reconnect listener "
+                           f"for {self.skill_id}: {e}")
 
         self.bus.emit(
             Message('detach_skill', {'skill_id': self.skill_id},

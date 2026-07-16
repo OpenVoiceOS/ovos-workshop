@@ -176,6 +176,18 @@ class FallbackSkill(OVOSSkill):
                               {"skill_id": self.skill_id,
                                "priority": self.priority}))
 
+    def _re_register_intents(self):
+        """
+        Replay registrations after the matchers lost compiled state — the
+        fallback registration lives in the fallback matcher's memory just
+        like intents do, so it is replayed alongside them.
+        """
+        super()._re_register_intents()
+        if self._fallback_handlers:
+            self.bus.emit(Message("ovos.skills.fallback.register",
+                                  {"skill_id": self.skill_id,
+                                   "priority": self.priority}))
+
     def remove_fallback(self, handler_to_del: Optional[callable] = None) -> bool:
         """
         Remove fallback registration / fallback handler.
