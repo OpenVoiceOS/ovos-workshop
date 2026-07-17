@@ -161,10 +161,12 @@ def layer_intent(intent_parser: callable, layer_name: str):
     Decorator for adding a method as an intent handler belonging to an
     intent layer.
 
-    The intent is augmented to *require* the layer's context token, so it can
-    only match while the layer is active. For adapt intents (IntentBuilder /
-    Intent) the requirement is injected directly; for padatious `.intent` files
-    the gating is enforced at registration time via `register_intent_layer`.
+    The intent is augmented to *require* the layer's context token via an
+    OVOS-CONTEXT-1 §6 ``requires_context`` declaration, so it only matches
+    while the layer is active — engine-agnostically, for adapt and padatious
+    alike. The legacy adapt ``require(<token>)`` vocab gate is kept as a
+    deprecated bridge for stacks whose engine does not yet enforce
+    OVOS-CONTEXT-1.
 
     @param intent_parser: intent parser method
     @param layer_name: name of intent layer intent is associated with
@@ -178,10 +180,17 @@ def layer_intent(intent_parser: callable, layer_name: str):
             func.intents = []
         if not hasattr(func, 'intent_layers'):
             func.intent_layers = {}
+        if not hasattr(func, 'requires_context'):
+            func.requires_context = []
 
         token = layer_context_token(layer_name)
 
-        # gate the intent on the layer context token
+        # OVOS-CONTEXT-1 §6 — the engine-agnostic layer gate (private scope,
+        # resolves to <skill_id>:layer_<name>, set by IntentLayers.activate_layer)
+        if token not in func.requires_context:
+            func.requires_context.append(token)
+
+        # legacy adapt vocab gate — deprecated bridge, see docstring
         if hasattr(intent_parser, "require"):
             # IntentBuilder - require the layer context token
             intent_parser = intent_parser.require(token)
@@ -359,11 +368,18 @@ class IntentLayers:
         if not self.skill:
             return
         token = layer_context_token(self._bare_name(full_layer_name))
-        # word is the token itself so adapt has a value to inject
+        # OVOS-CONTEXT-1 §5.3 — the engine-agnostic layer gate; stored at the
+        # private key <skill_id>:layer_<name>, matching layer_intent's
+        # requires_context declaration
+        self.skill.set_intent_context(token)
+        # legacy adapt vocab context — deprecated bridge (word is the token
+        # itself so adapt has a value to inject)
         self.skill.set_context(token, token)
 
     def _remove_context(self, full_layer_name: str):
         if not self.skill:
             return
         token = layer_context_token(self._bare_name(full_layer_name))
+        self.skill.remove_intent_context(token)
+        # legacy adapt vocab context — deprecated bridge
         self.skill.remove_context(token)

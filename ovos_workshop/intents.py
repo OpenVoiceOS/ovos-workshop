@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import re
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
+from ovos_bus_client.session import Session, SessionManager
 from ovos_bus_client.util import get_mycroft_bus
 from ovos_utils.log import LOG, log_deprecation
 
@@ -198,16 +199,21 @@ class _AdaptIntentApi:
         self.bus.emit(msg.forward("register_vocab",
                                   {'regex': regex, 'lang': lang}))
 
-    def register_adapt_intent(self, name: str, intent_parser: object):
+    def register_adapt_intent(self, name: str, intent_parser: object,
+                              requires_context: Optional[List] = None,
+                              excludes_context: Optional[List] = None):
         _legacy_warn("register_adapt_intent is deprecated, "
                      "use register_intent")
         # munging is an adapt-era namespace hack; it must stay inside the
         # adapt API so the spec-compliant register_intent never touches it.
         self.munge_intent_parser(intent_parser, name, self.skill_id)
-        self._iface.register_intent(name, intent_parser)
+        self._iface.register_intent(name, intent_parser,
+                                    requires_context, excludes_context)
 
     def set_context(self, context: str, word: str, origin: str):
-        """Add adapt-engine context (adapt-engine only)."""
+        """Add adapt-engine context (adapt-only; no OVOS-CONTEXT-1 spec
+        equivalent — see IntentServiceInterface.set_intent_context for the
+        session-based, engine-agnostic spec mechanism)."""
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
@@ -438,7 +444,9 @@ class IntentServiceInterface:
         return descriptors
 
     def _emit_spec_keyword_intent(self, msg: Message, name: str,
-                                  intent_parser: object):
+                                  intent_parser: object,
+                                  requires_context: Optional[List] = None,
+                                  excludes_context: Optional[List] = None):
         required_names = [r[0] for r in getattr(intent_parser, "requires", [])]
         optional_names = [o[0] for o in getattr(intent_parser, "optional", [])]
         one_of_groups = [list(g) for g in getattr(intent_parser, "at_least_one", [])]
@@ -467,19 +475,26 @@ class IntentServiceInterface:
                 "one_of": [self._spec_keyword_descriptors(group, lang)
                            for group in one_of_groups],
                 "excluded": self._spec_keyword_descriptors(excluded_names, lang),
+                # OVOS-CONTEXT-1 §6/§6.1 — optional gating declarations, each a
+                # list of bare-string keys or {"key", "scope"} mappings
+                "requires_context": list(requires_context or []),
+                "excludes_context": list(excludes_context or []),
             }
             payload["one_of"] = [g for g in payload["one_of"] if g]
             self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_KEYWORD,
                                       payload))
 
-    def register_intent(self, name: str, intent_parser: object):
+    def register_intent(self, name: str, intent_parser: object,
+                        requires_context: Optional[List] = None,
+                        excludes_context: Optional[List] = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
         # TODO: remove this call — legacy adapt dual-emit, see
         # _AdaptIntentApi.emit_legacy_register_intent
         self._adapt.emit_legacy_register_intent(msg, intent_parser)
-        self._emit_spec_keyword_intent(msg, name, intent_parser)
+        self._emit_spec_keyword_intent(msg, name, intent_parser,
+                                       requires_context, excludes_context)
         self.registered_intents.append((name, intent_parser))
         self.detached_intents = [detached for detached in self.detached_intents
                                  if detached[0] != name]
@@ -525,6 +540,8 @@ class IntentServiceInterface:
                           lang: str,
                           blacklisted_words: Optional[List[str]] = None,
                           file_name: str = '',
+                          requires_context: Optional[List] = None,
+                          excludes_context: Optional[List] = None,
                           slot_blacklist: Optional[Dict[str, List[str]]] = None):
         samples = [s for s in samples or [] if s and s.strip()]
         samples = _drop_malformed_samples(samples, intent_name, lang,
@@ -548,13 +565,91 @@ class IntentServiceInterface:
                                    "intent_name": self._clean_padatious_name(intent_name),
                                    "lang": lang,
                                    "samples": samples,
-                                   "blacklist": blacklisted_words or []}))
+                                   "blacklist": blacklisted_words or [],
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating declarations
+                                   "requires_context": list(requires_context or []),
+                                   "excludes_context": list(excludes_context or [])}))
         self.registered_intents.append((intent_name.split(':')[-1],
                                         {'file_name': file_name,
                                          "samples": samples,
                                          'name': intent_name,
                                          'lang': lang,
                                          'blacklisted_words': blacklisted_words}))
+
+    @staticmethod
+    def _intent_context_key(owner_id: str, key: str, scope: str) -> str:
+        if scope not in ("private", "shared"):
+            raise ValueError("scope must be 'private' or 'shared'")
+        return key if scope == "shared" else f"{owner_id}:{key}"
+
+    def _sync_intent_context(self, msg: Message, delta: dict):
+        """OVOS-CONTEXT-1 §5.3 — apply `delta` to the local session copy and
+        broadcast it as the `ovos.session.sync` sync payload.
+
+        `delta` maps stored keys (already scope-prefixed) to either an entry
+        object (set/replace) or None (delete) — the spec's entry-level merge
+        semantics (`SessionManager.merge_intent_context`).
+        """
+        session = Session.from_message(msg)
+        # update the local copy so a caller chaining set_intent_context calls
+        # within the same handler sees its own writes immediately
+        session.intent_context = SessionManager.merge_intent_context(
+            dict(session.intent_context or {}), delta)
+        # the sync payload carries ONLY the delta (§5.3 entry-level merge —
+        # the orchestrator treats every other key as unchanged); a full
+        # snapshot of the local `intent_context` would wrongly signal
+        # "unchanged" for every key this call didn't touch, and any key this
+        # call *removed* would simply be absent rather than null-deleted
+        sync_session = session.serialize()
+        sync_session["intent_context"] = delta
+        # OVOS-SESSION-2 §2.7: the sync content is the explicit
+        # `Message.data.session`; `Message.context.session` is the ambient
+        # MSG-1 carrier and is refreshed (to the full local copy) so
+        # downstream forwards of this very Message also see the update.
+        derived = msg.forward(SpecMessage.SESSION_SYNC, {"session": sync_session})
+        derived.context["session"] = session.serialize()
+        self.bus.emit(derived)
+
+    def set_intent_context(self, key: str, value: Optional[str] = None,
+                           scope: str = "private",
+                           turns_remaining: Optional[int] = None,
+                           expires_at: Optional[float] = None):
+        """OVOS-CONTEXT-1 §5.3 — write/replace a session intent-context
+        entry and sync it to the orchestrator.
+
+        @param key: caller-chosen sub-key (no ``:``). Stored under
+            ``<skill_id>:<key>`` for the default ``scope="private"`` (§3),
+            visible only to this skill's own intents; ``scope="shared"``
+            stores the bare ``key``, visible to every skill.
+        @param value: entry value, or None for a presence-only flag (§2).
+        @param turns_remaining: entry survives this many more utterance
+            dispatches (§2, §4).
+        @param expires_at: absolute Unix-seconds wall-clock expiry (§2, §4).
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        stored_key = self._intent_context_key(self.skill_id, key, scope)
+        entry = {"value": value}
+        if turns_remaining is not None:
+            entry["turns_remaining"] = turns_remaining
+        if expires_at is not None:
+            entry["expires_at"] = expires_at
+        self._sync_intent_context(msg, {stored_key: entry})
+
+    def remove_intent_context(self, key: str, scope: str = "private"):
+        """OVOS-CONTEXT-1 §5.3 — remove a session intent-context entry.
+
+        @param key: the same caller-chosen sub-key passed to
+            :meth:`set_intent_context`.
+        @param scope: the same scope passed to :meth:`set_intent_context`
+            for this key.
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        stored_key = self._intent_context_key(self.skill_id, key, scope)
+        self._sync_intent_context(msg, {stored_key: None})
 
     # -- lifecycle ------------------------------------------------------
 
@@ -630,30 +725,34 @@ class IntentServiceInterface:
                      f"will be removed with the adapt engine in {_DEPRECATION_VERSION}")
         return self._adapt.register_adapt_regex(regex, lang)
 
-    def register_adapt_intent(self, name: str, intent_parser: object):
+    def register_adapt_intent(self, name: str, intent_parser: object,
+                              requires_context: Optional[List] = None,
+                              excludes_context: Optional[List] = None):
         _legacy_warn("IntentServiceInterface.register_adapt_intent is "
                      "deprecated; migrate to spec-compliant intent "
                      "registration (register_intent)")
-        return self._adapt.register_adapt_intent(name, intent_parser)
+        return self._adapt.register_adapt_intent(name, intent_parser,
+                                                 requires_context,
+                                                 excludes_context)
 
     def set_context(self, context: str, word: str, origin: str):
-        _legacy_warn("IntentServiceInterface.set_context is deprecated; "
-                     "adapt-engine context is engine-specific")
+        _legacy_warn("IntentServiceInterface.set_context is deprecated; use "
+                     "set_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.set_context(context, word, origin)
 
     def remove_context(self, context: str):
-        _legacy_warn("IntentServiceInterface.remove_context is deprecated; "
-                     "adapt-engine context is engine-specific")
+        _legacy_warn("IntentServiceInterface.remove_context is deprecated; use "
+                     "remove_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.remove_context(context)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
-        _legacy_warn("IntentServiceInterface.set_adapt_context is "
-                     "deprecated; adapt-engine context is engine-specific")
+        _legacy_warn("IntentServiceInterface.set_adapt_context is deprecated; "
+                     "use set_intent_context (OVOS-CONTEXT-1, engine-agnostic)")
         return self._adapt.set_adapt_context(context, word, origin)
 
     def remove_adapt_context(self, context: str):
         _legacy_warn("IntentServiceInterface.remove_adapt_context is "
-                     "deprecated; adapt-engine context is engine-specific")
+                     "deprecated; use remove_intent_context (OVOS-CONTEXT-1)")
         return self._adapt.remove_adapt_context(context)
 
     def detach_intent(self, intent_name: str):

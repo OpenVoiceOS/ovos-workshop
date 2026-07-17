@@ -272,6 +272,56 @@ class RealMungedFlowSpecTest(unittest.TestCase):
             os.remove(entity_file)
 
 
+class ContextDeclarationSpecTest(unittest.TestCase):
+    """OVOS-CONTEXT-1 §6/§6.1 — the producer attaches ``requires_context`` /
+    ``excludes_context`` gating declarations to the keyword/template payloads.
+    """
+
+    def setUp(self):
+        self.bus = CapturingBus()
+        self.iface = IntentServiceInterface(self.bus)
+        self.iface.set_id("home.skill")
+
+    def _register_keyword_intent(self, requires=None, excludes=None):
+        self.iface.register_adapt_keyword("lightsKW", "lights", lang="en-US")
+        parser = IntentBuilder("toggle").require("lightsKW").build()
+        self.iface.register_adapt_intent("toggle", parser,
+                                         requires_context=requires,
+                                         excludes_context=excludes)
+        return self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)[0][0]
+
+    def test_keyword_requires_context_emitted(self):
+        data = self._register_keyword_intent(requires=["kitchen"])
+        self.assertEqual(data["requires_context"], ["kitchen"])
+        self.assertEqual(data["excludes_context"], [])
+
+    def test_keyword_excludes_context_emitted(self):
+        data = self._register_keyword_intent(
+            excludes=[{"key": "sleeping", "scope": "shared"}])
+        self.assertEqual(data["excludes_context"],
+                         [{"key": "sleeping", "scope": "shared"}])
+
+    def test_keyword_context_defaults_empty(self):
+        data = self._register_keyword_intent()
+        self.assertEqual(data["requires_context"], [])
+        self.assertEqual(data["excludes_context"], [])
+
+    def test_template_context_emitted_and_defaults(self):
+        self.iface.register_template("home.skill:scene", ["set the {scene} scene"],
+                                     lang="en-US",
+                                     requires_context=["kitchen"])
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+        self.assertEqual(data["requires_context"], ["kitchen"])
+        self.assertEqual(data["excludes_context"], [])
+
+        self.bus.captured.clear()
+        self.iface.register_template("home.skill:plain", ["do a thing"],
+                                     lang="en-US")
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+        self.assertEqual(data["requires_context"], [])
+        self.assertEqual(data["excludes_context"], [])
+
+
 class DeprecatedFacadeTest(unittest.TestCase):
     """The adapt/padatious engine names are back-compat shims; each one emits
     a DeprecationWarning while still performing its registration."""

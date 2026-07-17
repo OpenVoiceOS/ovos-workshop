@@ -54,10 +54,20 @@ def removes_context(context: str):
     return context_removes_decorator
 
 
-def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = None):
+def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = None,
+                   requires_context: Optional[List] = None,
+                   excludes_context: Optional[List] = None):
     """
     Decorator for adding a method as an intent handler.
     @param intent_parser: string intent name or adapt.IntentBuilder object
+    @param voc_blacklist: vocabulary that must not appear in a match
+    @param requires_context: OVOS-CONTEXT-1 §6 positive gating declarations —
+        a list of bare-string keys or ``{"key", "scope"}`` mappings (default
+        scope ``private``); the intent only matches while every declared
+        context key is live in the session.
+    @param excludes_context: OVOS-CONTEXT-1 §6.1 negative gating declarations
+        (same entry form); the intent is suppressed while any declared context
+        key is live.
     """
 
     def real_decorator(func):
@@ -67,8 +77,14 @@ def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = N
             func.intents = []
         if not hasattr(func, 'voc_blacklist'):
             func.voc_blacklist = []
+        if not hasattr(func, 'requires_context'):
+            func.requires_context = []
+        if not hasattr(func, 'excludes_context'):
+            func.excludes_context = []
         func.intents.append(intent_parser)
         func.voc_blacklist += voc_blacklist or []
+        func.requires_context += requires_context or []
+        func.excludes_context += excludes_context or []
         return func
 
     return real_decorator

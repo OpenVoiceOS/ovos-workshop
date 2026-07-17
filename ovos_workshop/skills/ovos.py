@@ -930,14 +930,20 @@ class OVOSSkill:
         """
         for attr_name in get_non_properties(self):
             method = getattr(self, attr_name)
+            requires_context = getattr(method, 'requires_context', None) or None
+            excludes_context = getattr(method, 'excludes_context', None) or None
             if hasattr(method, 'intents'):
                 for intent in getattr(method, 'intents'):
                     voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
-                    self.register_intent(intent, method, voc_blacklist=voc_blacklist)
+                    self.register_intent(intent, method, voc_blacklist=voc_blacklist,
+                                         requires_context=requires_context,
+                                         excludes_context=excludes_context)
 
             if hasattr(method, 'intent_files'):
                 for intent_file in getattr(method, 'intent_files'):
-                    self.register_intent_file(intent_file, method)
+                    self.register_intent_file(intent_file, method,
+                                              requires_context=requires_context,
+                                              excludes_context=excludes_context)
 
             if hasattr(method, 'intent_layers'):
                 for layer_name, intent_files in \
@@ -1294,7 +1300,9 @@ class OVOSSkill:
             self.intent_layers.update_layer(layer_name, [name])
 
     def register_intent(self, intent_parser: Union[IntentBuilder, Intent, str],
-                        handler: callable, voc_blacklist: Optional[List[str]] = None):
+                        handler: callable, voc_blacklist: Optional[List[str]] = None,
+                        requires_context: Optional[List] = None,
+                        excludes_context: Optional[List] = None):
         """
         Register an Intent with the intent service.
 
@@ -1302,15 +1310,26 @@ class OVOSSkill:
             intent_parser: Intent, IntentBuilder object or padatious intent
                            file to parse utterance for the handler.
             handler (func): function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 positive gating declarations —
+                a list of bare-string keys or ``{"key", "scope"}`` mappings
+                (default scope ``private``); the intent only matches while
+                every declared context key is live in the session.
+            excludes_context: OVOS-CONTEXT-1 §6.1 negative gating declarations
+                (same entry form); the intent is suppressed while any declared
+                context key is live.
         """
         if isinstance(intent_parser, str):
             if not intent_parser.endswith('.intent'):
                 raise ValueError
-            return self.register_intent_file(intent_parser, handler, voc_blacklist)
-        return self._register_adapt_intent(intent_parser, handler)
+            return self.register_intent_file(intent_parser, handler, voc_blacklist,
+                                             requires_context, excludes_context)
+        return self._register_adapt_intent(intent_parser, handler,
+                                           requires_context, excludes_context)
 
     def register_intent_file(self, intent_file: str, handler: callable,
-                             voc_blacklist: Optional[List[str]] = None):
+                             voc_blacklist: Optional[List[str]] = None,
+                             requires_context: Optional[List] = None,
+                             excludes_context: Optional[List] = None):
         """Register an Intent file with the intent service.
 
         For example:
@@ -1369,9 +1388,15 @@ class OVOSSkill:
                 if phrases:
                     slot_blacklist[slot] = phrases
 
+            ctx_kwargs = {}
+            if requires_context is not None:
+                ctx_kwargs["requires_context"] = requires_context
+            if excludes_context is not None:
+                ctx_kwargs["excludes_context"] = excludes_context
             self.intent_service.register_template(name, samples, lang,
                                                   blacklisted_words=disallowed_strings,
-                                                  slot_blacklist=slot_blacklist)
+                                                  slot_blacklist=slot_blacklist,
+                                                  **ctx_kwargs)
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
@@ -1566,7 +1591,9 @@ class OVOSSkill:
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
-                               handler: callable):
+                               handler: callable,
+                               requires_context: Optional[List] = None,
+                               excludes_context: Optional[List] = None):
         """
         Register an adapt intent.
 
@@ -1597,7 +1624,9 @@ class OVOSSkill:
         # munging (adapt-era namespace prefixing) is performed inside the
         # adapt mixin's register_adapt_intent so OVOSSkill never calls the
         # munge helpers directly.
-        self.intent_service.register_adapt_intent(name, intent_parser)
+        self.intent_service.register_adapt_intent(name, intent_parser,
+                                                  requires_context,
+                                                  excludes_context)
         if handler:
             self.add_event(intent_parser.name, handler,
                            'mycroft.skill.handler',
@@ -2477,6 +2506,38 @@ class OVOSSkill:
             raise ValueError('context should be a string')
         context = self.alphanumeric_skill_id + context
         self.intent_service.remove_context(context)
+
+    def set_intent_context(self, key: str, value: Optional[str] = None,
+                           scope: str = "private",
+                           turns_remaining: Optional[int] = None,
+                           expires_at: Optional[float] = None):
+        """OVOS-CONTEXT-1 §5.3 — write/replace a session intent-context entry.
+
+        This is the engine-agnostic, spec-compliant replacement for
+        :meth:`set_context`. Intents declaring the matching ``requires_context``
+        (or ``excludes_context``) key are gated on this entry's presence.
+
+        @param key: caller-chosen sub-key (no ``:``); stored under
+            ``<skill_id>:<key>`` for the default ``scope="private"``, or the
+            bare ``<key>`` for ``scope="shared"``.
+        @param value: entry value, or None for a presence-only flag.
+        @param turns_remaining: entry survives this many more utterance
+            dispatches.
+        @param expires_at: absolute Unix-seconds wall-clock expiry.
+        """
+        self.intent_service.set_intent_context(
+            key, value, scope=scope, turns_remaining=turns_remaining,
+            expires_at=expires_at)
+
+    def remove_intent_context(self, key: str, scope: str = "private"):
+        """OVOS-CONTEXT-1 §5.3 — remove a session intent-context entry.
+
+        The engine-agnostic replacement for :meth:`remove_context`.
+
+        @param key: the sub-key passed to :meth:`set_intent_context`.
+        @param scope: the scope passed to :meth:`set_intent_context`.
+        """
+        self.intent_service.remove_intent_context(key, scope=scope)
 
     def set_cross_skill_context(self, context: str, word: str = ''):
         """
