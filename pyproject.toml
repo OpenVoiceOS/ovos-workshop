@@ -49,3 +49,6 @@ include = ["ovos_workshop*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "ovos_workshop.version.__version__"}
+
+[tool.pytest.ini_options]
+faulthandler_timeout = 180
