@@ -759,11 +759,13 @@ class SkillResources:
                     name = file_name[:-len(".voc")].lower()
                     if name in vocabularies:
                         continue
-                    members = []
+                    members: List[str] = []
                     with open(Path(directory, file_name)) as voc_file:
-                        for line in (ln.strip() for ln in voc_file):
+                        for line in (ln.strip().lower() for ln in voc_file):
                             if line and not line.startswith("#"):
-                                members.append(line.lower())
+                                # a .voc line MAY hold comma/parenthesis
+                                # alternates; every phrasing is a member
+                                members.extend(flatten_list(expand(line)))
                     if members:
                         vocabularies[name] = members
         return vocabularies
@@ -928,6 +930,20 @@ class SkillResources:
                     skill_vocabulary[vocab_type] = vocabulary
 
         return skill_vocabulary
+
+    def vocabularies(self) -> Dict[str, List[str]]:
+        """Build a ``{name: members}`` map from every ``.voc`` in this
+        language's locale tree.
+
+        Feeds the inline ``<name>`` resolution required by OVOS-INTENT-1 §3.7:
+        a reference in an ``.intent`` (or ``.blacklist``) expands in place from
+        the sibling vocabulary of that name. Padatious and padacioso never read
+        ``.voc`` files at match time, so the reference must be baked into the
+        template before it reaches the engine. User overrides take precedence
+        over the skill's own resources, which take precedence over
+        workshop-shipped resources.
+        """
+        return self._locale_vocabularies()
 
     def load_skill_regex(self, alphanumeric_skill_id: str) -> List[str]:
         """

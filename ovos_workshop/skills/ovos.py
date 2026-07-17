@@ -1365,9 +1365,12 @@ class OVOSSkill:
                 if phrases:
                     slot_blacklist[slot] = phrases
 
+            # OVOS-INTENT-1 §3.7: supply the sibling vocabularies so an inline
+            # <name> reference in the .intent is baked into the samples before
+            # they are sent to the engine over the bus
             self.intent_service.register_padatious_intent(
                 name, filename, lang, string_blacklist=disallowed_strings,
-                slot_blacklist=slot_blacklist)
+                slot_blacklist=slot_blacklist, vocabs=resources.vocabularies())
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
