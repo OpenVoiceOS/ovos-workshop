@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.2a1) (2026-07-17)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.1a1...9.2.2a1)
+
+**Merged pull requests:**
+
+- fix: expand inline \<voc\> refs before registering intents to the engine [\#458](https://github.com/OpenVoiceOS/ovos-workshop/pull/458) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.1a1) (2026-07-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.0a1...9.2.1a1)
