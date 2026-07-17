@@ -25,8 +25,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from langcodes import tag_distance
 from ovos_config.locations import get_xdg_data_save_path
 from ovos_utils import flatten_list
-from ovos_utils.bracket_expansion import expand_template
-from ovos_spec_tools import inline_keywords
+from ovos_spec_tools import expand, inline_keywords, MalformedTemplate
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
 from ovos_utils.log import LOG
 
@@ -279,7 +278,17 @@ class ResourceFile:
     def __init__(self, resource_type: ResourceType, resource_name: str):
         self.resource_type = resource_type
         self.resource_name = resource_name
+        # set by SkillResources so per-line warnings can identify the skill
+        self.skill_id = None
         self.file_path = self._locate()
+
+    def _warn_malformed_line(self, line: str, error: Exception):
+        """Log a malformed template line that is skipped so the rest of the
+        resource can still load."""
+        LOG.warning(
+            f"Skipping malformed template line in {self.file_path} "
+            f"(skill_id={self.skill_id}, resource={self.resource_name}, "
+            f"lang={self.resource_type.language}): {line!r} ({error})")
 
     def _locate(self) -> Optional[str]:
         """Locates a resource file in the skill's locale directory.
@@ -398,7 +407,11 @@ class DialogFile(ResourceFile):
             for line in self._read():
                 line = line.replace("{{", "{").replace("}}", "}")
                 if self.data is not None:
-                    line = line.format(**self.data)
+                    try:
+                        line = line.format(**self.data)
+                    except (KeyError, IndexError, ValueError) as err:
+                        self._warn_malformed_line(line, err)
+                        continue
                 dialogs.append(line)
 
         return dialogs
@@ -433,7 +446,10 @@ class VocabularyFile(ResourceFile):
         vocabulary = []
         if self.file_path is not None:
             for line in self._read():
-                vocabulary.append(expand_template(line.lower()))
+                try:
+                    vocabulary.append(expand(line.lower()))
+                except MalformedTemplate as err:
+                    self._warn_malformed_line(line, err)
         return vocabulary
 
 
@@ -459,15 +475,25 @@ class IntentFile(ResourceFile):
         if self.file_path is not None:
             for line in self._read():
                 line = line.replace("{{", "{").replace("}}", "}").lower()
-                if self.vocabularies and "<" in line:
-                    # OVOS-INTENT-1 §3.7: inline every <name> reference from the
-                    # sibling vocabulary as an (a|b|c) group before expanding.
-                    line = inline_keywords(line, self.vocabularies)
-                intents.extend(flatten_list(expand_template(line)))
+                try:
+                    if self.vocabularies and "<" in line:
+                        # OVOS-INTENT-1 §3.7: inline every <name> reference
+                        # from the sibling vocabulary as an (a|b|c) group
+                        # before expanding.
+                        line = inline_keywords(line, self.vocabularies)
+                    intents.extend(flatten_list(expand(line)))
+                except MalformedTemplate as err:
+                    self._warn_malformed_line(line, err)
             if not entities:
                 intents = [re.sub(r'{.*?}\s?', '', intent).strip() for intent in intents]
             elif self.data:
-                intents = [intent.format(**self.data) for intent in intents]
+                formatted = []
+                for intent in intents:
+                    try:
+                        formatted.append(intent.format(**self.data))
+                    except (KeyError, IndexError, ValueError) as err:
+                        self._warn_malformed_line(intent, err)
+                intents = formatted
         return intents
 
     def render(self, dialog_renderer):
@@ -582,8 +608,11 @@ class BlacklistFile(ResourceFile):
                 if self.vocabularies and "<" in line:
                     # OVOS-INTENT-1 §3.7: inline every <name> reference from the
                     # sibling vocabulary and enumerate the resulting phrases.
-                    line = inline_keywords(line, self.vocabularies)
-                    phrases.extend(flatten_list(expand_template(line)))
+                    try:
+                        line = inline_keywords(line, self.vocabularies)
+                        phrases.extend(flatten_list(expand(line)))
+                    except MalformedTemplate as err:
+                        self._warn_malformed_line(line, err)
                 else:
                     phrases.append(line)
         return phrases
@@ -679,6 +708,7 @@ class SkillResources:
             A list of phrases with variables resolved
         """
         dialog_file = DialogFile(self.types.dialog, name)
+        dialog_file.skill_id = self.skill_id
         dialog_file.data = data
         return dialog_file.load()
 
@@ -701,6 +731,7 @@ class SkillResources:
             A list of intent phrases
         """
         intent_file = IntentFile(self.types.intent, name)
+        intent_file.skill_id = self.skill_id
         intent_file.data = data
         intent_file.vocabularies = self._locale_vocabularies()
         return intent_file.load(entities)
@@ -750,6 +781,7 @@ class SkillResources:
             A list of blacklisted phrases
         """
         blacklist_file = BlacklistFile(self.types.blacklist, name)
+        blacklist_file.skill_id = self.skill_id
         blacklist_file.vocabularies = self._locale_vocabularies()
         return blacklist_file.load()
 
@@ -848,6 +880,7 @@ class SkillResources:
             List representation of the regular expression file.
         """
         vocabulary_file = VocabularyFile(self.types.vocabulary, name)
+        vocabulary_file.skill_id = self.skill_id
         return vocabulary_file.load()
 
     def load_word_file(self, name: str) -> Optional[str]:
