@@ -16,6 +16,13 @@ from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
                              inline_keywords, expand, MalformedTemplate)
 
 
+# OVOS-INTENT-1 §4.3 documented bound: an inline <name> reference is a small,
+# closed keyword set (weekdays, months, colours). A vocabulary with more than
+# this many members is refused rather than baked into a template — an oversized
+# alternation is a match-time and payload cost the producer must not accept.
+_MAX_INLINE_VOCAB_VALUES = 100
+
+
 def _drop_malformed_samples(samples: List[str], name: str, lang: str,
                             skill_id: str) -> List[str]:
     """Skip-and-warn sample lines that are not valid OVOS-INTENT-1 templates,
@@ -320,11 +327,32 @@ class IntentServiceInterface:
         with open(filename) as f:
             samples = [_ for _ in f.read().split("\n") if _
                        and not _.startswith("#")]
-        if vocabs:
-            # OVOS-INTENT-1 §3.7: resolve every inline <name> in place
-            samples = [inline_keywords(s, vocabs) for s in samples]
+        # Validate well-formedness on the original template lines, with every
+        # <name> reference held by a literal placeholder (§3.7 references
+        # resolve at match time). Well-formedness is a §3.6 property of the
+        # template, so this never enumerates the inlined alternation product —
+        # a handful of <name> refs over ordinary vocabularies is a cartesian
+        # blow-up the producer must not walk just to check the line is valid.
         samples = _drop_malformed_samples(samples, intent_name, lang,
                                           self.skill_id)
+        if vocabs:
+            # OVOS-INTENT-1 §3.7: resolve every inline <name> in place, after
+            # validation so the (a|b|c) groups are never enumerated here.
+            # §4.3: a vocabulary larger than the documented bound is refused,
+            # not truncated; §6.3: that refusal (and a cyclic reference) drops
+            # the offending line with a warning rather than aborting the whole
+            # registration.
+            inlined = []
+            for sample in samples:
+                try:
+                    inlined.append(inline_keywords(
+                        sample, vocabs,
+                        max_values=_MAX_INLINE_VOCAB_VALUES))
+                except MalformedTemplate as err:
+                    LOG.warning(f"Skipping template line in '{intent_name}' "
+                                f"(skill_id={self.skill_id}, lang={lang}): "
+                                f"{sample!r} ({err})")
+            samples = inlined
         if not samples:
             LOG.warning(f"Not registering intent '{intent_name}' "
                         f"(skill_id={self.skill_id}, lang={lang}): "
@@ -339,8 +367,24 @@ class IntentServiceInterface:
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
+        # INTENT-4 §8.1: find any prior registration of this (intent_name, lang).
+        name = intent_name.split(':')[-1]
+        slot = None
+        for i, (registered_name, registered_data) in enumerate(self.registered_intents):
+            if (registered_name == name and isinstance(registered_data, dict)
+                    and registered_data.get('lang') == lang):
+                slot = i
+                break
+        # An identical re-registration is an idempotent no-op; a changed one
+        # replaces the prior entry. Either way a skill reload never grows the
+        # tracking list or re-announces an unchanged intent.
+        if slot is not None and self.registered_intents[slot][1] == data:
+            return
         self.bus.emit(msg.forward("padatious:register_intent", data))
-        self.registered_intents.append((intent_name.split(':')[-1], data))
+        if slot is None:
+            self.registered_intents.append((name, data))
+        else:
+            self.registered_intents[slot] = (name, data)
 
     def register_padatious_entity(self, entity_name: str, filename: str,
                                   lang: str,
