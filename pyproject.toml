@@ -26,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "ovos-core>=2.4.0a1",  # orchestrator owns ovos.utterance.handled on the matched path (PIPELINE-1 §9.5)
+    "ovos-core>=2.5.3a1",  # mirrors set_context into OVOS-CONTEXT-1 intent_context so IntentLayers gating matches (test_intent_layers_e2e)
     "ovoscope>=0.1.0",
     "ovos-adapt-parser>=1.4.2a1",
     "pytest",
