@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.5a1) (2026-07-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.4a1...9.2.5a1)
+
+**Merged pull requests:**
+
+- fix: default\_shutdown\(\) docstring incorrectly claims it calls skill.shutdown\(\) [\#476](https://github.com/OpenVoiceOS/ovos-workshop/pull/476) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.4a1) (2026-07-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.3a1...9.2.4a1)
@@ -369,25 +377,13 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.0...7.0.1a1)
 
-**Merged pull requests:**
-
-- fix: converse again [\#350](https://github.com/OpenVoiceOS/ovos-workshop/pull/350) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [7.0.0](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.0) (2025-06-07)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.0a1...7.0.0)
 
-**Merged pull requests:**
-
-- Release 7.0.0a1 [\#349](https://github.com/OpenVoiceOS/ovos-workshop/pull/349) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [7.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.0a1) (2025-06-07)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/6.0.1...7.0.0a1)
-
-**Breaking changes:**
-
-- fix!: rename can\_answer -\> can\_converse [\#348](https://github.com/OpenVoiceOS/ovos-workshop/pull/348) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [6.0.1](https://github.com/OpenVoiceOS/ovos-workshop/tree/6.0.1) (2025-06-07)
 
