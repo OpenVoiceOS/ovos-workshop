@@ -29,7 +29,7 @@ from typing import Dict, Callable, List, Optional, Union
 
 from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
-from ovos_bus_client.apis.enclosure import EnclosureAPI
+from ovos_gui_api_client import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface

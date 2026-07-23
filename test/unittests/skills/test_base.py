@@ -44,7 +44,7 @@ class TestOVOSSkill(unittest.TestCase):
         from ovos_utils.events import EventContainer
         from ovos_workshop.intents import IntentServiceInterface
         from ovos_utils.process_utils import RuntimeRequirements
-        from ovos_bus_client.apis.enclosure import EnclosureAPI
+        from ovos_gui_api_client import EnclosureAPI
         from ovos_workshop.filesystem import FileSystemAccess
         from ovos_workshop.resource_files import SkillResources
 
