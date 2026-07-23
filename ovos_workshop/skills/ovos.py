@@ -1698,7 +1698,7 @@ class OVOSSkill:
         @param filename: File to play
         @param instant: if True audio will be played instantly instead of queued with TTS
         @param wait: set to True to block while the audio
-                                 is being played for 15 seconds. Alternatively, set
+                                 is being played for 30 seconds. Alternatively, set
                                  to an integer to specify a timeout in seconds.
         """
         message = dig_for_message() or Message("")
