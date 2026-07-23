@@ -1207,8 +1207,11 @@ class OVOSSkill:
         2) Store skill settings and remove file watchers
         3) Shutdown skill GUI to clear any active pages
         4) Shutdown the event_scheduler and remove any pending events
-        5) Call skill.shutdown() to allow skill to do any other shutdown tasks
-        6) Emit `detach_skill` Message to notify skill is shut down
+        5) Emit `detach_skill` Message to notify skill is shut down
+
+        NOTE: this method does NOT call `skill.shutdown()`. The skill-specific
+        `shutdown()` hook is invoked separately by the caller (eg.
+        `SkillManager.unload_skill()` or `__del__`), before/around this method.
         """
         if hasattr(self, 'status'):
             self.status.set_stopping()
