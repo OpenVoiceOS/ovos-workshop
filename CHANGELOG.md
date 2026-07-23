@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.6a1) (2026-07-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.5a1...9.2.6a1)
+
+**Merged pull requests:**
+
+- fix: play\_audio docstring wait timeout says 15s, actual default is 30s [\#477](https://github.com/OpenVoiceOS/ovos-workshop/pull/477) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.5a1) (2026-07-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.4a1...9.2.5a1)
@@ -368,10 +376,6 @@
 ## [7.0.1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.1) (2025-06-07)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.1a1...7.0.1)
-
-**Merged pull requests:**
-
-- Release 7.0.1a1 [\#351](https://github.com/OpenVoiceOS/ovos-workshop/pull/351) ([github-actions[bot]](https://github.com/apps/github-actions))
 
 ## [7.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.1a1) (2025-06-07)
 
