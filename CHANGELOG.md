@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.0a1) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.10a1...9.3.0a1)
+
+**Merged pull requests:**
+
+- feat: emit OVOS-INTENT-4 registration topics \(dual-emit with legacy\) [\#431](https://github.com/OpenVoiceOS/ovos-workshop/pull/431) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.10a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.9a1...9.2.10a1)
@@ -352,10 +360,6 @@
 ## [7.0.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.6a1) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.5...7.0.6a1)
-
-**Merged pull requests:**
-
-- fix: on\_event\_start\_wrapper [\#360](https://github.com/OpenVoiceOS/ovos-workshop/pull/360) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [7.0.5](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.5) (2025-06-16)
 
