@@ -36,6 +36,7 @@ import pytest
 
 from ovoscope import get_minicroft
 
+from ovos_bus_client.session import SessionManager
 from ovos_spec_tools import SpecMessage
 
 # the fixture skill lives next to this file in its own package directory so its
@@ -71,11 +72,18 @@ class TestKeywordCasingE2E:
     def setup_class(cls):
         from ovos_utils.log import LOG
         LOG.set_level("ERROR")
+        # booting a real MiniCroft runs a real IntentService, whose
+        # startup calls SessionManager.connect_to_bus(mc.bus) - this
+        # mutates the process-wide SessionManager.bus class attribute.
+        # Save/restore it so later tests don't inherit a bus pointing at
+        # this (now-stopped) MiniCroft instance.
+        cls._saved_bus = SessionManager.bus
         cls.mc = _boot()
 
     @classmethod
     def teardown_class(cls):
         cls.mc.stop()
+        SessionManager.bus = cls._saved_bus
 
     def test_keyword_topic_flows_on_real_bus(self):
         """Exactly one ``ovos.intent.register.keyword`` for the CamelCase
