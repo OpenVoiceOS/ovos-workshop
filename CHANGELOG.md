@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.8a1) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.7a1...9.2.8a1)
+
+**Merged pull requests:**
+
+- fix: gate ovos.utterance.handled in converse/fallback when core owns the emit \(PIPELINE-1 §9.5\) [\#486](https://github.com/OpenVoiceOS/ovos-workshop/pull/486) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.7a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.6a2...9.2.7a1)
@@ -186,19 +194,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
-
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 **Merged pull requests:**
 
@@ -368,10 +376,6 @@
 ## [7.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.3a1) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.2...7.0.3a1)
-
-**Merged pull requests:**
-
-- Update ovos-config requirement from \<2.0.0,\>=0.0.12 to \>=0.0.12,\<3.0.0 in /requirements [\#354](https://github.com/OpenVoiceOS/ovos-workshop/pull/354) ([dependabot[bot]](https://github.com/apps/dependabot))
 
 ## [7.0.2](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.2) (2025-06-09)
 
