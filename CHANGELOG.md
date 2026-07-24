@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.10a1) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.9a1...9.2.10a1)
+
+**Merged pull requests:**
+
+- fix: keep .voc filename case in load\_skill\_vocabulary [\#485](https://github.com/OpenVoiceOS/ovos-workshop/pull/485) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.9a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.8a1...9.2.9a1)
@@ -202,19 +210,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
-
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 **Merged pull requests:**
 
@@ -353,33 +361,17 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.5a1...7.0.5)
 
-**Merged pull requests:**
-
-- Release 7.0.5a1 [\#359](https://github.com/OpenVoiceOS/ovos-workshop/pull/359) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [7.0.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.5a1) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.4...7.0.5a1)
-
-**Merged pull requests:**
-
-- fix: shutdown [\#358](https://github.com/OpenVoiceOS/ovos-workshop/pull/358) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [7.0.4](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.4) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.4a1...7.0.4)
 
-**Merged pull requests:**
-
-- Release 7.0.4a1 [\#357](https://github.com/OpenVoiceOS/ovos-workshop/pull/357) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [7.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.4a1) (2025-06-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.3a1...7.0.4a1)
-
-**Merged pull requests:**
-
-- fix: converse\_routing [\#356](https://github.com/OpenVoiceOS/ovos-workshop/pull/356) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [7.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.3a1) (2025-06-16)
 
