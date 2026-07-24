@@ -394,6 +394,42 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertIn("mycroft.skill.handler.complete", types)
         self.assertIn(SpecMessage.UTTERANCE_HANDLED.value, types)
 
+    def _patched_core_version(self, tup):
+        import sys, types
+        pkg = types.ModuleType("ovos_core")
+        mod = types.ModuleType("ovos_core.version")
+        mod.OVOS_VERSION_TUPLE = tup
+        pkg.version = mod
+        from unittest.mock import patch
+        return patch.dict(sys.modules, {"ovos_core": pkg, "ovos_core.version": mod})
+
+    def test_core_owns_utterance_handled_true_above_threshold(self):
+        from ovos_workshop.skills.ovos import _core_owns_utterance_handled
+        with self._patched_core_version((2, 5, 6)):
+            self.assertTrue(_core_owns_utterance_handled())
+        with self._patched_core_version((2, 3, 0)):
+            self.assertTrue(_core_owns_utterance_handled())
+
+    def test_core_owns_utterance_handled_false_below_threshold(self):
+        from ovos_workshop.skills.ovos import _core_owns_utterance_handled
+        with self._patched_core_version((2, 2, 9)):
+            self.assertFalse(_core_owns_utterance_handled())
+
+    def test_core_owns_utterance_handled_false_when_core_absent(self):
+        import builtins
+        from unittest.mock import patch
+        from ovos_workshop.skills.ovos import _core_owns_utterance_handled
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("ovos_core"):
+                raise ImportError("simulated absent ovos-core")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            self.assertFalse(_core_owns_utterance_handled())
+
     def test_on_event_error(self):
         from ovos_bus_client.message import Message
         msg = Message("trigger", {}, {"session": {"session_id": "sess1"}})

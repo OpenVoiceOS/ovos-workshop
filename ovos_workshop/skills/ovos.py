@@ -68,27 +68,14 @@ from ovos_workshop.skills.util import join_word_list, simple_trace
 
 
 def _core_owns_utterance_handled() -> bool:
-    """PIPELINE-1 §9.5: ``ovos.utterance.handled`` is the orchestrator's universal
-    end-marker — ovos-core owns it on EVERY terminal path, the matched path included.
-
-    ovos-core began emitting it on the matched path in **2.3.0** (the §9.5 change
-    landed on the 2.2.x line, so by semver the first release carrying it is the next
-    minor, 2.3.0a1). When the installed core is that version or newer this returns
-    ``True`` and the skill framework must NOT also emit it, or consumers would see
-    the end-marker twice.
-
-    During the migration window an older core (or none, e.g. a workshop-only test
-    env) does not emit it on the matched path, so the framework still must. This
-    returns ``False`` then — including when core is absent/unknown — so the framework
-    keeps emitting (back-compat). Double emits are tolerated by spec consumers, so
-    erring toward the framework emitting is the safe default.
-    """
+    """PIPELINE-1 §9.5: core >= 2.3.0 emits ``ovos.utterance.handled`` on every
+    terminal path, the matched path included — the framework must not double-emit.
+    Older or absent core -> the framework still owns the emit (back-compat)."""
     try:
-        from importlib.metadata import version
-        from packaging.version import parse
-        return parse(version("ovos-core")) >= parse("2.3.0a1")
-    except Exception:
-        return False  # core absent/unknown -> framework keeps emitting (back-compat)
+        from ovos_core.version import OVOS_VERSION_TUPLE
+    except ImportError:
+        return False
+    return OVOS_VERSION_TUPLE >= (2, 3, 0)
 
 
 class OVOSSkill:
