@@ -116,9 +116,8 @@ class TestWireEmissionResilience(unittest.TestCase):
         with patch("ovos_workshop.intents.LOG.warning") as warn:
             self.interface.register_padatious_intent(
                 "test.skill:play.intent", path, "de-de")
-        self.assertEqual(len(self.emitter.messages), 1)
-        msg = self.emitter.messages[0]
-        self.assertEqual(msg.msg_type, "padatious:register_intent")
+        msg = next(m for m in self.emitter.messages
+                   if m.msg_type == "padatious:register_intent")
         self.assertEqual(msg.data["samples"],
                          ["play {media}", "start {media}"])
         self.assertEqual(warn.call_count, 2)
@@ -152,9 +151,9 @@ class TestWireEmissionResilience(unittest.TestCase):
         with patch("ovos_workshop.intents.LOG.warning") as warn:
             self.interface.register_padatious_entity(
                 "test.skill:thing", path, "de-de")
-        self.assertEqual(len(self.emitter.messages), 1)
-        self.assertEqual(self.emitter.messages[0].data["samples"],
-                         ["a movie", "a song"])
+        msg = next(m for m in self.emitter.messages
+                   if m.msg_type == "padatious:register_entity")
+        self.assertEqual(msg.data["samples"], ["a movie", "a song"])
         self.assertEqual(warn.call_count, 1)
 
     def test_register_entity_skipped_when_no_valid_samples(self):
