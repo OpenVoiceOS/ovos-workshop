@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.9a1) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.8a1...9.2.9a1)
+
+**Merged pull requests:**
+
+- fix: compare ovos\_core.version tuple in \_core\_owns\_utterance\_handled \(no packaging dep\) [\#482](https://github.com/OpenVoiceOS/ovos-workshop/pull/482) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.2.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.8a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.7a1...9.2.8a1)
