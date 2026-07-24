@@ -650,6 +650,14 @@ class SkillResources:
         """
         Initialize a MustacheDialogRenderer object for these resources
         """
+        # TODO: ovos_utils.dialog.load_dialogs/MustacheDialogRenderer are
+        #  deprecated in favor of ovos_spec_tools.LocaleResources +
+        #  DialogRenderer (OVOS-INTENT-2 §4.2), but that API renders a single
+        #  named dialog per call (`DialogRenderer(resources, name).render(lang)`)
+        #  against a LocaleResources-backed corpus, not a directory-wide
+        #  Mustache-style renderer keyed by loaded template name — a behavior
+        #  change, not a mechanical swap. Left unmigrated to avoid altering
+        #  dialog-rendering behavior; migrate deliberately in a follow-up.
         base_dirs = locate_lang_directories(self.language,
                                             self.skill_directory,
                                             "dialog")
