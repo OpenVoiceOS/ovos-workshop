@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.1a1) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.0a2...9.3.1a1)
+
+**Merged pull requests:**
+
+- fix: bump padacioso floor to 2.2.1a1 so dangling \<name\> refs raise MalformedTemplate [\#493](https://github.com/OpenVoiceOS/ovos-workshop/pull/493) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.0a2) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.0a1...9.3.0a2)
@@ -226,19 +234,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
-
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 **Merged pull requests:**
 
@@ -352,10 +360,6 @@
 ## [7.0.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.7a1) (2025-06-21)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/7.0.6...7.0.7a1)
-
-**Merged pull requests:**
-
-- refactor/remove the compatibility layer with MycroftSkill in the skill launcher [\#362](https://github.com/OpenVoiceOS/ovos-workshop/pull/362) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [7.0.6](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.6) (2025-06-17)
 
