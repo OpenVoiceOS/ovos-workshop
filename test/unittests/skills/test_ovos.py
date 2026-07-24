@@ -91,6 +91,59 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
+    def test_register_adapt_intent_no_self_deprecation_warning(self):
+        """OVOSSkill.register_intent (adapt path) is the framework's own
+        internal registration path — it must not route through the
+        deprecated IntentServiceInterface.register_adapt_intent public shim
+        and must not log a deprecation warning for a plain skill-authored
+        adapt intent."""
+        import warnings
+        from ovos_workshop.intents import IntentBuilder
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id="test_no_dep_warn_skill")
+        skill.register_vocabulary("hello world", "HelloWorldKeyword",
+                                  lang="en-US")
+
+        def handler(message):
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            skill.register_intent(
+                IntentBuilder("HelloWorldIntent").require("HelloWorldKeyword"),
+                handler)
+        deprecation_warnings = [w for w in caught
+                                if issubclass(w.category, DeprecationWarning)]
+        self.assertEqual(deprecation_warnings, [])
+        self.assertIn("HelloWorldIntent", skill.intent_service.intent_names)
+
+    def test_register_adapt_intent_spec_emits_keyword_topic(self):
+        """A plain adapt intent with cached vocab samples must spec-emit
+        ovos.intent.register.keyword (OVOS-INTENT-4 §5) — regression test
+        for the vocab-cache/munged-name mismatch."""
+        from ovos_spec_tools import SpecMessage
+        from ovos_workshop.intents import IntentBuilder
+
+        bus = FakeBus()
+        captured = []
+        bus.on(str(SpecMessage.INTENT_REGISTER_KEYWORD),
+              lambda m: captured.append(m))
+        skill = OVOSSkill(bus=bus, skill_id="test_kw_emit_skill")
+        skill.register_vocabulary("hello world", "HelloWorldKeyword",
+                                  lang="en-US")
+
+        def handler(message):
+            pass
+
+        skill.register_intent(
+            IntentBuilder("HelloWorldIntent").require("HelloWorldKeyword"),
+            handler)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0].data["required"],
+                         [{"name": "HelloWorldKeyword",
+                           "samples": ["hello world"]}])
+
     def test_send_stop_signal(self):
         # TODO
         pass
