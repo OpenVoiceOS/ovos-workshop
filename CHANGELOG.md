@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.1a2) (2026-07-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.1a1...9.3.1a2)
+
+**Merged pull requests:**
+
+- test: restore SessionManager.bus after end2end MiniCroft teardown [\#495](https://github.com/OpenVoiceOS/ovos-workshop/pull/495) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.1a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.0a2...9.3.1a1)
