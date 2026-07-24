@@ -24,11 +24,7 @@ from os.path import dirname
 
 import pytest
 
-try:
-    from ovoscope import get_minicroft
-    HAS_OVOSCOPE = True
-except ImportError:
-    HAS_OVOSCOPE = False
+from ovoscope import get_minicroft
 
 from ovos_spec_tools import SpecMessage
 
@@ -37,9 +33,6 @@ from ovos_spec_tools import SpecMessage
 sys.path.insert(0, dirname(__file__))
 
 SKILL_ID = "intent4.e2e.test"
-
-pytestmark = pytest.mark.skipif(not HAS_OVOSCOPE,
-                                reason="ovoscope not installed")
 
 
 def _boot():
