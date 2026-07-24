@@ -238,5 +238,28 @@ class TestResourceFileTypes(unittest.TestCase):
         self.assertIn("key", result)
 
 
+class TestLoadSkillVocabularyCasing(unittest.TestCase):
+    """load_skill_vocabulary must preserve the exact case of multi-word
+    CamelCase ``.voc`` filenames (e.g. ``HelloWorldKeyword.voc``)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        locale_dir = Path(self.tmp, "locale", "en-us", "vocab")
+        locale_dir.mkdir(parents=True)
+        (locale_dir / "HelloWorldKeyword.voc").write_text(
+            "hello world\ngreetings\n")
+
+    def tearDown(self) -> None:
+        if self.tmp and os.path.exists(self.tmp):
+            shutil.rmtree(self.tmp)
+
+    def test_camel_case_filename_case_preserved(self) -> None:
+        from ovos_workshop.resource_files import SkillResources
+        sr = SkillResources(self.tmp, "en-us")
+        skill_vocab = sr.load_skill_vocabulary("testskill")
+        self.assertIn("testskillHelloWorldKeyword", skill_vocab)
+        self.assertNotIn("testskillHelloworldkeyword", skill_vocab)
+
+
 if __name__ == "__main__":
     unittest.main()

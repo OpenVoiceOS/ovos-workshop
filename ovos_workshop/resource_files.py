@@ -932,7 +932,9 @@ class SkillResources:
                 file_name for file_name in files if file_name.endswith(".voc")
             )
             for file_name in vocabulary_files:
-                vocab_type = alphanumeric_skill_id + file_name[:-4].title()
+                # keep exact filename case: str.title() lowercases
+                # "HelloWorldKeyword" -> "Helloworldkeyword", breaking vocab lookups
+                vocab_type = alphanumeric_skill_id + file_name[:-4]
                 vocabulary = self.load_vocabulary_file(file_name)
                 if vocabulary:
                     skill_vocabulary[vocab_type] = vocabulary
