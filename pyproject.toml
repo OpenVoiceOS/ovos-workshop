@@ -22,7 +22,7 @@ dependencies = [
     "ovos-plugin-manager>=2.4.0a1,<3.0.0",
     "rapidfuzz",
     "langcodes",
-    "padacioso>=1.0.0,<3.0.0",
+    "padacioso>=2.2.1a1,<3.0.0",  # OVOS-INTENT-1 §3.7: add_intent delegates expansion to ovos_spec_tools.expand, which raises MalformedTemplate on a dangling <name> reference instead of silently training the literal token
 ]
 
 [project.optional-dependencies]
