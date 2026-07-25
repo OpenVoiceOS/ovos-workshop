@@ -1369,6 +1369,18 @@ class OVOSSkill:
         if handler:
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
+            # INTENT-4: pipelines are migrating to dispatch on the canonical,
+            # suffix-less intent name (`<skill_id>:<file>`, no `.intent`) instead
+            # of this legacy `<skill_id>:<file>.intent` topic. Both identities
+            # are emitted on the wire by register_template above, so bind the
+            # handler to both -- whichever name the matching pipeline used to
+            # dispatch, a handler is bound. Drop the legacy binding once all
+            # supported pipelines have migrated (padatious-pipeline #89,
+            # padacioso #73).
+            canonical = name[:-len('.intent')] if name.endswith('.intent') else name
+            if canonical != name:
+                self.add_event(canonical, handler, 'mycroft.skill.handler',
+                               activation=True, is_intent=True)
 
     def register_entity_file(self, entity_file: str):
         """
@@ -2371,6 +2383,13 @@ class OVOSSkill:
             self.log.info('Disabling intent ' + intent_name)
             name = f'{self.skill_id}:{intent_name}'
             self.intent_service.remove_intent(name)
+            # unbind the dispatch handler from both the legacy suffixed name
+            # and the INTENT-4 canonical suffix-less name (see
+            # register_intent_file, which binds both)
+            self.remove_event(name)
+            canonical = name[:-len('.intent')] if name.endswith('.intent') else name
+            if canonical != name:
+                self.remove_event(canonical)
 
             langs = [self.core_lang] + self.secondary_langs
             for lang in langs:
