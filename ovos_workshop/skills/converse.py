@@ -2,18 +2,16 @@ import abc
 from inspect import signature
 from typing import Optional
 
-from langcodes import closest_match
+from ovos_spec_tools import closest_lang, standardize_lang
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_config.config import Configuration
 from ovos_spec_tools import SpecMessage
-from ovos_utils.lang import standardize_lang_tag
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
-from ovos_workshop.resource_files import ResourceFile
 from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
 
 
@@ -88,12 +86,10 @@ class ConversationalSkill(OVOSSkill):
         for lang in self.native_langs:
             self.converse_matchers[lang] = IntentContainer(fuzz=fuzzy)
 
-            resources = self.load_lang(self.res_dir, lang)
-            resource_file = ResourceFile(resources.types.intent, intent_file)
-            if resource_file.file_path is None:
+            filename = self._locate_lang_file(intent_file, ".intent", lang)
+            if filename is None:
                 self.log.error(f'Unable to find "{intent_file}"')
                 continue
-            filename = str(resource_file.file_path)
 
             with open(filename) as f:
                 samples = [l.strip() for l in f.read().split("\n")
@@ -105,14 +101,9 @@ class ConversationalSkill(OVOSSkill):
 
     def _get_closest_lang(self, lang: str) -> Optional[str]:
         if self.converse_matchers:
-            lang = standardize_lang_tag(lang)
-            closest, score = closest_match(lang, list(self.converse_matchers.keys()))
-            # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-            # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-            # 1- 3 -> These codes indicate a minor regional difference.
-            # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-            if score < 10:
-                return closest
+            # closest_lang follows the OVOS-LANG spec: it standardizes both
+            # sides and accepts a match only when the distance is below 10.
+            return closest_lang(lang, list(self.converse_matchers.keys()))
         return None
 
     def _handle_converse_ack(self, message: Message):
@@ -189,7 +180,7 @@ class ConversationalSkill(OVOSSkill):
                 params = signature(self.converse).parameters
                 kwargs = {"message": message,
                           "utterances": message.data['utterances'],
-                          "lang": standardize_lang_tag(message.data['lang'])}
+                          "lang": standardize_lang(message.data['lang'])}
                 kwargs = {k: v for k, v in kwargs.items() if k in params}
 
                 response_message.data["result"] = self.converse(**kwargs)

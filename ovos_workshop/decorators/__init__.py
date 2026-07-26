@@ -79,7 +79,17 @@ def resting_screen_handler(name: str):
     Decorator for adding a method as a resting screen handler to optionally
     be shown on screen when device enters idle mode.
     @param name: Name of the restring screen to register
+
+    .. deprecated::
+        The resting-screen / homescreen concept is being deprecated entirely
+        and will be removed in a future release. No replacement is planned.
     """
+    import warnings
+    from ovos_utils.log import LOG
+    msg = ("@resting_screen_handler is deprecated; the resting-screen / "
+           "homescreen concept is being removed. No replacement is planned.")
+    warnings.warn(msg, DeprecationWarning, stacklevel=2)
+    LOG.warning(f"DEPRECATION: {msg}")
 
     def real_decorator(func):
         # Store the resting information inside the function
@@ -171,7 +181,17 @@ def homescreen_app(icon: str, name: Optional[str] = None):
 
     @param icon: icon file to use in app drawer (relative to "gui" folder)
     @param name: short name to show under the icon in app drawer
+
+    .. deprecated::
+        The homescreen concept is being deprecated entirely and will be
+        removed in a future release. No replacement is planned.
     """
+    import warnings
+    from ovos_utils.log import LOG
+    msg = ("@homescreen_app is deprecated; the homescreen concept is "
+           "being removed. No replacement is planned.")
+    warnings.warn(msg, DeprecationWarning, stacklevel=2)
+    LOG.warning(f"DEPRECATION: {msg}")
 
     def real_decorator(func):
         # Store the icon inside the function

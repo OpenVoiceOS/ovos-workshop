@@ -570,33 +570,27 @@ class TestOVOSSkill(unittest.TestCase):
         skill.res_dir = join(dirname(__file__), "test_locale")
         en_file = join(skill.res_dir, "locale", "en-US", "dow.entity")
         uk_file = join(skill.res_dir, "locale", "uk-UA", "dow.entity")
-        with open(en_file) as f:
-            en_samples = f.read().split("\n")
-        with open(uk_file) as f:
-            uk_samples = f.read().split("\n")
-        en_samples = [_ for _ in en_samples if _ and not _.startswith("#")]
-        uk_samples = [_ for _ in uk_samples if _ and not _.startswith("#")]
 
         # No secondary languages
         skill.config_core["lang"] = "en-US"
         skill.config_core["secondary_langs"] = []
         skill.register_entity_file("dow")
-        skill.intent_service.register_entity.assert_called_once_with(
+        skill.intent_service.register_padatious_entity.assert_called_once_with(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_samples, "en-US", blacklisted_words=[])
+            en_file, "en-US", blacklist=[])
 
         # With secondary language
-        skill.intent_service.register_entity.reset_mock()
+        skill.intent_service.register_padatious_entity.reset_mock()
         skill.config_core["secondary_langs"] = ["en-US", "uk-UA"]
         skill.register_entity_file("dow")
         self.assertEqual(
-            skill.intent_service.register_entity.call_count, 2)
-        skill.intent_service.register_entity.assert_any_call(
+            skill.intent_service.register_padatious_entity.call_count, 2)
+        skill.intent_service.register_padatious_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            en_samples, "en-US", blacklisted_words=[])
-        skill.intent_service.register_entity.assert_any_call(
+            en_file, "en-US", blacklist=[])
+        skill.intent_service.register_padatious_entity.assert_any_call(
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
-            uk_samples, "uk-UA", blacklisted_words=[])
+            uk_file, "uk-UA", blacklist=[])
 
     def test_handle_enable_intent(self):
         # TODO
