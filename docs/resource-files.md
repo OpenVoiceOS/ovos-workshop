@@ -129,3 +129,22 @@ Optional file for homescreen integration. Placed at `locale/<lang>/skill.json`:
 ```
 
 These examples are emitted to the homescreen as `homescreen.register.examples` on skill startup.
+
+## Spec conformance — OVOS-INTENT-2
+
+Skill locale resource loading is delegated to `ovos_spec_tools.LocaleResources`.
+`OVOSSkill` builds one `LocaleResources` per resource root (cached on
+`_locale_resources` / `load_lang`) and uses it for dialog rendering
+(`render_dialog` → `ovos_spec_tools.render`), vocab lookup (`voc_match`,
+`voc_list` → `LocaleResources.voc_list`), and resource discovery
+(`find_resource` → `LocaleResources.find`). Language matching and template
+expansion come from the spec primitives (`closest_lang` / `standardize_lang`,
+`expand`).
+
+The legacy `SkillResources`, `ResourceFile`, `ResourceType`, and the related
+module-level helpers in `ovos_workshop/resource_files.py` are kept only as
+deprecated shims. The legacy `OVOSSkill` resource surface (`resources`,
+`dialog_renderer`, `find_resource`, …) is preserved on the
+`_LegacyResourcesMixin` deprecation mixin, which emits `@deprecated` warnings and
+forwards to the spec API. New code should construct `ovos_spec_tools.LocaleResources`
+directly.
