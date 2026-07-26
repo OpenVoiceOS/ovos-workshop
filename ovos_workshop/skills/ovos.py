@@ -632,7 +632,6 @@ class OVOSSkill(_LegacyResourcesMixin):
             yet scheduled.
         """
         root_directory = root_directory or self.res_dir
-        unique_prefix = "(?P<" + self.alphanumeric_skill_id
         loaded_any = False
         # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
         # native_langs via closest_lang — so an `en-US/` tree is picked up for
@@ -652,12 +651,14 @@ class OVOSSkill(_LegacyResourcesMixin):
                             pattern = line.strip()
                             if not pattern or pattern.startswith("#"):
                                 continue
-                            # uniqueify group names so they don't collide
-                            # across skills, then validate
-                            unique = unique_prefix.join(pattern.split("(?P<"))
-                            re.compile(unique)
+                            re.compile(pattern)  # validate before handing off
+                            # register_adapt_regex (IntentServiceInterface)
+                            # already prefixes "(?P<" group names with the
+                            # skill's alphanumeric id via munge_regex — do
+                            # not pre-munge here, it would double-prefix and
+                            # mismatch the keyword Adapt intents require()
                             self.intent_service.register_adapt_regex(
-                                unique, lang_norm)
+                                pattern, lang_norm)
                             loaded_any = True
         if loaded_any:
             msg = ("OVOSSkill.load_regex_files: .rx regex resources are "

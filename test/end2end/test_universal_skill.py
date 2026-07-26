@@ -274,8 +274,12 @@ class TestUniversalSkillResourceLang(TestCase):
                      "source": "A", "destination": "B"}))
 
         self.assertTrue(
-            event.wait(timeout=10),
-            "no speak within 10s — the pt-PT fact.intent likely never "
+            # padatious/padacioso training for two langs (pt-PT + en-US)
+            # under full-suite load can take longer than 10s; 15s matches
+            # the timeout used for the other padacioso e2e round-trip
+            # (test_padacioso_intent_file.py)
+            event.wait(timeout=15),
+            "no speak within 15s — the pt-PT fact.intent likely never "
             f"matched. spoken={spoken!r}")
 
         # Inbound translation happened inside the skill: the handler
