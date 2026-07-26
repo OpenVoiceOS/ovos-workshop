@@ -497,6 +497,72 @@ class TestOVOSSkill(unittest.TestCase):
             f"{skill.skill_id}:time.intent", uk_samples, "uk-UA",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
 
+    def test_register_intent_file_binds_canonical_and_legacy_events(self):
+        # INTENT-4: register_intent_file dual-emits the legacy suffixed name
+        # (`<skill_id>:<file>.intent`) and the canonical suffix-less name
+        # (`<skill_id>:<file>`) on the wire; the dispatch handler must be
+        # bound to BOTH, since pipelines are migrating to dispatch on the
+        # canonical name (padatious-pipeline #89, padacioso #73).
+        skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        legacy_name = f"{skill.skill_id}:time.intent"
+        canonical_name = f"{skill.skill_id}:time"
+
+        handler = Mock(__name__="test")
+        skill.register_intent_file("time.intent", handler)
+
+        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+
+    def test_register_intent_file_canonical_topic_fires_handler(self):
+        # emitting the canonical (suffix-less) topic on the bus must invoke
+        # the registered handler, matching how a migrated pipeline dispatches
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        called = Event()
+
+        def handler(message):
+            called.set()
+
+        handler.__name__ = "test_handler"
+        skill.register_intent_file("time.intent", handler)
+
+        canonical_name = f"{skill.skill_id}:time"
+        from ovos_bus_client.message import Message
+        bus.emit(Message(canonical_name, {}, {}))
+        self.assertTrue(called.wait(2))
+
+    def test_disable_intent_removes_both_events(self):
+        skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.intent_service.__contains__ = Mock(return_value=True)
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        legacy_name = f"{skill.skill_id}:time.intent"
+        canonical_name = f"{skill.skill_id}:time"
+
+        skill.register_intent_file("time.intent", Mock(__name__="test"))
+        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+
+        skill.disable_intent("time.intent")
+        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
+        self.assertFalse(any(n == canonical_name for n, _ in skill.events))
+
     def test_register_entity_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
         skill._lang_resources = dict()
