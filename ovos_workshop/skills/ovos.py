@@ -15,7 +15,6 @@ import binascii
 import datetime
 import os
 import re
-import shutil
 import sys
 import time
 import traceback
@@ -41,7 +40,6 @@ from ovos_bus_client.util import get_message_lang
 from ovos_spec_tools import SpecMessage, standardize_lang
 from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
-from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
@@ -735,7 +733,6 @@ class OVOSSkill:
             self._register_skill_json()
             self._register_decorated()
             self._register_app_launcher()
-            self.register_resting_screen()
 
             self.status.set_started()
             # run skill developer initialization code
@@ -768,25 +765,9 @@ class OVOSSkill:
                                           {"skill_id": self.skill_id, "utterances": utts, "lang": lang}))
 
     def _register_app_launcher(self):
-        # register app launcher if registered via decorator
-        for attr_name in get_non_properties(self):
-            method = getattr(self, attr_name)
-            if hasattr(method, 'homescreen_app_icon'):
-                name = getattr(method, 'homescreen_app_name')
-                event = f"{self.skill_id}.{name or method.__name__}.homescreen.app"
-                icon = getattr(method, 'homescreen_app_icon')
-                name = name or self.__skill_id2name
-                LOG.debug(f"homescreen app registered: {name} - '{event}'")
-                self.register_homescreen_app(icon=icon,
-                                             name=name or self.skill_id,
-                                             event=event)
-                self.add_event(event, method, speak_errors=False)
-
-    @property
-    def __skill_id2name(self) -> str:
-        """helper to make a nice string out of a skill_id"""
-        return (self.skill_id.split(".")[0].replace("_", " ").
-                replace("-", " ").replace("skill", "").title().strip())
+        # NOTE: app launchers / homescreen apps are a GUI render-backend concern
+        # and are no longer registered from skills (OVOS-GUI-1 §6.9).
+        pass
 
     def _init_settings(self):
         """
@@ -834,65 +815,6 @@ class OVOSSkill:
         """
         self.gui = SkillGUI(self)
         self.gui.setup_default_handlers()
-
-    def register_homescreen_app(self, icon: str, name: str, event: str):
-        """the icon file MUST be located under 'gui' subfolder"""
-        # this path is hardcoded in ovos_gui.constants and follows XDG spec
-        # we use it to ensure resource availability between containers
-        # it is the only path assured to be accessible both by skills and GUI
-        GUI_CACHE_PATH = get_xdg_cache_save_path('ovos_gui')
-
-        full_icon_path = f"{self.res_dir}/gui/{icon}"
-        if not os.path.isfile(full_icon_path):
-            self.log.error(f"failed to register homescreen app, icon does not exist: {full_icon_path}")
-            return
-        os.makedirs(f"{GUI_CACHE_PATH}/{self.skill_id}", exist_ok=True)
-        shared_path = f"{GUI_CACHE_PATH}/{self.skill_id}/{icon}"
-        shutil.copy(full_icon_path, shared_path)
-
-        self.bus.emit(Message("homescreen.register.app",
-                              {"skill_id": self.skill_id,
-                               "icon": shared_path,
-                               "name": name,
-                               "event": event}))
-
-    def register_resting_screen(self):
-        """
-        Registers resting screen from the resting_screen_handler decorator.
-
-        This only allows one screen and if two is registered only one
-        will be used.
-        """
-        for attr_name in get_non_properties(self):
-            handler = getattr(self, attr_name)
-            if hasattr(handler, 'resting_handler'):
-                resting_name = handler.resting_handler
-                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
-
-                def register(message=None, name=resting_name):
-                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
-                    self.bus.emit(Message("homescreen.manager.add",
-                                          {"name": name, "id": self.skill_id}))
-
-                register()  # initial registering
-
-                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
-
-                def wrapper(message, cb=handler):
-                    if message.data["homescreen_id"] == self.skill_id:
-                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
-                        cb(message)
-
-                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
-
-                def shutdown_handler(message):
-                    if message.data["id"] == self.skill_id:
-                        msg = message.forward("homescreen.manager.remove",
-                                              {"id": self.skill_id})
-                        self.bus.emit(msg)
-
-                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
-                break  # TODO - if multiple decorators are used what do? this is not deterministic
 
     def _start_filewatcher(self):
         """

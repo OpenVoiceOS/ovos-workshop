@@ -12,7 +12,6 @@ from ovos_workshop.decorators import (
     skill_api_method,
     adds_context,
     removes_context,
-    homescreen_app,
     killable_intent,
     killable_event,
 )
@@ -364,24 +363,6 @@ from ovos_workshop.decorators.layers import resets_layers
 @resets_layers()
 def reset_everything(self, message):
     self.speak("All modes cleared.")
-```
-
----
-
-## GUI / Homescreen Decorators
-
-### `@homescreen_app`
-
-`homescreen_app` — `ovos_workshop/decorators/__init__.py:149`
-
-Register a method as a homescreen app launcher. The icon file must be inside the `gui/` subfolder of the skill.
-
-```python
-from ovos_workshop.decorators import homescreen_app
-
-@homescreen_app(icon="my_app.png", name="My App")
-def launch_app(self, message):
-    self.gui.show_page("main.qml")
 ```
 
 ---
