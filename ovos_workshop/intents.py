@@ -11,8 +11,8 @@ from ovos_utils.log import LOG, log_deprecation
 
 # OVOS-INTENT-4 keyword-intent definition primitives, re-exported from ovos-spec-tools.
 from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
-                             SpecMessage, inline_keywords, expand,
-                             MalformedTemplate)
+                             SpecMessage, INTENT_FILE_SUFFIX,
+                             inline_keywords, expand, MalformedTemplate)
 from ovos_spec_tools.resources import read_resource_file
 
 from ovos_workshop.version import VERSION_MAJOR
@@ -449,11 +449,15 @@ class IntentServiceInterface:
     @staticmethod
     def _clean_padatious_name(name: str) -> str:
         """Strip the ``<skill_id>:`` prefix, a trailing ``.intent`` suffix
-        (``register_intent_file`` internal naming) and a trailing
-        ``_<md5>`` hash munge (``register_entity_file`` internal naming)."""
+        and a trailing ``_<md5>`` hash munge (``register_entity_file``
+        internal naming).
+
+        Current ``register_intent_file`` already passes a canonical name, so
+        the suffix strip only fires for a caller that still uses the legacy
+        spelling (the deprecated ``register_padatious_intent`` API)."""
         name = name.split(':')[-1]
-        if name.endswith('.intent'):
-            name = name[:-len('.intent')]
+        if name.endswith(INTENT_FILE_SUFFIX):
+            name = name[:-len(INTENT_FILE_SUFFIX)]
         name = re.sub(r'_[0-9a-f]{32}$', '', name)
         return name
 
