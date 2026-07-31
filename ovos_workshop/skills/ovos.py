@@ -38,7 +38,8 @@ from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
-from ovos_spec_tools import SpecMessage, standardize_lang
+from ovos_spec_tools import (SpecMessage, canonical_intent_topic,
+                             standardize_lang)
 from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
 from ovos_config.locations import get_xdg_cache_save_path
@@ -1272,7 +1273,7 @@ class OVOSSkill:
         """
         for intent_file in intent_list:
             if isinstance(intent_file, str):
-                name = f'{self.skill_id}:{intent_file}'
+                name = canonical_intent_topic(f'{self.skill_id}:{intent_file}')
             else:
                 if hasattr(intent_file, "build"):
                     try:
@@ -1328,7 +1329,11 @@ class OVOSSkill:
                          '.intent'
             handler:     function to register with intent
         """
-        name = f'{self.skill_id}:{intent_file}'
+        # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
+        # The intent NAME is the author's label for the intent, not the name of
+        # the file the samples came from, so the `.intent` authoring extension
+        # never reaches the wire.
+        name = canonical_intent_topic(f'{self.skill_id}:{intent_file}')
         for lang in self.native_langs:
             resources = self.load_lang(self.res_dir, lang)
             resource_file = ResourceFile(resources.types.intent, intent_file)
@@ -1372,20 +1377,12 @@ class OVOSSkill:
                 vocabs=resources.vocabularies())
         if handler:
             self._intent_handlers[intent_file] = handler
+            # canonical topic only. A skill container running an old workshop
+            # still listens on the `.intent`-suffixed twin; that compat is the
+            # bus layer's job (`ovos_spec_tools.intent_topics`), not the
+            # skill's.
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
-            # INTENT-4: pipelines are migrating to dispatch on the canonical,
-            # suffix-less intent name (`<skill_id>:<file>`, no `.intent`) instead
-            # of this legacy `<skill_id>:<file>.intent` topic. Both identities
-            # are emitted on the wire by register_template above, so bind the
-            # handler to both -- whichever name the matching pipeline used to
-            # dispatch, a handler is bound. Drop the legacy binding once all
-            # supported pipelines have migrated (padatious-pipeline #89,
-            # padacioso #73).
-            canonical = name[:-len('.intent')] if name.endswith('.intent') else name
-            if canonical != name:
-                self.add_event(canonical, handler, 'mycroft.skill.handler',
-                               activation=True, is_intent=True)
 
     def register_entity_file(self, entity_file: str):
         """
@@ -2406,17 +2403,13 @@ class OVOSSkill:
         Returns:
                 bool: True if disabled, False if it wasn't registered
         """
-        if intent_name in self.intent_service:
+        # a skill author names the intent as authored ("time.intent"); the
+        # registry and the bus both key it by its canonical name ("time")
+        name = canonical_intent_topic(f'{self.skill_id}:{intent_name}')
+        if name.split(':', 1)[1] in self.intent_service:
             self.log.info('Disabling intent ' + intent_name)
-            name = f'{self.skill_id}:{intent_name}'
             self.intent_service.remove_intent(name)
-            # unbind the dispatch handler from both the legacy suffixed name
-            # and the INTENT-4 canonical suffix-less name (see
-            # register_intent_file, which binds both)
             self.remove_event(name)
-            canonical = name[:-len('.intent')] if name.endswith('.intent') else name
-            if canonical != name:
-                self.remove_event(canonical)
 
             langs = [self.core_lang] + self.secondary_langs
             for lang in langs:
@@ -2437,7 +2430,11 @@ class OVOSSkill:
         Returns:
             bool: True if enabled, False if it wasn't registered
         """
-        intent = self.intent_service.get_intent(intent_name)
+        # the registry keys intents by their canonical name; the author may
+        # still refer to the intent by its authoring file name
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
+        intent = self.intent_service.get_intent(canonical)
         if intent:
             handler = self._intent_handlers.get(intent_name)
             if not handler:

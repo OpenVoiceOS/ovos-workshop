@@ -481,7 +481,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.config_core["secondary_langs"] = []
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         skill.intent_service.register_template.assert_called_once_with(
-            f"{skill.skill_id}:time.intent", en_samples, "en-US",
+            f"{skill.skill_id}:time", en_samples, "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
 
         # With secondary language
@@ -491,18 +491,17 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertEqual(
             skill.intent_service.register_template.call_count, 2)
         skill.intent_service.register_template.assert_any_call(
-            f"{skill.skill_id}:time.intent", en_samples, "en-US",
+            f"{skill.skill_id}:time", en_samples, "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
         skill.intent_service.register_template.assert_any_call(
-            f"{skill.skill_id}:time.intent", uk_samples, "uk-UA",
+            f"{skill.skill_id}:time", uk_samples, "uk-UA",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
 
-    def test_register_intent_file_binds_canonical_and_legacy_events(self):
-        # INTENT-4: register_intent_file dual-emits the legacy suffixed name
-        # (`<skill_id>:<file>.intent`) and the canonical suffix-less name
-        # (`<skill_id>:<file>`) on the wire; the dispatch handler must be
-        # bound to BOTH, since pipelines are migrating to dispatch on the
-        # canonical name (padatious-pipeline #89, padacioso #73).
+    def test_register_intent_file_binds_the_canonical_event_only(self):
+        # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
+        # The `.intent` authoring extension is not part of the intent name, so
+        # workshop must neither register nor listen on the suffixed twin —
+        # that compat belongs to ovos-spec-tools at the bus layer.
         skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
         skill._lang_resources = dict()
         skill.intent_service = Mock()
@@ -516,12 +515,49 @@ class TestOVOSSkill(unittest.TestCase):
         handler = Mock(__name__="test")
         skill.register_intent_file("time.intent", handler)
 
-        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
         self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
+
+    def test_register_intent_file_registers_the_canonical_name(self):
+        # the name that goes to the intent service (and so onto the wire in
+        # the INTENT-4 registration payload) carries no authoring extension
+        skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        skill.register_intent_file("time.intent", Mock(__name__="test"))
+
+        registered = skill.intent_service.register_template.call_args[0][0]
+        self.assertEqual(registered, f"{skill.skill_id}:time")
+
+    def test_no_suffixed_topic_originates_from_workshop(self):
+        # nothing workshop emits or binds while registering a file intent may
+        # carry the `.intent` suffix in a `<skill_id>:` topic
+        import json
+        bus = FakeBus()
+        emitted = []
+        bus.on("message", lambda m: emitted.append(
+            json.loads(m)["type"] if isinstance(m, str) else m.msg_type))
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        skill.register_intent_file("time.intent", Mock(__name__="test"))
+
+        suffixed = [t for t in emitted
+                    if ":" in t and t.rsplit(":", 1)[-1].endswith(".intent")]
+        self.assertEqual(suffixed, [])
+        self.assertFalse(any(":" in n and n.rsplit(":", 1)[-1].endswith(".intent")
+                             for n, _ in skill.events))
 
     def test_register_intent_file_canonical_topic_fires_handler(self):
         # emitting the canonical (suffix-less) topic on the bus must invoke
-        # the registered handler, matching how a migrated pipeline dispatches
+        # the registered handler, matching how a pipeline dispatches
         bus = FakeBus()
         skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
         skill._lang_resources = dict()
@@ -543,7 +579,8 @@ class TestOVOSSkill(unittest.TestCase):
         bus.emit(Message(canonical_name, {}, {}))
         self.assertTrue(called.wait(2))
 
-    def test_disable_intent_removes_both_events(self):
+    def test_disable_intent_removes_the_canonical_event(self):
+        # the author still names the intent by its authoring file
         skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
         skill._lang_resources = dict()
         skill.intent_service = Mock()
@@ -552,16 +589,15 @@ class TestOVOSSkill(unittest.TestCase):
         skill.config_core["lang"] = "en-US"
         skill.config_core["secondary_langs"] = []
 
-        legacy_name = f"{skill.skill_id}:time.intent"
         canonical_name = f"{skill.skill_id}:time"
 
         skill.register_intent_file("time.intent", Mock(__name__="test"))
-        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
         self.assertTrue(any(n == canonical_name for n, _ in skill.events))
 
         skill.disable_intent("time.intent")
-        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
         self.assertFalse(any(n == canonical_name for n, _ in skill.events))
+        # the registry is asked about the canonical name, not the file name
+        skill.intent_service.__contains__.assert_called_with("time")
 
     def test_register_entity_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
