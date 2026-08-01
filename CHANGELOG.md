@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.3a1) (2026-08-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.2a2...9.3.3a1)
+
+**Merged pull requests:**
+
+- fix\(ci\): coverage workflow installs test skills that no longer exist [\#506](https://github.com/OpenVoiceOS/ovos-workshop/pull/506) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.2a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.2a2) (2026-08-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.2a1...9.3.2a2)
@@ -258,19 +266,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
-
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 **Merged pull requests:**
 
