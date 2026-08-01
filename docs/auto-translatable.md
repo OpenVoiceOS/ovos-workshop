@@ -12,8 +12,8 @@ Normal skills receive utterances in whatever language the user spoke (`self.lang
 
 `UniversalSkill` breaks this into two clear responsibilities:
 
-1. **Input translation** — Before each intent handler fires, the incoming `Message` is translated so that `message.data["utterances"]` and related fields are in `self.internal_language`.
-2. **Output translation** — Every call to `self.speak()` translates the text from `self.internal_language` back to `self.lang` (the user's language).
+1. **Input translation**: Before each intent handler fires, the incoming `Message` is translated so that `message.data["utterances"]` and related fields are in `self.internal_language`.
+2. **Output translation**: Every call to `self.speak()` translates the text from `self.internal_language` back to `self.lang` (the user's language).
 
 The translation is performed by the configured translator plugin (set in `ovos.conf`). `self.lang` always reflects the **original query language** from the session.
 
@@ -21,8 +21,7 @@ The translation is performed by the configured translator plugin (set in `ovos.c
 
 ## UniversalSkill
 
-`UniversalSkill` — `ovos_workshop/skills/auto_translatable.py:14`
-
+`UniversalSkill` is defined in `ovos_workshop/skills/auto_translatable.py:14`.
 ### Constructor
 
 ```python
@@ -38,8 +37,7 @@ class UniversalSkill(OVOSSkill):
     ): ...
 ```
 
-`UniversalSkill.__init__` — `ovos_workshop/skills/auto_translatable.py:30`
-
+`UniversalSkill.__init__` is defined in `ovos_workshop/skills/auto_translatable.py:30`.
 | Parameter | Default | Description |
 |---|---|---|
 | `internal_language` | `None` (falls back to `config["lang"]`) | The language in which the skill internally operates. All handlers receive utterances in this language. |
@@ -53,8 +51,7 @@ If `internal_language` is not given, a warning is logged and the global config l
 
 ### `internal_language`
 
-`UniversalSkill.internal_language` — `ovos_workshop/skills/auto_translatable.py:53`
-
+`UniversalSkill.internal_language` is defined in `ovos_workshop/skills/auto_translatable.py:53`.
 The language tag the skill expects to receive and produce. Set this in your subclass constructor:
 
 ```python
@@ -65,22 +62,20 @@ super().__init__(internal_language="en-US", *args, **kwargs)
 
 ### `detect_language(utterance)`
 
-`UniversalSkill.detect_language` — `ovos_workshop/skills/auto_translatable.py:79`
-
+`UniversalSkill.detect_language` is defined in `ovos_workshop/skills/auto_translatable.py:79`.
 Detects the language of `utterance` using the configured language detector plugin. Falls back to `self.lang.split("-")[0]` on error.
 
 ```python
 def detect_language(self, utterance: str) -> str: ...
 ```
 
-Only active when `autodetect=True`; otherwise `self.lang` (from the session) is used as the source language.
+Only active when `autodetect=True`. Otherwise `self.lang` (from the session) is used as the source language.
 
 ---
 
 ### `translate_utterance(text, target_lang, sauce_lang=None)`
 
-`UniversalSkill.translate_utterance` — `ovos_workshop/skills/auto_translatable.py:104`
-
+`UniversalSkill.translate_utterance` is defined in `ovos_workshop/skills/auto_translatable.py:104`.
 Translates `text` from `sauce_lang` to `target_lang`. If the source and target language share the same base code (ignoring region), the original text is returned unchanged.
 
 ```python
@@ -98,8 +93,7 @@ If `autodetect=True`, `sauce_lang` is determined by calling `detect_language(tex
 
 ### `translate_message(message)`
 
-`UniversalSkill.translate_message` — `ovos_workshop/skills/auto_translatable.py:134`
-
+`UniversalSkill.translate_message` is defined in `ovos_workshop/skills/auto_translatable.py:134`.
 Translates the full message in-place (or returns it unchanged if no translation is needed). The method:
 
 1. Sets `sauce_lang = self.lang` and `out_lang = self.internal_language`.
@@ -114,10 +108,9 @@ Returns the modified `Message`.
 
 ### Overridden `register_intent()` and `register_intent_file()`
 
-`UniversalSkill.register_intent` — `ovos_workshop/skills/auto_translatable.py:228`
-`UniversalSkill.register_intent_file` — `ovos_workshop/skills/auto_translatable.py:250`
-
-Both methods wrap the provided handler with `create_universal_handler()` before passing it to the parent class. This is transparent — you register intents exactly as with a regular `OVOSSkill`:
+`UniversalSkill.register_intent` is defined in `ovos_workshop/skills/auto_translatable.py:228`.
+`UniversalSkill.register_intent_file` is defined in `ovos_workshop/skills/auto_translatable.py:250`.
+Both methods wrap the provided handler with `create_universal_handler()` before passing it to the parent class. This is transparent: you register intents exactly as with a regular `OVOSSkill`:
 
 ```python
 def initialize(self):
@@ -130,8 +123,7 @@ The handler will always receive `message.data["utterances"]` in `self.internal_l
 
 ### `create_universal_handler(handler)`
 
-`UniversalSkill.create_universal_handler` — `ovos_workshop/skills/auto_translatable.py:193`
-
+`UniversalSkill.create_universal_handler` is defined in `ovos_workshop/skills/auto_translatable.py:193`.
 Creates a wrapper that calls `self.translate_message(message)` before calling `handler(message)`. Use this explicitly only when registering handlers with `self.add_event()` (not with `register_intent`, which wraps automatically):
 
 ```python
@@ -146,8 +138,7 @@ def initialize(self):
 
 ### Overridden `speak()`
 
-`UniversalSkill.speak` — `ovos_workshop/skills/auto_translatable.py:272`
-
+`UniversalSkill.speak` is defined in `ovos_workshop/skills/auto_translatable.py:272`.
 Translates the utterance from `self.internal_language` to `self.lang` before calling `super().speak()`. Translation metadata is stored in the `meta` kwarg:
 
 ```python
@@ -163,8 +154,7 @@ meta["translation_data"] = {
 
 ## UniversalFallback
 
-`UniversalFallback` — `ovos_workshop/skills/auto_translatable.py:314`
-
+`UniversalFallback` is defined in `ovos_workshop/skills/auto_translatable.py:314`.
 ```python
 class UniversalFallback(UniversalSkill, FallbackSkill):
     ...
@@ -174,22 +164,19 @@ Combines `UniversalSkill` with `FallbackSkill`. Fallback handlers receive uttera
 
 ### `register_fallback(handler, priority)`
 
-`UniversalFallback.register_fallback` — `ovos_workshop/skills/auto_translatable.py:353`
-
+`UniversalFallback.register_fallback` is defined in `ovos_workshop/skills/auto_translatable.py:353`.
 Wraps the handler with `create_universal_fallback_handler()` before registering it, ensuring translation happens before the handler is called.
 
 ### `create_universal_fallback_handler(handler)`
 
-`UniversalFallback.create_universal_fallback_handler` — `ovos_workshop/skills/auto_translatable.py:328`
-
+`UniversalFallback.create_universal_fallback_handler` is defined in `ovos_workshop/skills/auto_translatable.py:328`.
 Similar to `create_universal_handler()` but designed for fallback handlers (which receive `self` as an explicit argument).
 
 ---
 
 ## UniversalCommonQuerySkill
 
-`UniversalCommonQuerySkill` — `ovos_workshop/skills/auto_translatable.py:376`
-
+`UniversalCommonQuerySkill` is defined in `ovos_workshop/skills/auto_translatable.py:376`.
 > **Deprecated.** Use `UniversalSkill` with `@common_query` instead.
 
 Combines `UniversalSkill` with `CommonQuerySkill`. Both the input phrase and the skill's answer are translated automatically:
@@ -224,7 +211,7 @@ class WeatherSkill(UniversalSkill):
     def handle_weather(self, message):
         # message.data["utterances"][0] is already in English here.
         city = message.data.get("city", "your location")
-        # self.lang is still the original user language — useful for logging.
+        # self.lang is still the original user language, useful for logging.
         self.log.debug(f"User language: {self.lang}")
         # speak() translates from en-US → self.lang automatically.
         self.speak(f"The weather in {city} is sunny today.")
@@ -249,3 +236,6 @@ class MyUniversalFallback(UniversalFallback):
         self.speak(f"I heard: {utterance}")
         return True
 ```
+
+---
+[← game-skill](game-skill.md) · [Home](index.md) · [skill-interaction →](skill-interaction.md)

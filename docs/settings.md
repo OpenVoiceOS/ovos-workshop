@@ -28,7 +28,7 @@ self.settings["username"] = "Alice"
 self.settings.store()
 ```
 
-Do not replace the whole `self.settings` dict — update individual keys:
+Do not replace the whole `self.settings` dict: update individual keys:
 
 ```python
 # WRONG
@@ -68,8 +68,8 @@ def on_settings_changed(self):
 
 Settings changes can arrive two ways:
 
-1. **Bus event** (`ovos.skills.settings_changed`) — emitted by `ovos-core`'s file watcher. This is the primary mechanism in a standard setup.
-2. **Local file watcher** — the skill can also watch its own `settings.json` directly. Enabled by setting `monitor_own_settings: true` in the skill's own settings. Useful in isolated setups (e.g. containers) where the skill and core don't share a filesystem.
+1. **Bus event** (`ovos.skills.settings_changed`): emitted by `ovos-core`'s file watcher. This is the primary mechanism in a standard setup.
+2. **Local file watcher**: the skill can also watch its own `settings.json` directly. Enabled by setting `monitor_own_settings: true` in the skill's own settings. Useful in isolated setups (e.g. containers) where the skill and core don't share a filesystem.
 
 ## Remote Settings
 
@@ -78,3 +78,6 @@ Skills can receive remote settings updates via `mycroft.skills.settings.changed`
 ## Private Settings
 
 Skills also have access to `self.private_settings` (`PrivateSettings`), a separate storage for data that should not be shared or synced. Backed by a JSON file outside the standard settings path.
+
+---
+[← resource-files](resource-files.md) · [Home](index.md) · [intent-layers →](intent-layers.md)

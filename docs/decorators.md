@@ -41,8 +41,7 @@ from ovos_workshop.decorators.ocp import (
 
 ### `@intent_handler`
 
-`intent_handler` — `ovos_workshop/decorators/__init__.py:57`
-
+`intent_handler` is defined in `ovos_workshop/decorators/__init__.py:57`.
 Register a method as a Padatious (`.intent` file) or Adapt (`IntentBuilder`) intent handler.
 
 ```python
@@ -57,7 +56,7 @@ def handle_my(self, message): ...
 @intent_handler(IntentBuilder("GreetIntent").require("Hello"))
 def handle_greet(self, message): ...
 
-# With voc blacklist — suppress adapt keywords in this handler
+# With voc blacklist: suppress adapt keywords in this handler
 @intent_handler("my.intent", voc_blacklist=["StopKeyword"])
 def handle_my_no_stop(self, message): ...
 ```
@@ -68,8 +67,7 @@ A method can have multiple `@intent_handler` decorators to handle multiple inten
 
 ### `@conversational_intent`
 
-`conversational_intent` — `ovos_workshop/decorators/__init__.py:117`
-
+`conversational_intent` is defined in `ovos_workshop/decorators/__init__.py:117`.
 Register a Padatious `.intent` file as a converse-only matcher. Only active when the skill is in converse mode. Requires the skill to extend `ConversationalSkill`.
 
 > **Note:** Only Padatious intents are supported, not Adapt.
@@ -85,8 +83,7 @@ def handle_help_in_converse(self, message): ...
 
 ### `@fallback_handler`
 
-`fallback_handler` — `ovos_workshop/decorators/__init__.py:133`
-
+`fallback_handler` is defined in `ovos_workshop/decorators/__init__.py:133`.
 Register a method as a fallback handler with a given priority (0–100, lower = higher priority).
 
 ```python
@@ -95,15 +92,14 @@ from ovos_workshop.decorators import fallback_handler
 @fallback_handler(priority=50)
 def handle_unknown(self, message):
     self.speak("I don't know.")
-    return True  # consumed — stop checking other fallbacks
+    return True  # consumed: stop checking other fallbacks
 ```
 
 ---
 
 ### `@common_query`
 
-`common_query` — `ovos_workshop/decorators/__init__.py:94`
-
+`common_query` is defined in `ovos_workshop/decorators/__init__.py:94`.
 Register a method as a CommonQuery handler. The method must return `(answer, confidence)` or `None`.
 
 ```python
@@ -124,8 +120,7 @@ def handle_query(self, phrase, lang):
 
 ### `@converse_handler`
 
-`converse_handler` — `ovos_workshop/decorators/__init__.py:108`
-
+`converse_handler` is defined in `ovos_workshop/decorators/__init__.py:108`.
 Alias a method as the skill's `converse` handler instead of overriding `converse()` directly.
 
 ```python
@@ -140,9 +135,8 @@ def my_converse(self, message):
 
 ## Context Decorators
 
-`adds_context` — `ovos_workshop/decorators/__init__.py:16`
-`removes_context` — `ovos_workshop/decorators/__init__.py:37`
-
+`adds_context` is defined in `ovos_workshop/decorators/__init__.py:16`.
+`removes_context` is defined in `ovos_workshop/decorators/__init__.py:37`.
 These run **after** the decorated method completes.
 
 ### `@adds_context`
@@ -171,22 +165,21 @@ def handle_cancel(self, message):
 
 ### Exception Classes
 
-`AbortEvent` — `ovos_workshop/decorators/killable.py:12`
-`AbortIntent` — `ovos_workshop/decorators/killable.py:16`
-`AbortQuestion` — `ovos_workshop/decorators/killable.py:19`
-
+`AbortEvent` is defined in `ovos_workshop/decorators/killable.py:12`.
+`AbortIntent` is defined in `ovos_workshop/decorators/killable.py:16`.
+`AbortQuestion` is defined in `ovos_workshop/decorators/killable.py:19`.
 ```python
 class AbortEvent(StopIteration):
-    """Base class — abort any bus event handler."""
+    """Base class: abort any bus event handler."""
 
 class AbortIntent(AbortEvent):
-    """Abort intent parsing; raised by @killable_intent."""
+    """Abort intent parsing. Raised by @killable_intent."""
 
 class AbortQuestion(AbortEvent):
     """Gracefully abort get_response queries."""
 ```
 
-These exceptions are **raised inside the handler thread** when the kill message is received. They propagate through the call stack; wrap long-running loops to catch and clean up:
+These exceptions are **raised inside the handler thread** when the kill message is received. They propagate through the call stack. Wrap long-running loops to catch and clean up:
 
 ```python
 from ovos_workshop.decorators.killable import killable_intent, AbortIntent
@@ -205,8 +198,7 @@ def handle_long_task(self, message):
 
 ### `@killable_intent`
 
-`killable_intent` — `ovos_workshop/decorators/killable.py:24`
-
+`killable_intent` is defined in `ovos_workshop/decorators/killable.py:24`.
 Mark an intent handler that can be interrupted mid-execution. Spawns the handler in a daemon thread. When the kill message arrives:
 
 1. Optionally emits `mycroft.audio.speech.stop` (if `stop_tts=True`).
@@ -256,8 +248,7 @@ Bus receives "mycroft.skills.abort_execution"
 
 ### `@killable_event`
 
-`killable_event` — `ovos_workshop/decorators/killable.py:40`
-
+`killable_event` is defined in `ovos_workshop/decorators/killable.py:40`.
 Like `@killable_intent` but for any bus event handler. Does **not** react to stop messages or call `skill.stop()` by default.
 
 ```python
@@ -287,8 +278,7 @@ Intent layers let you enable or disable groups of intents at runtime, implementi
 
 ### `@layer_intent`
 
-`layer_intent` — `ovos_workshop/decorators/layers.py:128`
-
+`layer_intent` is defined in `ovos_workshop/decorators/layers.py:128`.
 Register an intent handler that belongs to a named layer. The intent is disabled until the layer is activated.
 
 ```python
@@ -303,9 +293,8 @@ def handle_move(self, message): ...
 
 ### `@enables_layer` / `@disables_layer`
 
-`enables_layer` — `ovos_workshop/decorators/layers.py:33`
-`disables_layer` — `ovos_workshop/decorators/layers.py:52`
-
+`enables_layer` is defined in `ovos_workshop/decorators/layers.py:33`.
+`disables_layer` is defined in `ovos_workshop/decorators/layers.py:52`.
 Activate or deactivate a named intent layer **after** the decorated method runs.
 
 ```python
@@ -324,8 +313,7 @@ def stop_game_intent(self, message):
 
 ### `@replaces_layer`
 
-`replaces_layer` — `ovos_workshop/decorators/layers.py:71`
-
+`replaces_layer` is defined in `ovos_workshop/decorators/layers.py:71`.
 Replace the intent list of a named layer after the method runs.
 
 ```python
@@ -339,8 +327,7 @@ def transition(self, message): ...
 
 ### `@removes_layer`
 
-`removes_layer` — `ovos_workshop/decorators/layers.py:91`
-
+`removes_layer` is defined in `ovos_workshop/decorators/layers.py:91`.
 Remove a named layer entirely (and disable its intents) after the method runs.
 
 ```python
@@ -354,8 +341,7 @@ def finish_flow(self, message): ...
 
 ### `@resets_layers`
 
-`resets_layers` — `ovos_workshop/decorators/layers.py:110`
-
+`resets_layers` is defined in `ovos_workshop/decorators/layers.py:110`.
 Disable **all** intent layers after the method runs.
 
 ```python
@@ -372,8 +358,7 @@ def reset_everything(self, message):
 
 ### `@homescreen_app`
 
-`homescreen_app` — `ovos_workshop/decorators/__init__.py:149`
-
+`homescreen_app` is defined in `ovos_workshop/decorators/__init__.py:149`.
 Register a method as a homescreen app launcher. The icon file must be inside the `gui/` subfolder of the skill.
 
 ```python
@@ -390,8 +375,7 @@ def launch_app(self, message):
 
 ### `@skill_api_method`
 
-`skill_api_method` — `ovos_workshop/decorators/__init__.py:77`
-
+`skill_api_method` is defined in `ovos_workshop/decorators/__init__.py:77`.
 Expose a method over the bus so other skills or applications can call it via `SkillApi`. See [skill-api.md](skill-api.md) for the full RPC documentation.
 
 ```python
@@ -415,7 +399,7 @@ OCP (OpenVoiceOS Common Play) decorators are used with `OVOSCommonPlaybackSkill`
 
 | Decorator | Attribute set | Description | Source line |
 |---|---|---|---|
-| `@ocp_search()` | `is_ocp_search_handler` | Search for playable content; yield/return `MediaEntry` results. | `ocp.py:5` |
+| `@ocp_search()` | `is_ocp_search_handler` | Search for playable content. Yield or return `MediaEntry` results. | `ocp.py:5` |
 | `@ocp_play()` | `is_ocp_playback_handler` | Handle a play request (start playback). | `ocp.py:34` |
 | `@ocp_pause()` | `is_ocp_pause_handler` | Handle a pause request. | `ocp.py:82` |
 | `@ocp_resume()` | `is_ocp_resume_handler` | Handle a resume request. | `ocp.py:98` |
@@ -485,3 +469,6 @@ def handle_confirm(self, message):
     self.speak("Order confirmed.")
 # Context is added AFTER handle_confirm() returns.
 ```
+
+---
+[← ovos-skill](ovos-skill.md) · [Home](index.md) · [app →](app.md)

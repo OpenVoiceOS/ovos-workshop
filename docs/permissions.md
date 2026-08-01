@@ -102,3 +102,6 @@ whitelist_skill("my-unwanted-skill-id")
 ```
 
 These functions directly modify `mycroft.conf` and take effect on the next skill manager reload.
+
+---
+[← skill-launcher](skill-launcher.md) · [Home](index.md)

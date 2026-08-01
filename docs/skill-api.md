@@ -1,6 +1,6 @@
-# SkillApi — Inter-Skill RPC
+# SkillApi: Inter-Skill RPC
 
-`SkillApi` provides a MessageBus-based remote procedure call (RPC) mechanism. Methods decorated with `@skill_api_method` are exposed on the bus; any other skill (or application) can call them by fetching a `SkillApi` proxy object.
+`SkillApi` provides a MessageBus-based remote procedure call (RPC) mechanism. Methods decorated with `@skill_api_method` are exposed on the bus. Any other skill (or application) can call them by fetching a `SkillApi` proxy object.
 
 **Source:** `ovos_workshop/skills/api.py`
 
@@ -10,15 +10,14 @@
 
 The bus message protocol for `SkillApi` has two phases:
 
-1. **Discovery** — the caller sends `<skill_id>.public_api` on the bus. The target skill responds with a dict mapping method names to their bus message type and docstring.
-2. **Call** — the caller sends a `Message` of the method's registered type with `{"args": [...], "kwargs": {...}}`. The target skill responds with `{"result": <return value>}`.
+1. **Discovery**: the caller sends `<skill_id>.public_api` on the bus. The target skill responds with a dict mapping method names to their bus message type and docstring.
+2. **Call**: the caller sends a `Message` of the method's registered type with `{"args": [...], "kwargs": {...}}`. The target skill responds with `{"result": <return value>}`.
 
 ---
 
 ## `@skill_api_method` Decorator
 
-`skill_api_method` — `ovos_workshop/decorators/__init__.py:77`
-
+`skill_api_method` is defined in `ovos_workshop/decorators/__init__.py:77`.
 Tag a skill method as part of the public API. The method must be defined on an `OVOSSkill` subclass.
 
 ```python
@@ -38,18 +37,15 @@ The decorator sets `func.api_method = True`. During skill initialization, `OVOSS
 
 ## `SkillApi` Class
 
-`SkillApi` — `ovos_workshop/skills/api.py:20`
-
+`SkillApi` is defined in `ovos_workshop/skills/api.py:20`.
 ### Class Attribute: `bus`
 
-`SkillApi.bus` — `ovos_workshop/skills/api.py:27`
-
+`SkillApi.bus` is defined in `ovos_workshop/skills/api.py:27`.
 A class-level reference to the `MessageBusClient`. Must be set before calling `SkillApi.get()`.
 
 ### `SkillApi.connect_bus(mycroft_bus)`
 
-`SkillApi.connect_bus` — `ovos_workshop/skills/api.py:29`
-
+`SkillApi.connect_bus` is defined in `ovos_workshop/skills/api.py:29`.
 Register the bus client. Call this once during application startup.
 
 ```python
@@ -60,8 +56,7 @@ SkillApi.connect_bus(bus)
 
 ### `SkillApi.get(skill, api_timeout=3)`
 
-`SkillApi.get` — `ovos_workshop/skills/api.py:65`
-
+`SkillApi.get` is defined in `ovos_workshop/skills/api.py:65`.
 Fetches the public API for the given skill and returns a proxy object. Returns `None` if the skill is not running or does not expose any API methods.
 
 ```python
@@ -80,9 +75,8 @@ The returned proxy object has one attribute per exposed method. Calling `proxy.m
 
 ### `SkillApi.__init__(method_dict, timeout=3)`
 
-`SkillApi.__init__` — `ovos_workshop/skills/api.py:34`
-
-Normally you do not construct `SkillApi` directly — use `SkillApi.get()` instead. The constructor builds a dynamic method for every entry in `method_dict`.
+`SkillApi.__init__` is defined in `ovos_workshop/skills/api.py:34`.
+Normally you do not construct `SkillApi` directly. Use `SkillApi.get()` instead. The constructor builds a dynamic method for every entry in `method_dict`.
 
 | Parameter | Description |
 |---|---|
@@ -169,3 +163,6 @@ class MyClientSkill(OVOSSkill):
 
         self.speak(f"It is {temp} degrees in London.")
 ```
+
+---
+[← skill-interaction](skill-interaction.md) · [Home](index.md) · [filesystem →](filesystem.md)
