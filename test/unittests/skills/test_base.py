@@ -579,6 +579,50 @@ class TestOVOSSkill(unittest.TestCase):
         bus.emit(Message(canonical_name, {}, {}))
         self.assertTrue(called.wait(2))
 
+    def test_legacy_registration_fires_on_canonical_dispatch(self):
+        # OVOS-INTENT-4 §5/§8 alias-collapse: a still-un-migrated consumer
+        # that registers under the suffixed `X:Y.intent` name (what old
+        # workshop releases dispatched on) must still fire when the intent
+        # service dispatches the canonical `X:Y` topic. The alias-collapse
+        # lives in ovos-spec-tools' IntentAliasRegistry, normalizing the
+        # suffixed registration to canonical before binding to the bus.
+        from ovos_bus_client.message import Message
+        from ovos_spec_tools.intent_topics import IntentAliasRegistry
+
+        canonical_name = f"{self.skill_id}:legacy_normalization"
+        legacy_name = f"{canonical_name}.intent"
+
+        bus = FakeBus()
+        hits = []
+        registry = IntentAliasRegistry()
+        name = registry.register(legacy_name)
+        self.assertEqual(name, canonical_name,
+                         "legacy registration was not normalized to canonical")
+
+        bus.on(name, hits.append)
+        bus.emit(Message(canonical_name, {"x": 1}))
+        self.assertEqual(len(hits), 1)
+
+    def test_dual_registration_does_not_double_fire(self):
+        # registering both the canonical and the legacy-suffixed spelling of
+        # the same intent (e.g. a consumer that binds both while migrating)
+        # must collapse to a single dispatch, not fire the handler twice.
+        from ovos_bus_client.message import Message
+        from ovos_spec_tools.intent_topics import IntentAliasRegistry
+
+        canonical_name = f"{self.skill_id}:dual_registration"
+        legacy_name = f"{canonical_name}.intent"
+
+        bus = FakeBus()
+        hits = []
+        registry = IntentAliasRegistry()
+        bus.on(registry.register(canonical_name), hits.append)
+        bus.on(registry.register(legacy_name), hits.append)
+        bus.emit(Message(canonical_name, {"x": 1}))
+        self.assertEqual(len(hits), 1,
+                         "registering both the canonical and legacy forms "
+                         "caused a double dispatch")
+
     def test_disable_intent_removes_the_canonical_event(self):
         # the author still names the intent by its authoring file
         skill = OVOSSkill(bus=FakeBus(), skill_id=self.skill_id)
