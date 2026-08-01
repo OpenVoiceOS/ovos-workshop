@@ -183,8 +183,13 @@ Both methods are backed by pluggable agent engines discovered and loaded via [ov
 
 **Plugin type**: `YesNoEngine` (`opm.agents.yesno`)
 **Config key**: `ask_yesno_plugin`
-**Default plugin**: `ovos-solver-yes-no-plugin`
-**Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load)
+**Default plugin name looked up**: `ovos-solver-yes-no-plugin` — no shipped `opm.agents.yesno` entry point
+registers under that name, so this lookup always fails and the code falls back to the bundled
+`HeuristicYesNoEngine`. The plugin this repo actually ships and depends on registers as
+`ovos-yes-no-plugin` (see `ovos_workshop/skills/ovos.py`'s `_get_yesno_engine` and `pyproject.toml`).
+See the manual's [Prompts](https://tigregotico.github.io/ovos-technical-manual/prompts/) page for details.
+**Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load,
+which in practice is always, given the mismatch above)
 
 `YesNoEngine` plugins implement:
 
@@ -199,7 +204,7 @@ The `question` argument gives the plugin context about what was asked, enabling 
 
 | Plugin | Description |
 |--------|-------------|
-| `ovos-solver-yes-no-plugin` | Rule-based multilingual yes/no classifier (default fallback) |
+| `ovos-yes-no-plugin` | Ships `HeuristicYesNoEngine`, the plugin `ovos-workshop` actually depends on and falls back to |
 
 ### ask_selection: OptionMatcherEngine
 
@@ -235,7 +240,11 @@ def match_option(self, utterance: str, options: List[str], lang: Optional[str] =
 }
 ```
 
-`ask_yesno_plugin` defaults to `ovos-solver-yes-no-plugin`. `ask_selection_plugin` defaults to `ovos-option-matcher-fuzzy-plugin`. Both packages are installed as runtime dependencies of `ovos-workshop`.
+The code's default lookup name for `ask_yesno_plugin` is `ovos-solver-yes-no-plugin`, but no registered
+`opm.agents.yesno` plugin uses that name, so the lookup always falls back to the bundled
+`HeuristicYesNoEngine` from `ovos-yes-no-plugin`. `ask_selection_plugin` defaults to
+`ovos-option-matcher-fuzzy-plugin` and resolves correctly. Both packages are installed as runtime
+dependencies of `ovos-workshop`.
 
 ### Per-skill override: `settings.json`
 

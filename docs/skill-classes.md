@@ -2,12 +2,15 @@
 
 All skill base classes are available from their individual modules. The table below shows the full class hierarchy.
 
+See the manual's [Skill Classes](https://tigregotico.github.io/ovos-technical-manual/skill-classes/) page for a
+higher-level tour with maturity badges and deprecation notes. This page adds source-line citations for each class.
+
 ```
 OVOSSkill                             ovos_workshop/skills/ovos.py
 ├── ConversationalSkill               ovos_workshop/skills/converse.py
 │   └── ActiveSkill                   ovos_workshop/skills/active.py
 ├── FallbackSkill                     ovos_workshop/skills/fallback.py
-├── CommonQuerySkill                  ovos_workshop/skills/common_query_skill.py
+├── IdleDisplaySkill                  ovos_workshop/skills/idle_display_skill.py
 ├── OVOSCommonPlaybackSkill           ovos_workshop/skills/common_play.py
 │   └── OVOSGameSkill                 ovos_workshop/skills/game_skill.py
 │       └── ConversationalGameSkill   ovos_workshop/skills/game_skill.py
@@ -16,6 +19,9 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 │   └── UniversalCommonQuerySkill     ovos_workshop/skills/auto_translatable.py (deprecated)
 └── OVOSAbstractApplication           ovos_workshop/app.py
 ```
+
+There is no dedicated `CommonQuerySkill` base class in this codebase (`common_query_skill.py` does not exist).
+Decorate a method on a regular `OVOSSkill` with `@common_query()` instead, see below.
 
 ---
 
@@ -112,17 +118,18 @@ Priority can be overridden in config:
 
 ---
 
-## CommonQuerySkill
+## CommonQuery (`@common_query`)
 
-**Module:** `ovos_workshop.skills.common_query_skill`
-
-Participates in the `question:query` / `common_qa` pipeline. The skill attempts to answer a natural language question and returns a confidence score. The pipeline collects responses from all skills and speaks the highest-confidence answer via `question:action`.
+Participates in the `question:query` / `common_qa` pipeline. There is no `CommonQuerySkill` base class in this
+codebase — decorate a method on a regular `OVOSSkill` with `@common_query()`. The skill attempts to answer a
+natural language question and returns a confidence score. The pipeline collects responses from all skills and
+speaks the highest-confidence answer via `question:action`.
 
 ```python
-from ovos_workshop.skills.common_query_skill import CommonQuerySkill
+from ovos_workshop.skills.ovos import OVOSSkill
 from ovos_workshop.decorators import common_query
 
-class MyQuerySkill(CommonQuerySkill):
+class MyQuerySkill(OVOSSkill):
     @common_query()
     def handle_query(self, phrase, lang):
         if "capital of france" in phrase.lower():

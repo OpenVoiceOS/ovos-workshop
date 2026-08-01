@@ -1,5 +1,9 @@
 # Decorators
 
+See the manual's [Decorators](https://tigregotico.github.io/ovos-technical-manual/decorators/) page for the
+skill-author-focused guide, including deprecation warnings for homescreen decorators and the `@ocp_search`
+media-provider role. This page adds exact source citations and is kept for repo-local reference.
+
 All decorators are importable from `ovos_workshop.decorators`.
 
 ```python
