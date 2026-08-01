@@ -23,7 +23,7 @@ my-skill/
     └── my_page.qml
 ```
 
-Legacy skills may use separate `dialog/`, `vocab/`, `regex/` subdirectories — these are still supported.
+Legacy skills may use separate `dialog/`, `vocab/`, `regex/` subdirectories: these are still supported.
 
 ## Resource Types
 
@@ -129,3 +129,6 @@ Optional file for homescreen integration. Placed at `locale/<lang>/skill.json`:
 ```
 
 These examples are emitted to the homescreen as `homescreen.register.examples` on skill startup.
+
+---
+[← filesystem](filesystem.md) · [Home](index.md) · [settings →](settings.md)

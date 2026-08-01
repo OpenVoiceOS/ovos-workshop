@@ -1,6 +1,6 @@
 # OVOSAbstractApplication
 
-`OVOSAbstractApplication` is a skill-like class designed to run **without** an intent service. Use it for standalone GUI apps, HiveMind-attached services, or any program that needs access to TTS, the MessageBus, and settings — but does not need to register intents with `ovos-core`.
+`OVOSAbstractApplication` is a skill-like class designed to run **without** an intent service. Use it for standalone GUI apps, HiveMind-attached services, or any program that needs access to TTS, the MessageBus, and settings, but does not need to register intents with `ovos-core`.
 
 **Source:** `ovos_workshop/app.py`
 
@@ -33,8 +33,7 @@ class OVOSAbstractApplication(OVOSSkill):
     ): ...
 ```
 
-`OVOSAbstractApplication.__init__` — `ovos_workshop/app.py:13`
-
+`OVOSAbstractApplication.__init__` is defined in `ovos_workshop/app.py:13`.
 ### Parameters
 
 | Parameter | Type | Description |
@@ -48,8 +47,7 @@ class OVOSAbstractApplication(OVOSSkill):
 
 ## `_dedicated_bus` Flag
 
-`OVOSAbstractApplication._dedicated_bus` — `ovos_workshop/app.py:25`
-
+`OVOSAbstractApplication._dedicated_bus` is defined in `ovos_workshop/app.py:25`.
 Set to `True` when the application created its own bus connection (i.e., `bus=None` was passed to `__init__`). The flag is used in `default_shutdown()` to decide whether to close the bus on exit.
 
 ```python
@@ -65,8 +63,7 @@ else:
 
 ## `settings_path` Property
 
-`OVOSAbstractApplication.settings_path` — `ovos_workshop/app.py:36`
-
+`OVOSAbstractApplication.settings_path` is defined in `ovos_workshop/app.py:36`.
 Returns the path where this application's settings file is stored. Unlike `OVOSSkill`, which stores settings under `~/.config/ovos/skills/`, applications store settings under `apps/`:
 
 ```
@@ -79,8 +76,7 @@ This separation prevents skill managers from scanning and accidentally loading a
 
 ## `default_shutdown()`
 
-`OVOSAbstractApplication.default_shutdown` — `ovos_workshop/app.py:43`
-
+`OVOSAbstractApplication.default_shutdown` is defined in `ovos_workshop/app.py:43`.
 Gracefully shuts down the application:
 
 1. Calls `self.clear_intents()` to remove all bus handlers and detach from the intent service.
@@ -99,8 +95,7 @@ def default_shutdown(self):
 
 ## `get_language_dir()`
 
-`OVOSAbstractApplication.get_language_dir` — `ovos_workshop/app.py:52`
-
+`OVOSAbstractApplication.get_language_dir` is defined in `ovos_workshop/app.py:52`.
 Returns the best-matched language resource directory for the requested language, with **dialect fallback**. For example, if `lang="pt-pt"` is requested but only `pt-br` resources exist, the `pt-br` path is returned.
 
 ```python
@@ -118,9 +113,9 @@ def get_language_dir(
 
 **Lookup order** (`ovos_workshop/app.py:69`):
 
-1. `<base_path>/<lang>` — exact match with region in upper case (e.g. `en-US`)
-2. `<base_path>/<lang.lower()>` — exact match lower-cased (e.g. `en-us`)
-3. Dialect siblings via `locate_lang_directories()` — sorted by similarity, first match wins.
+1. `<base_path>/<lang>`: exact match with region in upper case (e.g. `en-US`)
+2. `<base_path>/<lang.lower()>`: exact match lower-cased (e.g. `en-us`)
+3. Dialect siblings via `locate_lang_directories()`: sorted by similarity, first match wins.
 
 Returns `None` if no matching directory is found.
 
@@ -128,8 +123,7 @@ Returns `None` if no matching directory is found.
 
 ## `clear_intents()`
 
-`OVOSAbstractApplication.clear_intents` — `ovos_workshop/app.py:83`
-
+`OVOSAbstractApplication.clear_intents` is defined in `ovos_workshop/app.py:83`.
 Removes all registered event handlers for this application's intents and detaches the application from the intent service. This prevents duplicate handlers if the application is re-initialized without a full process restart.
 
 ```python
@@ -180,5 +174,8 @@ bus = MessageBusClient()
 bus.run_in_thread()
 
 app = MyClockApp(bus=bus)
-# _dedicated_bus is False — shutdown will NOT close the bus.
+# _dedicated_bus is False: shutdown will NOT close the bus.
 ```
+
+---
+[← decorators](decorators.md) · [Home](index.md) · [game-skill →](game-skill.md)

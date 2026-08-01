@@ -72,7 +72,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 | [skill-api.md](skill-api.md) | `SkillApi`, `skill_api_method` | Inter-skill RPC over the MessageBus |
 | [filesystem.md](filesystem.md) | `FileSystemAccess` | Sandboxed, XDG-compliant file storage for skills |
 | [resource-files.md](resource-files.md) | `SkillResources` | Locale, dialog, vocab, regex, and other resource files |
-| [settings.md](settings.md) | `SkillSettingsManager` | Skill settings — persistence, change callbacks, file watching |
+| [settings.md](settings.md) | `SkillSettingsManager` | Skill settings: persistence, change callbacks, file watching |
 | [intent-layers.md](intent-layers.md) | `IntentLayers` | Enable/disable intent sets at runtime |
 | [skill-launcher.md](skill-launcher.md) | `SkillLoader`, `PluginSkillLoader` | Loading skills as plugins or in standalone mode |
 | [permissions.md](permissions.md) | `ConverseMode`, `FallbackMode` | Converse and fallback permission modes |
@@ -87,9 +87,9 @@ OVOS uses a WebSocket publish/subscribe bus. Every message has three fields:
 
 ```python
 Message(
-    msg_type="my.event.type",   # str — event name
-    data={"key": "value"},      # dict — payload
-    context={"session_id": ...} # dict — metadata
+    msg_type="my.event.type",   # str: event name
+    data={"key": "value"},      # dict: payload
+    context={"session_id": ...} # dict: metadata
 )
 ```
 
@@ -114,10 +114,10 @@ Resource files live in the skill's `locale/` directory, organized by language ta
 ```
 locale/
   en-us/
-    dialog/   # .dialog files — spoken responses
-    vocab/    # .voc files — keyword lists for Adapt
-    intent/   # .intent files — Padatious training phrases
-    regex/    # .rx files — named-entity patterns
+    dialog/   # .dialog files: spoken responses
+    vocab/    # .voc files: keyword lists for Adapt
+    intent/   # .intent files: Padatious training phrases
+    regex/    # .rx files: named-entity patterns
 ```
 
 Access via `self.speak_dialog("my.response")`, `self.get_response()`, etc.
@@ -127,8 +127,8 @@ See [resource-files.md](resource-files.md).
 
 Two intent engines are supported:
 
-- **Adapt** — keyword-based, uses `IntentBuilder` and `.voc` files.
-- **Padatious** — ML phrase-matching, uses `.intent` files.
+- **Adapt**: keyword-based, uses `IntentBuilder` and `.voc` files.
+- **Padatious**: ML phrase-matching, uses `.intent` files.
 
 Register intents with `@intent_handler` or `self.register_intent()`.
 See [decorators.md](decorators.md) and [ovos-skill.md](ovos-skill.md).

@@ -11,7 +11,7 @@
 ```text
 OVOSSkill
 └── OVOSCommonPlaybackSkill
-    └── OVOSGameSkill                  # abstract — OCP-integrated game loop
+    └── OVOSGameSkill                  # abstract: OCP-integrated game loop
         └── ConversationalGameSkill    # adds converse loop + auto-save
 ```
 
@@ -21,8 +21,7 @@ OVOSSkill
 
 ## OVOSGameSkill
 
-`OVOSGameSkill` — `ovos_workshop/skills/game_skill.py:14`
-
+`OVOSGameSkill` is defined in `ovos_workshop/skills/game_skill.py:14`.
 ### Constructor
 
 ```python
@@ -37,8 +36,7 @@ class OVOSGameSkill(OVOSCommonPlaybackSkill):
     ): ...
 ```
 
-`OVOSGameSkill.__init__` — `ovos_workshop/skills/game_skill.py:33`
-
+`OVOSGameSkill.__init__` is defined in `ovos_workshop/skills/game_skill.py:33`.
 | Parameter | Description |
 |---|---|
 | `skill_voc_filename` | **Required.** Name of the `.voc` file containing keywords that match the game name. Without this, OCP cannot recognize the skill as a game. |
@@ -56,7 +54,7 @@ Subclasses **must** implement all six abstract methods:
 | `on_play_game()` | OCP pipeline selected this game and started playback. | `ovos_workshop/skills/game_skill.py:94` |
 | `on_pause_game()` | OCP `pause` command while game is playing. | `ovos_workshop/skills/game_skill.py:98` |
 | `on_resume_game()` | OCP `resume`/`unpause` while game is paused. | `ovos_workshop/skills/game_skill.py:102` |
-| `on_stop_game()` | Game stopped for any reason; implement auto-save here if desired. | `ovos_workshop/skills/game_skill.py:106` |
+| `on_stop_game()` | Game stopped for any reason. Implement auto-save here if desired. | `ovos_workshop/skills/game_skill.py:106` |
 | `on_save_game()` | Explicit save request. Speak an error dialog if save is not supported. | `ovos_workshop/skills/game_skill.py:111` |
 | `on_load_game()` | Explicit load request. Speak an error dialog if load is not supported. | `ovos_workshop/skills/game_skill.py:116` |
 
@@ -64,8 +62,7 @@ Subclasses **must** implement all six abstract methods:
 
 #### `is_playing`
 
-`OVOSGameSkill.is_playing` — `ovos_workshop/skills/game_skill.py:87`
-
+`OVOSGameSkill.is_playing` is defined in `ovos_workshop/skills/game_skill.py:87`.
 Returns `True` when the game is actively running (OCP player state is not stopped/paused).
 
 ```python
@@ -76,8 +73,7 @@ def is_playing(self) -> bool:
 
 #### `is_paused`
 
-`OVOSGameSkill.is_paused` — `ovos_workshop/skills/game_skill.py:91`
-
+`OVOSGameSkill.is_paused` is defined in `ovos_workshop/skills/game_skill.py:91`.
 Returns `True` when the game is in the paused state.
 
 ```python
@@ -88,11 +84,10 @@ def is_paused(self) -> bool:
 
 ### `stop_game()`
 
-`OVOSGameSkill.stop_game` — `ovos_workshop/skills/game_skill.py:121`
-
+`OVOSGameSkill.stop_game` is defined in `ovos_workshop/skills/game_skill.py:121`.
 Call this from within your skill code when you need to programmatically stop the game (e.g. the player lost). It:
 
-1. Checks `is_playing`; returns `False` immediately if not playing.
+1. Checks `is_playing`, returns `False` immediately if not playing.
 2. Clears the paused flag.
 3. Releases the GUI.
 4. Emits `ovos.common_play.player.state` with `PlayerState.STOPPED`.
@@ -103,8 +98,7 @@ Returns `True` if the game was stopped, `False` if it was already stopped.
 
 ### `calc_intent()`
 
-`OVOSGameSkill.calc_intent` — `ovos_workshop/skills/game_skill.py:138`
-
+`OVOSGameSkill.calc_intent` is defined in `ovos_workshop/skills/game_skill.py:138`.
 Helper that asks `ovos-core` which intent it would select for a given utterance. Useful in `converse()` to decide whether to let the intent pipeline handle the utterance or pipe it to the game.
 
 ```python
@@ -122,8 +116,7 @@ Returns the intent dict from `ovos-core`, or `None` on timeout.
 
 ## ConversationalGameSkill
 
-`ConversationalGameSkill` — `ovos_workshop/skills/game_skill.py:151`
-
+`ConversationalGameSkill` is defined in `ovos_workshop/skills/game_skill.py:151`.
 Extends `OVOSGameSkill` with a **converse loop**: every utterance that does not match a registered intent is piped to `on_game_command()` while the game is playing.
 
 ### Additional Abstract Methods
@@ -149,14 +142,12 @@ The pause/resume dialogs are controlled by `settings["pause_dialog"]` (default `
 
 ### `on_abandon_game()`
 
-`ConversationalGameSkill.on_abandon_game` — `ovos_workshop/skills/game_skill.py:197`
-
+`ConversationalGameSkill.on_abandon_game` is defined in `ovos_workshop/skills/game_skill.py:197`.
 Called when the user stops interacting with the game long enough for the intent service to deactivate this skill. Auto-save runs before this method (if enabled). Override to play a farewell message or clean up state. `on_stop_game()` is called after this handler.
 
 ### `save_is_implemented` Property
 
-`ConversationalGameSkill.save_is_implemented` — `ovos_workshop/skills/game_skill.py:223`
-
+`ConversationalGameSkill.save_is_implemented` is defined in `ovos_workshop/skills/game_skill.py:223`.
 Returns `True` if the subclass has overridden `on_save_game()` (i.e. save is actually implemented). Used by `_autosave()` to skip auto-save for games that cannot save.
 
 ```python
@@ -167,8 +158,7 @@ def save_is_implemented(self) -> bool:
 
 ### Auto-save
 
-`ConversationalGameSkill._autosave` — `ovos_workshop/skills/game_skill.py:229`
-
+`ConversationalGameSkill._autosave` is defined in `ovos_workshop/skills/game_skill.py:229`.
 Automatically saves the game if **both** conditions are met:
 
 - `settings["auto_save"]` is `True` (default `False`).
@@ -181,8 +171,7 @@ Auto-save is triggered in three places:
 
 ### `skill_will_trigger()`
 
-`ConversationalGameSkill.skill_will_trigger` — `ovos_workshop/skills/game_skill.py:206`
-
+`ConversationalGameSkill.skill_will_trigger` is defined in `ovos_workshop/skills/game_skill.py:206`.
 Checks whether this skill's intents would be selected by `ovos-core` for the given utterance. Useful in `converse()` to avoid double-handling:
 
 ```python
@@ -248,3 +237,6 @@ Enable auto-save in `settings.json`:
   "pause_dialog": true
 }
 ```
+
+---
+[← app](app.md) · [Home](index.md) · [auto-translatable →](auto-translatable.md)

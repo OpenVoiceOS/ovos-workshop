@@ -29,17 +29,17 @@ loader.load(MySkillClass)            # instantiates and calls _startup
 ```
 
 Key attributes:
-- `loader.instance` — the live skill instance (or `None` if not loaded)
-- `loader.loaded` — `True` if the skill is currently loaded
-- `loader.active` — `True` if the skill is active (not deactivated)
-- `loader.skill_id` — unique skill identifier
-- `loader.runtime_requirements` — `RuntimeRequirements` from the skill class
+- `loader.instance`: the live skill instance (or `None` if not loaded)
+- `loader.loaded`: `True` if the skill is currently loaded
+- `loader.active`: `True` if the skill is active (not deactivated)
+- `loader.skill_id`: unique skill identifier
+- `loader.runtime_requirements`: `RuntimeRequirements` from the skill class
 
 Key methods:
-- `loader.load(skill_class)` — load and start the skill
-- `loader.reload()` — unload and reload the skill
-- `loader.activate()` — re-enable a deactivated skill
-- `loader.deactivate()` — deactivate (unload) a skill
+- `loader.load(skill_class)`: load and start the skill
+- `loader.reload()`: unload and reload the skill
+- `loader.activate()`: re-enable a deactivated skill
+- `loader.deactivate()`: deactivate (unload) a skill
 
 ## Loading from a File (legacy)
 
@@ -91,7 +91,7 @@ Each `PluginSkillLoader` watches the skill's `settings.json` for external change
 
 `PluginSkillLoader` is how both `ovos-core` (production) and `ovoscope` (testing) load skills.
 ovoscope wraps `SkillManager` in a lightweight `MiniCroft` that uses `FakeBus` instead of a real
-WebSocket bus — skills are loaded identically, so tests exercise the exact same loader path.
+WebSocket bus: skills are loaded identically, so tests exercise the exact same loader path.
 
 ```python
 from ovoscope import End2EndTest, get_minicroft
@@ -121,3 +121,6 @@ minicroft.stop()
 
 For a full tutorial including 8 test patterns and CI integration, see
 [ovoscope/docs/usage-guide.md](../../ovoscope/docs/usage-guide.md).
+
+---
+[← intent-layers](intent-layers.md) · [Home](index.md) · [permissions →](permissions.md)

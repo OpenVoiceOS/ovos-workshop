@@ -34,7 +34,7 @@ Override these in your skill class:
 | `initialize()` | After full startup | Legacy. Prefer `__init__`. |
 | `get_intro_message()` | First run only | Return a dialog name or string to speak on first install |
 | `stop()` | User/system stop | Return `True` if the skill handled the stop |
-| `stop_session(session)` | Per-session stop | Called before `stop()`; return `True` to prevent global `stop()` |
+| `stop_session(session)` | Per-session stop | Called before `stop()`. Return `True` to prevent global `stop()` |
 | `can_stop(message)` | Before stop | Must be implemented if `stop()` or `stop_session()` is defined |
 | `shutdown()` | Skill unload | Final cleanup after all other shutdown steps |
 
@@ -187,3 +187,6 @@ This is used by `SkillManager` to defer loading until the required connectivity 
 | `question:action.{skill_id}` | Common query callback |
 | `homescreen.metadata.get` | Homescreen requesting metadata |
 | `{skill_id}.public_api` | Skill API introspection |
+
+---
+[← skill-classes](skill-classes.md) · [Home](index.md) · [decorators →](decorators.md)

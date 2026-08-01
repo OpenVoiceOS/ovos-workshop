@@ -6,7 +6,7 @@ Intent layers let a skill enable or disable groups of intents at runtime. This i
 
 ## Concept
 
-A skill can define multiple named "layers", each containing a set of intents. Only the intents belonging to the currently active layer(s) are enabled at any time. The skill starts with no layers active — the global (non-layered) intents are always active.
+A skill can define multiple named "layers", each containing a set of intents. Only the intents belonging to the currently active layer(s) are enabled at any time. The skill starts with no layers active: the global (non-layered) intents are always active.
 
 ## Using Decorators
 
@@ -113,3 +113,6 @@ self.register_intent_layer("my_layer", [
 ```
 
 This registers the intents without activating the layer. Call `activate_layer` to enable them.
+
+---
+[← settings](settings.md) · [Home](index.md) · [skill-launcher →](skill-launcher.md)

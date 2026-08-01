@@ -1,4 +1,4 @@
-# FileSystemAccess — Sandboxed Skill File I/O
+# FileSystemAccess: Sandboxed Skill File I/O
 
 `FileSystemAccess` provides each skill with an isolated, XDG-compliant directory for persistent file storage. It prevents skills from accidentally writing to arbitrary locations and handles migration from legacy Mycroft paths.
 
@@ -8,8 +8,7 @@
 
 ## Storage Path
 
-`FileSystemAccess.__init_path` — `ovos_workshop/filesystem.py:34`
-
+`FileSystemAccess.__init_path` is defined in `ovos_workshop/filesystem.py:34`.
 Files are stored under:
 
 ```
@@ -24,8 +23,7 @@ The directory is created automatically if it does not exist.
 
 ## Migration from Old Paths
 
-`FileSystemAccess.__init_path` — `ovos_workshop/filesystem.py:43`
-
+`FileSystemAccess.__init_path` is defined in `ovos_workshop/filesystem.py:43`.
 If a directory exists at the legacy Mycroft location (`~/.mycroft/<skill_id>`) but the XDG path does not yet exist, the directory is automatically **moved** to the new location:
 
 ```python
@@ -46,8 +44,7 @@ class FileSystemAccess:
     def __init__(self, path: str): ...
 ```
 
-`FileSystemAccess.__init__` — `ovos_workshop/filesystem.py:26`
-
+`FileSystemAccess.__init__` is defined in `ovos_workshop/filesystem.py:26`.
 | Parameter | Description |
 |---|---|
 | `path` | Base name for the skill's directory (typically the `skill_id`). Must be a non-empty string. |
@@ -62,8 +59,7 @@ After construction, `self.path` holds the absolute path to the skill's storage d
 
 ### `open(filename, mode)`
 
-`FileSystemAccess.open` — `ovos_workshop/filesystem.py:54`
-
+`FileSystemAccess.open` is defined in `ovos_workshop/filesystem.py:54`.
 Open a file inside the skill's sandboxed directory. Equivalent to `open(skill_dir / filename, mode)`.
 
 ```python
@@ -79,8 +75,7 @@ Returns a file object.
 
 ### `exists(filename)`
 
-`FileSystemAccess.exists` — `ovos_workshop/filesystem.py:64`
-
+`FileSystemAccess.exists` is defined in `ovos_workshop/filesystem.py:64`.
 Check whether a file exists inside the skill's sandboxed directory.
 
 ```python
@@ -158,3 +153,6 @@ if not fs.exists("config.json"):
         import json
         json.dump({"initialized": True}, f)
 ```
+
+---
+[← skill-api](skill-api.md) · [Home](index.md) · [resource-files →](resource-files.md)

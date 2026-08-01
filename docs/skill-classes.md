@@ -37,7 +37,7 @@ See [ovos-skill.md](ovos-skill.md) for full detail.
 
 **Module:** `ovos_workshop.skills.converse`
 
-Extends `OVOSSkill` with explicit converse support — `activate()`, `deactivate()`, and `@conversational_intent` decorated handlers. The skill registers itself in the active-skills list after handling an intent.
+Extends `OVOSSkill` with explicit converse support: `activate()`, `deactivate()`, and `@conversational_intent` decorated handlers. The skill registers itself in the active-skills list after handling an intent.
 
 ```python
 from ovos_workshop.skills.converse import ConversationalSkill
@@ -52,8 +52,8 @@ class MySkill(ConversationalSkill):
 ```
 
 Additional bus events registered:
-- `{skill_id}.converse.ping` — capability advertisement
-- `{skill_id}.converse.request` — converse request from pipeline
+- `{skill_id}.converse.ping`: capability advertisement
+- `{skill_id}.converse.request`: converse request from pipeline
 - `{skill_id}.activate` / `{skill_id}.deactivate`
 - `intent.service.skills.deactivated` / `intent.service.skills.activated`
 
@@ -63,7 +63,7 @@ Additional bus events registered:
 
 **Module:** `ovos_workshop.skills.active`
 
-Extends `ConversationalSkill`. Always present in the converse active-skills list — the skill never deactivates unless explicitly told to. Useful for always-on assistants or global command handlers.
+Extends `ConversationalSkill`. Always present in the converse active-skills list: the skill never deactivates unless explicitly told to. Useful for always-on assistants or global command handlers.
 
 ```python
 from ovos_workshop.skills.active import ActiveSkill
@@ -301,3 +301,6 @@ app = MyApp()  # Creates its own bus connection automatically.
 ```
 
 See [app.md](app.md) for full documentation.
+
+---
+[Home](index.md) · [ovos-skill →](ovos-skill.md)
