@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.2a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.2a2) (2026-08-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.2a1...9.3.2a2)
+
+**Merged pull requests:**
+
+- docs: rewrite README in Simplified Technical English [\#502](https://github.com/OpenVoiceOS/ovos-workshop/pull/502) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.2a1) (2026-07-26)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.1a2...9.3.2a1)
@@ -363,7 +371,6 @@
 **Merged pull requests:**
 
 - Release 7.0.9a1 [\#371](https://github.com/OpenVoiceOS/ovos-workshop/pull/371) ([github-actions[bot]](https://github.com/apps/github-actions))
-- fix: ocp skills [\#365](https://github.com/OpenVoiceOS/ovos-workshop/pull/365) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [7.0.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/7.0.8a1) (2025-07-08)
 
