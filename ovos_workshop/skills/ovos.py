@@ -154,6 +154,10 @@ class OVOSSkill:
         # Cached voc file contents
         self._voc_cache = {}
 
+        # remembers the handler bound to each intent name so that
+        # enable_intent() can rebind it after disable_intent() detaches it
+        self._intent_handlers: Dict[str, callable] = {}
+
         # loaded lang file resources
         self._lang_resources = {}
 
@@ -1367,6 +1371,7 @@ class OVOSSkill:
                 slot_blacklist=slot_blacklist,
                 vocabs=resources.vocabularies())
         if handler:
+            self._intent_handlers[intent_file] = handler
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
             # INTENT-4: pipelines are migrating to dispatch on the canonical,
@@ -1602,6 +1607,7 @@ class OVOSSkill:
                                                         self.intent_service.skill_id)
         self.intent_service.register_intent(name, intent_parser)
         if handler:
+            self._intent_handlers[name] = handler
             self.add_event(intent_parser.name, handler,
                            'mycroft.skill.handler',
                            activation=True, is_intent=True)
@@ -2412,11 +2418,17 @@ class OVOSSkill:
         """
         intent = self.intent_service.get_intent(intent_name)
         if intent:
+            handler = self._intent_handlers.get(intent_name)
+            if not handler:
+                self.log.error(f'Could not enable {intent_name}, no handler '
+                               f'is on record for it (was it ever registered '
+                               f'with a handler by this skill instance?).')
+                return False
             if ".intent" in intent_name:
-                self.register_intent_file(intent_name, None)
+                self.register_intent_file(intent_name, handler)
             else:
                 intent.name = intent_name
-                self.register_intent(intent, None)
+                self.register_intent(intent, handler)
             self.log.debug(f'Enabling intent {intent_name}')
             return True
         else:

@@ -598,21 +598,142 @@ class TestOVOSSkill(unittest.TestCase):
             f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
             uk_samples, "uk-UA", blacklisted_words=[])
 
-    def test_handle_enable_intent(self):
-        # TODO
-        pass
-
-    def test_handle_disable_intent(self):
-        # TODO
-        pass
-
     def test_disable_intent(self):
-        # TODO
-        pass
+        """Regression test: disable_intent() followed by enable_intent()
+        must rebind the ORIGINAL handler for a padatious (.intent file)
+        intent, both for the legacy suffixed topic and the INTENT-4
+        canonical suffix-less topic."""
+        from ovos_bus_client.message import Message
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        called = Event()
+
+        def handler(message):
+            called.set()
+
+        handler.__name__ = "test_handler"
+        skill.register_intent_file("time.intent", handler)
+
+        legacy_name = f"{skill.skill_id}:time.intent"
+        canonical_name = f"{skill.skill_id}:time"
+
+        # sanity: bound before disabling
+        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+
+        self.assertTrue(skill.disable_intent("time.intent"))
+        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
+        self.assertFalse(any(n == canonical_name for n, _ in skill.events))
+        self.assertTrue(skill.intent_service.intent_is_detached("time.intent"))
+
+        self.assertTrue(skill.enable_intent("time.intent"))
+        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+        self.assertFalse(skill.intent_service.intent_is_detached("time.intent"))
+
+        called.clear()
+        bus.emit(Message(canonical_name, {}, {}))
+        self.assertTrue(called.wait(2),
+                        "handler was not rebound by enable_intent()")
 
     def test_enable_intent(self):
-        # TODO
-        pass
+        """Regression test: disable_intent() followed by enable_intent()
+        must rebind the ORIGINAL handler for an adapt intent."""
+        from ovos_bus_client.message import Message
+        from ovos_workshop.intents import IntentBuilder
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill.register_vocabulary("hello world", "HelloWorldKeyword",
+                                  lang="en-US")
+
+        called = Event()
+
+        def handler(message):
+            called.set()
+
+        skill.register_intent(
+            IntentBuilder("HelloWorldIntent").require("HelloWorldKeyword"),
+            handler)
+
+        event_name = f"{skill.skill_id}:HelloWorldIntent"
+        self.assertTrue(any(n == event_name for n, _ in skill.events))
+
+        self.assertTrue(skill.disable_intent("HelloWorldIntent"))
+        self.assertFalse(any(n == event_name for n, _ in skill.events))
+        self.assertTrue(
+            skill.intent_service.intent_is_detached("HelloWorldIntent"))
+
+        self.assertTrue(skill.enable_intent("HelloWorldIntent"))
+        self.assertTrue(any(n == event_name for n, _ in skill.events))
+        self.assertFalse(
+            skill.intent_service.intent_is_detached("HelloWorldIntent"))
+
+        called.clear()
+        bus.emit(Message(event_name, {}, {}))
+        self.assertTrue(called.wait(2),
+                        "handler was not rebound by enable_intent()")
+
+    def test_handle_disable_intent(self):
+        """The `mycroft.skill.disable_intent` bus handler disables an
+        intent that belongs to this skill and is currently registered."""
+        from ovos_bus_client.message import Message
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+        skill.register_intent_file("time.intent", Mock(__name__="test"))
+
+        skill.handle_disable_intent(
+            Message("mycroft.skill.disable_intent",
+                   {"intent_name": "time.intent"}))
+
+        self.assertTrue(skill.intent_service.intent_is_detached("time.intent"))
+        legacy_name = f"{skill.skill_id}:time.intent"
+        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
+
+    def test_handle_enable_intent(self):
+        """The `mycroft.skill.enable_intent` bus handler re-enables an
+        intent that belongs to this skill and is currently detached,
+        rebinding its handler."""
+        from ovos_bus_client.message import Message
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        called = Event()
+
+        def handler(message):
+            called.set()
+
+        handler.__name__ = "test_handler"
+        skill.register_intent_file("time.intent", handler)
+        skill.disable_intent("time.intent")
+        self.assertTrue(skill.intent_service.intent_is_detached("time.intent"))
+
+        skill.handle_enable_intent(
+            Message("mycroft.skill.enable_intent",
+                   {"intent_name": "time.intent"}))
+
+        self.assertFalse(skill.intent_service.intent_is_detached("time.intent"))
+        canonical_name = f"{skill.skill_id}:time"
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+
+        bus.emit(Message(canonical_name, {}, {}))
+        self.assertTrue(called.wait(2))
 
     def test_set_context(self):
         # TODO
