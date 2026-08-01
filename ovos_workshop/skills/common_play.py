@@ -18,6 +18,7 @@ from typing import List, Callable, Optional, Dict
 
 from ovos_bus_client import Message
 from ovos_config.locations import get_xdg_cache_save_path
+from ovos_spec_tools import SpecMessage
 from ovos_utils import camel_case_split
 from ovos_utils.log import LOG
 from ovos_workshop.skills.ovos import OVOSSkill
@@ -177,7 +178,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                            self.__handle_ocp_stop)
             self.add_event("ovos.common_play.search.stop",
                            self.__handle_stop_search)
-            self.add_event("mycroft.stop",
+            self.add_event(SpecMessage.STOP,
                            self.__handle_stop_search)
 
     def register_media_type(self, media_type: MediaType):

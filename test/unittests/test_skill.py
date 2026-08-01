@@ -16,6 +16,7 @@ import unittest
 from unittest.mock import Mock
 
 from ovos_bus_client import Message
+from ovos_spec_tools import SpecMessage
 
 from ovos_workshop.skills.ovos import OVOSSkill
 from ovos_utils.fakebus import FakeBus
@@ -104,8 +105,8 @@ class TestSkill(unittest.TestCase):
             self.assertTrue(event in registered_events)
 
         # base skill class events shared with mycroft-core
-        default_skill = ["mycroft.skill.enable_intent",
-                         "mycroft.skill.disable_intent",
+        default_skill = [SpecMessage.INTENT_ENABLE.value,
+                         SpecMessage.INTENT_DISABLE.value,
                          "mycroft.skill.set_cross_context",
                          "mycroft.skill.remove_cross_context",
                          "mycroft.skills.settings.changed"]

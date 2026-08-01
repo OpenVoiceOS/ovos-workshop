@@ -138,7 +138,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertTrue(self.skill.instance.stop_called)
 
         # check that TTS stop message was emmited
-        tts_stop = {'type': 'mycroft.audio.speech.stop', 'data': {}}
+        tts_stop = {'type': SpecMessage.AUDIO_STOP.value, 'data': {}}
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called
@@ -173,7 +173,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertTrue(self.skill.instance.stop_called)
 
         # check that TTS stop message was emmited
-        tts_stop = {'type': 'mycroft.audio.speech.stop', 'data': {}}
+        tts_stop = {'type': SpecMessage.AUDIO_STOP.value, 'data': {}}
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called
@@ -262,7 +262,7 @@ class TestKillableIntents(unittest.TestCase):
         self.assertTrue(self.skill.instance.stop_called)
 
         # check that TTS stop message was emmited
-        tts_stop = {'type': 'mycroft.audio.speech.stop', 'data': {}}
+        tts_stop = {'type': SpecMessage.AUDIO_STOP.value, 'data': {}}
         self.assertIn(tts_stop, self.bus.emitted_msgs)
 
         # check that cleanup callback was called

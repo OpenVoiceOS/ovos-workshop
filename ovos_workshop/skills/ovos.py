@@ -1085,13 +1085,13 @@ class OVOSSkill:
         """
         Register default messagebus event handlers
         """
-        self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
+        self.add_event(SpecMessage.STOP, self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
-        self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
-        self.add_event('mycroft.skill.disable_intent', self.handle_disable_intent, speak_errors=False)
+        self.add_event(SpecMessage.INTENT_ENABLE, self.handle_enable_intent, speak_errors=False)
+        self.add_event(SpecMessage.INTENT_DISABLE, self.handle_disable_intent, speak_errors=False)
         self.add_event('mycroft.skill.set_cross_context', self.handle_set_cross_context, speak_errors=False)
         self.add_event('mycroft.skill.remove_cross_context', self.handle_remove_cross_context, speak_errors=False)
         self.add_event('mycroft.skills.settings.changed', self.handle_settings_change, speak_errors=False)
@@ -1165,7 +1165,7 @@ class OVOSSkill:
         @param message: `{self.skill_id}.stop.ping` Message
         """
         self.bus.emit(message.reply(
-            "skill.stop.pong",
+            SpecMessage.STOP_PONG,
             data={"skill_id": self.skill_id,
                   "can_handle": self.can_stop(message)},
             context={"skill_id": self.skill_id}))
@@ -1711,9 +1711,9 @@ class OVOSSkill:
                       SessionManager.get(message).session_id != "default"
 
         if instant:
-            mtype = "mycroft.audio.play_sound"
+            mtype = SpecMessage.AUDIO_PLAY_SOUND
         else:
-            mtype = "mycroft.audio.queue"
+            mtype = SpecMessage.AUDIO_QUEUE
 
         if not send_binary or not isfile(filename):
             data = {"uri": filename}
@@ -1774,8 +1774,8 @@ class OVOSSkill:
                 start = time.time()  # reset timer
 
         # if we have indications listener is busy, we allow extra time
-        self.bus.on("recognizer_loop:record_begin", on_extension)
-        self.bus.on("recognizer_loop:record_end", on_extension)
+        self.bus.on(SpecMessage.LISTENER_RECORD_STARTED, on_extension)
+        self.bus.on(SpecMessage.LISTENER_RECORD_ENDED, on_extension)
 
         while time.time() - start <= timeout and not ans:
             ans = self.__responses[session.session_id]
@@ -1789,8 +1789,8 @@ class OVOSSkill:
                 self.log.debug("get_response aborted")
                 break
 
-        self.bus.remove("recognizer_loop:record_begin", on_extension)
-        self.bus.remove("recognizer_loop:record_end", on_extension)
+        self.bus.remove(SpecMessage.LISTENER_RECORD_STARTED, on_extension)
+        self.bus.remove(SpecMessage.LISTENER_RECORD_ENDED, on_extension)
         return ans
 
     def get_response(self, dialog: str = '', data: Optional[dict] = None,
@@ -1821,7 +1821,7 @@ class OVOSSkill:
         @return: String user response (None if no valid response is given)
         """
         message = message or dig_for_message() or \
-                  Message('mycroft.mic.listen', context={"skill_id": self.skill_id})
+                  Message(SpecMessage.MIC_LISTEN, context={"skill_id": self.skill_id})
         data = data or {}
 
         session = SessionManager.get(message)
@@ -1857,7 +1857,7 @@ class OVOSSkill:
         if dialog:
             self.speak_dialog(dialog, data, expect_response=True, wait=wait)
         else:
-            self.bus.emit(message.forward('mycroft.mic.listen'))
+            self.bus.emit(message.forward(SpecMessage.MIC_LISTEN))
 
         # NOTE: self._wait_response launches a killable thread
         #  the thread waits for a user response for 15 seconds
@@ -2003,7 +2003,7 @@ class OVOSSkill:
             if reprompt:
                 self.speak(reprompt, expect_response=True)
             else:
-                self.bus.emit(message.reply('mycroft.mic.listen'))
+                self.bus.emit(message.reply(SpecMessage.MIC_LISTEN))
 
     def acknowledge(self):
         """
@@ -2519,20 +2519,20 @@ class OVOSSkill:
         @param stop_event: optional `stop` event name to forward
         """
         waiter = Event()
-        msg = dig_for_message() or Message("mycroft.stop")
+        msg = dig_for_message() or Message(SpecMessage.STOP)
         # stop event execution
         if stop_event:
             self.bus.emit(msg.forward(stop_event))
 
         # stop TTS
-        self.bus.emit(msg.forward("mycroft.audio.speech.stop"))
+        self.bus.emit(msg.forward(SpecMessage.AUDIO_STOP))
 
         # Tell ovos-core to stop recording (not in mycroft-core)
         self.bus.emit(msg.forward('recognizer_loop:record_stop'))
 
         # TODO: register TTS events to track state instead of guessing
         waiter.wait(0.5)  # if TTS had not yet started
-        self.bus.emit(msg.forward("mycroft.audio.speech.stop"))
+        self.bus.emit(msg.forward(SpecMessage.AUDIO_STOP))
 
     @classproperty
     def network_requirements(self) -> RuntimeRequirements:
