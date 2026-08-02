@@ -16,6 +16,7 @@ import unittest
 from unittest.mock import Mock
 
 from ovos_bus_client import Message
+from ovos_spec_tools import SpecMessage
 
 from ovos_workshop.skills.ovos import OVOSSkill
 from ovos_utils.fakebus import FakeBus
@@ -83,9 +84,11 @@ class TestSkill(unittest.TestCase):
             self.assertEqual(msg["context"]["skill_id"], "abort.test")
 
     def test_intent_register(self):
-        padatious_intents = ["abort.test:test.intent",
-                             "abort.test:test2.intent",
-                             "abort.test:test3.intent"]
+        # OVOS-MSG-1 §2.1.1: the `.intent` authoring extension is not part of
+        # the intent name, so it never reaches the wire
+        padatious_intents = ["abort.test:test",
+                             "abort.test:test2",
+                             "abort.test:test3"]
         for msg in self.bus.emitted_msgs:
             if msg["type"] == "padatious:register_intent":
                 self.assertTrue(msg["data"]["name"] in padatious_intents)
@@ -94,16 +97,16 @@ class TestSkill(unittest.TestCase):
         registered_events = [e[0] for e in self.skill.instance.events]
 
         # intent events
-        intent_triggers = [f"{self.skill.skill_id}:test.intent",
-                           f"{self.skill.skill_id}:test2.intent",
-                           f"{self.skill.skill_id}:test3.intent"
+        intent_triggers = [f"{self.skill.skill_id}:test",
+                           f"{self.skill.skill_id}:test2",
+                           f"{self.skill.skill_id}:test3"
                            ]
         for event in intent_triggers:
             self.assertTrue(event in registered_events)
 
         # base skill class events shared with mycroft-core
-        default_skill = ["mycroft.skill.enable_intent",
-                         "mycroft.skill.disable_intent",
+        default_skill = [SpecMessage.INTENT_ENABLE.value,
+                         SpecMessage.INTENT_DISABLE.value,
                          "mycroft.skill.set_cross_context",
                          "mycroft.skill.remove_cross_context",
                          "mycroft.skills.settings.changed"]
@@ -163,6 +166,8 @@ class TestIntentBlacklistFile(unittest.TestCase):
                                resources_dir=res_dir)
 
     def _register_payload(self, intent_name):
+        # registration carries the canonical name, without the file extension
+        intent_name = intent_name.removesuffix(".intent")
         for msg in self.bus.emitted_msgs:
             if msg["type"] == "padatious:register_intent" and \
                     msg["data"]["name"].endswith(intent_name):
@@ -212,6 +217,9 @@ class TestSlotBlacklistFile(unittest.TestCase):
                                resources_dir=res_dir)
 
     def _payload(self, msg_type, name_part):
+        # intent registration carries the canonical name, without the
+        # `.intent` file extension
+        name_part = name_part.removesuffix(".intent")
         for msg in self.bus.emitted_msgs:
             if msg["type"] == msg_type and \
                     name_part in msg["data"]["name"]:

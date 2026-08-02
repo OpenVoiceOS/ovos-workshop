@@ -6,6 +6,7 @@ from typing import Optional, Type
 from ovos_bus_client.session import SessionManager
 from ovos_utils import create_killable_daemon
 from ovos_bus_client.message import Message
+from ovos_spec_tools import SpecMessage
 from ovos_utils.log import LOG
 
 
@@ -87,7 +88,7 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
                         return
 
                 if stop_tts:
-                    skill.bus.emit(Message("mycroft.audio.speech.stop"))
+                    skill.bus.emit(Message(SpecMessage.AUDIO_STOP))
                 if call_stop:
                     # call stop on parent skill
                     skill.stop()
