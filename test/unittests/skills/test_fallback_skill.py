@@ -69,19 +69,27 @@ class TestFallbackSkillV2(TestCase):
                              in tup for tup in self.fallback_skill.events]))
 
     def test_handle_fallback_ack(self):
+        received = Event()
+
         def mock_pong(message: Message):
             self.assertEqual(message.data["skill_id"],
                              self.fallback_skill.skill_id)
             self.assertEqual(message.context["skill_id"],
                              self.fallback_skill.skill_id)
             self.assertEqual(message.data["can_handle"], "test")
+            received.set()
         
         orig_can_answer = self.fallback_skill.can_answer
         self.fallback_skill.can_answer = Mock(return_value="test")
         self.fallback_skill.bus.once(
             f"{self.fallback_skill.skill_id}.fallback.pong", mock_pong)
 
-        self.fallback_skill._handle_fallback_ack(Message("test"))
+        self.fallback_skill.bus.emit(Message(
+            f"{self.fallback_skill.skill_id}.fallback.ping",
+            {"utterances": ["hello"], "lang": "en-US"},
+        ))
+        self.assertTrue(received.wait(0.5))
+        self.fallback_skill.can_answer.assert_called_once()
         self.fallback_skill.can_answer = orig_can_answer
         
 
