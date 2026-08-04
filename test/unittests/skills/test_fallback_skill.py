@@ -1,6 +1,6 @@
 import time
 from unittest import TestCase
-from unittest.mock import patch, Mock
+from unittest.mock import Mock
 
 from threading import Event
 from ovos_utils.fakebus import FakeBus
@@ -63,7 +63,7 @@ class TestFallbackSkillV2(TestCase):
         self.assertFalse(self.fallback_skill.can_answer(Message("")))
 
     def test_register_system_event_handlers(self):
-        self.assertTrue(any(["ovos.skills.fallback.ping" in tup
+        self.assertTrue(any([f"{self.fallback_skill.skill_id}.fallback.ping" in tup
                              for tup in self.fallback_skill.events]))
         self.assertTrue(any([f"ovos.skills.fallback.{self.fallback_skill.skill_id}.request"
                              in tup for tup in self.fallback_skill.events]))
@@ -78,7 +78,8 @@ class TestFallbackSkillV2(TestCase):
         
         orig_can_answer = self.fallback_skill.can_answer
         self.fallback_skill.can_answer = Mock(return_value="test")
-        self.fallback_skill.bus.once("ovos.skills.fallback.pong", mock_pong)
+        self.fallback_skill.bus.once(
+            f"{self.fallback_skill.skill_id}.fallback.pong", mock_pong)
 
         self.fallback_skill._handle_fallback_ack(Message("test"))
         self.fallback_skill.can_answer = orig_can_answer
@@ -131,7 +132,7 @@ class TestFallbackSkillV2(TestCase):
             return True
             
         self.fallback_skill.bus.once(
-            f"ovos.skills.fallback.register", fallback_service_register
+            "ovos.skills.fallback.register", fallback_service_register
         )
         self.fallback_skill.register_fallback(mock_handler, priority)
         self.assertEqual(len(self.fallback_skill._fallback_handlers), 1)
@@ -154,7 +155,7 @@ class TestFallbackSkillV2(TestCase):
         
         deregister_event = Event()
         self.fallback_skill.bus.once(
-            f"ovos.skills.fallback.deregister", fallback_service_deregister
+            "ovos.skills.fallback.deregister", fallback_service_deregister
         )
         self.fallback_skill._fallback_handlers = [(50, mock_handler)]
         self.assertEqual(len(self.fallback_skill._fallback_handlers), 1)
@@ -165,7 +166,7 @@ class TestFallbackSkillV2(TestCase):
         self.assertFalse(deregister_event.is_set())
 
         self.fallback_skill.bus.once(
-            f"ovos.skills.fallback.deregister", fallback_service_deregister
+            "ovos.skills.fallback.deregister", fallback_service_deregister
         )
         self.fallback_skill._fallback_handlers = [(100, mock_handler), (50, mock_handler)]
         self.fallback_skill.remove_fallback()

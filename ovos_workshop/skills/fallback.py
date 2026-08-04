@@ -13,7 +13,7 @@
 # limitations under the License.
 import abc
 import operator
-from typing import Callable, Optional, List
+from typing import Callable, Optional
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
@@ -103,7 +103,8 @@ class FallbackSkill(OVOSSkill):
         fallback skill.
         """
         super()._register_system_event_handlers()
-        self.add_event('ovos.skills.fallback.ping', self._handle_fallback_ack, speak_errors=False)
+        self.add_event(f"{self.skill_id}.fallback.ping",
+                       self._handle_fallback_ack, speak_errors=False)
         self.add_event(f"ovos.skills.fallback.{self.skill_id}.request", self._handle_fallback_request,
                        speak_errors=False)
 
@@ -111,7 +112,7 @@ class FallbackSkill(OVOSSkill):
         """
         Inform skills service we can handle fallbacks.
         """
-        self.bus.emit(message.reply("ovos.skills.fallback.pong",
+        self.bus.emit(message.reply(f"{self.skill_id}.fallback.pong",
                                     data={"skill_id": self.skill_id,
                                           "can_handle": self.can_answer(message)},
                                     context={"skill_id": self.skill_id}))
