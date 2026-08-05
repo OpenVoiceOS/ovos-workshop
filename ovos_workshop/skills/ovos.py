@@ -20,6 +20,7 @@ import sys
 import time
 import traceback
 from copy import copy
+from functools import wraps
 from hashlib import md5
 from inspect import signature
 from itertools import chain
@@ -61,6 +62,7 @@ from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
+from ovos_workshop._metrics import DIALOG_RENDER, SKILL_HANDLER
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
 from ovos_workshop.intents import IntentBuilder, Intent, IntentServiceInterface
@@ -1121,7 +1123,7 @@ class OVOSSkill:
         @param path: Modified file path
         """
         if path != self._settings.path:
-            LOG.debug(f"Ignoring non-settings change")
+            LOG.debug("Ignoring non-settings change")
             return
         if self._settings:
             with self._settings_lock:
@@ -1682,7 +1684,8 @@ class OVOSSkill:
         """
         if self.dialog_renderer:
             data = data or {}
-            utterance = self.dialog_renderer.render(key, data)
+            with DIALOG_RENDER.measure():
+                utterance = self.dialog_renderer.render(key, data)
             if render_callback is not None:
                 utterance = render_callback(utterance, self.lang)
             self.speak(
@@ -1839,11 +1842,13 @@ class OVOSSkill:
             fail_data['utterance'] = utterance
             if on_fail:
                 if self.dialog_renderer:
-                    return self.dialog_renderer.render(on_fail, fail_data)
+                    with DIALOG_RENDER.measure():
+                        return self.dialog_renderer.render(on_fail, fail_data)
                 return on_fail
             else:
                 if self.dialog_renderer:
-                    return self.dialog_renderer.render(dialog, data)
+                    with DIALOG_RENDER.measure():
+                        return self.dialog_renderer.render(dialog, data)
                 return dialog
 
         def is_cancel(utterance):
@@ -2257,8 +2262,20 @@ class OVOSSkill:
             self._on_event_end(message, handler_info, skill_data,
                                is_intent=is_intent)
 
-        wrapper = create_wrapper(handler, self.skill_id, on_start, on_end,
-                                 on_error)
+        measured_handler = handler
+        if handler_info:
+            @wraps(handler)
+            def measured_handler(*args, **kwargs):
+                with SKILL_HANDLER.measure():
+                    return handler(*args, **kwargs)
+
+        wrapper = create_wrapper(
+            measured_handler,
+            self.skill_id,
+            on_start,
+            on_end,
+            on_error,
+        )
         return self.events.add(name, wrapper, once)
 
     def remove_event(self, name: str) -> bool:
@@ -2574,7 +2591,4 @@ class SkillGUI(GUIInterface):
         ui_directories = get_ui_directories(skill.root_dir)
         GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config,
                               ui_directories=ui_directories)
-
-
-
 
