@@ -1087,6 +1087,7 @@ class OVOSSkill:
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
+        self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
@@ -1167,6 +1168,22 @@ class OVOSSkill:
             "skill.stop.pong",
             data={"skill_id": self.skill_id,
                   "can_handle": self.can_stop(message)},
+            context={"skill_id": self.skill_id}))
+
+    def _handle_converse_ack(self, message: Message):
+        """Decline converse capability for a non-conversational skill.
+
+        The intent service queries every active skill with a targeted
+        ``{skill_id}.converse.ping``.  A base ``OVOSSkill`` cannot converse,
+        but it must still acknowledge that query so the intent service can
+        distinguish a prompt decline from an unresponsive skill.
+
+        ``ConversationalSkill`` overrides this handler and delegates the
+        decision to its ``can_converse`` implementation.
+        """
+        self.bus.emit(message.reply(
+            "skill.converse.pong",
+            data={"skill_id": self.skill_id, "can_handle": False},
             context={"skill_id": self.skill_id}))
 
     def stop_session(self, session: Session) -> bool:
@@ -2574,7 +2591,6 @@ class SkillGUI(GUIInterface):
         ui_directories = get_ui_directories(skill.root_dir)
         GUIInterface.__init__(self, skill_id=skill_id, bus=bus, config=config,
                               ui_directories=ui_directories)
-
 
 
 

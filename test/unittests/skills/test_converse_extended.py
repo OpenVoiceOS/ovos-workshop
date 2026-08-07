@@ -110,6 +110,19 @@ class TestConversationalSkillCanConverse(unittest.TestCase):
         self.assertIsInstance(result, bool)
         self.assertTrue(result)
 
+    def test_converse_ping_emits_one_positive_ack(self) -> None:
+        replies = []
+        self.bus.on("skill.converse.pong", replies.append)
+
+        self.bus.emit(Message("converse.test2.converse.ping",
+                              data={"utterances": ["hello"]}))
+
+        self.assertEqual(len(replies), 1)
+        self.assertEqual(replies[0].data, {
+            "skill_id": "converse.test2",
+            "can_handle": True,
+        })
+
 
 class TestConversationalSkillHandlers(unittest.TestCase):
     """Tests for handle_activate and handle_deactivate default no-ops."""

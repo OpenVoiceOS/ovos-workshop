@@ -56,7 +56,6 @@ class ConversationalSkill(OVOSSkill):
 
     def _register_system_event_handlers(self):
         super()._register_system_event_handlers()
-        self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
         self.add_event(f"{self.skill_id}.activate", self.handle_activate, speak_errors=False)
         self.add_event(f"{self.skill_id}.deactivate", self.handle_deactivate, speak_errors=False)

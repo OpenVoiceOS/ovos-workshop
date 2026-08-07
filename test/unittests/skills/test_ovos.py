@@ -1,5 +1,6 @@
 import unittest
 
+from ovos_bus_client.message import Message
 from ovos_utils.process_utils import RuntimeRequirements
 from ovos_utils.fakebus import FakeBus
 from ovos_utils import classproperty
@@ -58,6 +59,23 @@ class TestOVOSSkill(unittest.TestCase):
     def test_activate(self):
         # TODO
         pass
+
+    def test_converse_ping_declines_without_timeout(self):
+        bus = FakeBus()
+        replies = []
+        bus.on("skill.converse.pong", replies.append)
+        skill = OVOSSkill(bus=bus, skill_id="plain.skill")
+
+        bus.emit(Message("plain.skill.converse.ping",
+                         data={"utterances": ["hello"]}))
+
+        self.assertEqual(len(replies), 1)
+        self.assertEqual(replies[0].data, {
+            "skill_id": "plain.skill",
+            "can_handle": False,
+        })
+        self.assertEqual(replies[0].context["skill_id"], "plain.skill")
+        skill.default_shutdown()
 
     def test_deactivate(self):
         # TODO
@@ -186,4 +204,3 @@ class TestOVOSSkill(unittest.TestCase):
         skill = MockSkill()
         self.assertIsInstance(skill, OVOSSkill)
         self.assertNotIsInstance(skill, OVOSAbstractApplication)
-

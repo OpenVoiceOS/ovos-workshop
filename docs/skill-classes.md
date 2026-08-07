@@ -25,6 +25,8 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 
 The universal base class. Every skill and application ultimately inherits from `OVOSSkill`. Handles intent registration, resource files, settings, GUI interface, MessageBus events, and the full skill lifecycle (`initialize`, `default_shutdown`).
 
+Every skill also acknowledges its targeted `{skill_id}.converse.ping` capability query. The base class promptly replies with `can_handle: false`; `ConversationalSkill` overrides that decision. This lets the intent service distinguish a non-conversational skill from an unresponsive one.
+
 ```python
 from ovos_workshop.skills.ovos import OVOSSkill
 ```
@@ -52,7 +54,7 @@ class MySkill(ConversationalSkill):
 ```
 
 Additional bus events registered:
-- `{skill_id}.converse.ping`: capability advertisement
+- `{skill_id}.converse.ping`: capability advertisement, overriding the base decline
 - `{skill_id}.converse.request`: converse request from pipeline
 - `{skill_id}.activate` / `{skill_id}.deactivate`
 - `intent.service.skills.deactivated` / `intent.service.skills.activated`
