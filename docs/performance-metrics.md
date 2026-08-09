@@ -24,10 +24,3 @@ calculating p50 or p95.
 
 `ovos-workshop` does not open an HTTP port itself. Endpoint ownership remains in
 `ovos-core`, so standalone skills do not unexpectedly expose a listener.
-
-For controlled benchmarks, `OVOS_PERFORMANCE_TRACE=true` also emits the
-`skill_reply_emit` wall-clock boundary immediately before a correlated `speak`
-message is placed on the bus. The structured event contains only `stage`, the
-opaque request ID, and `at_unix_ns`. It is a log event rather than a metric, so
-request IDs never become Prometheus labels. Tracing is disabled by default and
-does not mutate the reply context.

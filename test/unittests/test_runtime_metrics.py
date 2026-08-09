@@ -7,11 +7,6 @@ from ovos_utils.events import EventContainer
 from ovos_utils.fakebus import FakeBus
 
 from ovos_workshop._metrics import DIALOG_RENDER, SKILL_HANDLER
-from ovos_workshop._performance_trace import (
-    message_request_id,
-    trace_performance_stage,
-)
-from ovos_workshop.skills import ovos as ovos_skill_module
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
@@ -83,68 +78,3 @@ def test_speak_dialog_measures_only_renderer_work():
     )
     skill.speak.assert_called_once()
     assert DIALOG_RENDER.snapshot()["count"] == before + 1
-
-
-def test_trace_extracts_nested_query_id():
-    message = Message(
-        "speak",
-        {},
-        {"metadata": {"qa_query_id": "request-skill"}},
-    )
-
-    assert message_request_id(message) == "request-skill"
-
-
-def test_speak_emits_correlated_stage_without_changing_message(
-        monkeypatch):
-    skill = _skill()
-    trigger = Message(
-        "test.intent",
-        {},
-        {"query_id": "request-skill"},
-    )
-    traces = []
-    emitted = []
-    skill.bus.on("speak", emitted.append)
-    monkeypatch.setattr(
-        ovos_skill_module,
-        "dig_for_message",
-        lambda: trigger,
-    )
-    monkeypatch.setattr(
-        ovos_skill_module,
-        "trace_performance_stage",
-        lambda stage, **values: traces.append((
-            stage,
-            values["message"].context.get("query_id"),
-            set(values["message"].data),
-        )),
-    )
-
-    with patch.object(
-        OVOSSkill,
-        "lang",
-        new_callable=PropertyMock,
-        return_value="en-US",
-    ):
-        skill.speak("It is sunny.")
-
-    assert len(emitted) == 1
-    assert emitted[0].context["query_id"] == "request-skill"
-    assert traces == [(
-        "skill_reply_emit",
-        "request-skill",
-        {"utterance", "expect_response", "meta", "lang"},
-    )]
-
-
-def test_skill_trace_is_silent_without_opt_in(monkeypatch):
-    monkeypatch.delenv("OVOS_PERFORMANCE_TRACE", raising=False)
-    log_info = MagicMock()
-    monkeypatch.setattr(
-        "ovos_workshop._performance_trace._LOG.info",
-        log_info,
-    )
-
-    trace_performance_stage("skill_reply_emit", request_id="request-silent")
-    log_info.assert_not_called()

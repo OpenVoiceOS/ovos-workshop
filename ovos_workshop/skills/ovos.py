@@ -24,56 +24,49 @@ from functools import wraps
 from hashlib import md5
 from inspect import signature
 from itertools import chain
-from os.path import abspath, basename, dirname, isfile, join
+from os.path import join, abspath, dirname, basename, isfile
 from pathlib import Path
 from threading import Event, RLock
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, Callable, List, Optional, Union
 
 from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
+from ovos_gui_api_client import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
-from ovos_bus_client.session import Session, SessionManager
+from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
-from ovos_config.config import Configuration
-from ovos_config.locations import get_xdg_cache_save_path, get_xdg_config_save_path
-from ovos_gui_api_client import EnclosureAPI
-from ovos_number_parser import pronounce_number
-from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
-from ovos_plugin_manager.agents import load_option_matcher_plugin, load_yesno_plugin
-from ovos_plugin_manager.language import (
-    OVOSLangDetectionFactory,
-    OVOSLangTranslationFactory,
-)
-from ovos_plugin_manager.templates.agents import OptionMatcherEngine, YesNoEngine
 from ovos_spec_tools import SpecMessage, standardize_lang
 from ovos_spec_tools.resources import read_resource_file
+from ovos_config.config import Configuration
+from ovos_config.locations import get_xdg_cache_save_path
+from ovos_config.locations import get_xdg_config_save_path
+from ovos_number_parser import pronounce_number
+from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
+from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
+from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
+from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
-from ovos_utils.events import EventContainer, create_wrapper, get_handler_name
+from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.log import LOG
-from ovos_utils.process_utils import (
-    ProcessStatus,
-    RuntimeRequirements,
-    StatusCallbackMap,
-)
+from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
+from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop._metrics import DIALOG_RENDER, SKILL_HANDLER
-from ovos_workshop._performance_trace import trace_performance_stage
-from ovos_workshop.decorators.killable import AbortEvent, AbortQuestion, killable_event
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
-from ovos_workshop.intents import Intent, IntentBuilder, IntentServiceInterface
-from ovos_workshop.resource_files import ResourceFile, SkillResources, find_resource
+from ovos_workshop.intents import IntentBuilder, Intent, IntentServiceInterface
+from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
 
@@ -1651,7 +1644,6 @@ class OVOSSkill:
                                  meta["translation_data"])
             m.context["translation_data"] = tx_data
 
-        trace_performance_stage("skill_reply_emit", message=m)
         self.bus.emit(m)
 
         if wait:
