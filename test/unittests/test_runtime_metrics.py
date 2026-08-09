@@ -138,10 +138,13 @@ def test_speak_emits_correlated_stage_without_changing_message(
     )]
 
 
-def test_skill_trace_is_silent_without_opt_in(monkeypatch, caplog):
+def test_skill_trace_is_silent_without_opt_in(monkeypatch):
     monkeypatch.delenv("OVOS_PERFORMANCE_TRACE", raising=False)
-    caplog.set_level("INFO", logger="ovos.performance.trace")
+    log_info = MagicMock()
+    monkeypatch.setattr(
+        "ovos_workshop._performance_trace._LOG.info",
+        log_info,
+    )
 
     trace_performance_stage("skill_reply_emit", request_id="request-silent")
-
-    assert "request-silent" not in caplog.text
+    log_info.assert_not_called()
