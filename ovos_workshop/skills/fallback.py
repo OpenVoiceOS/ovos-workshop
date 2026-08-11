@@ -111,18 +111,9 @@ class FallbackSkill(OVOSSkill):
         """
         Inform skills service we can handle fallbacks.
         """
-        try:
-            can_handle = self.can_answer(message)
-        except NotImplementedError:
-            # can_answer is an opt-in optimization: it lets a skill decline
-            # before ovos-core pays for a full fallback request. A skill that
-            # predates it simply has not opted in, so it must still be asked.
-            # Treating the base implementation as a refusal silently disables
-            # every such skill.
-            can_handle = True
         self.bus.emit(message.reply("ovos.skills.fallback.pong",
                                     data={"skill_id": self.skill_id,
-                                          "can_handle": can_handle},
+                                          "can_handle": self.can_answer(message)},
                                     context={"skill_id": self.skill_id}))
 
     def _on_timeout(self):
