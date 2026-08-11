@@ -278,6 +278,39 @@ class TestKillableIntents(unittest.TestCase):
         from ovos_workshop.decorators.killable import killable_event
         # TODO
 
+    def test_no_leak_on_natural_completion(self):
+        """Regression test for ovos-skill-alerts#138: a killable_intent /
+        killable_event wrapped handler that finishes on its own (eg. a
+        get_response() waiter whose abort message never arrives, or any
+        quick handler that simply returns) must not leave its
+        `mycroft.skills.abort_execution` `.once` bus listener registered
+        forever, and must not leave a dead thread behind in
+        `skill._threads`. Before the fix, every call leaked one listener
+        (and one stale Thread reference) that never got cleaned up, which
+        is exactly the kind of accumulation a long-lived/shared skill
+        instance (eg. a test suite reusing one skill across many calls,
+        or an embedded/CI process) hits repeatedly.
+        """
+        self.bus.emitted_msgs = []
+        msg_type = "mycroft.skills.abort_execution"
+        before = len(self.bus.ee.listeners(msg_type))
+        threads_before = len(self.skill.instance._threads)
+
+        self.bus.emit(Message(f"{self.skill.skill_id}:test4.intent"))
+        sleep(2)
+
+        self._assert_spoken("quick done")
+
+        after = len(self.bus.ee.listeners(msg_type))
+        self.assertEqual(before, after,
+                         "killable_intent leaked a bus listener after the "
+                         "wrapped handler finished on its own")
+
+        threads_after = len(self.skill.instance._threads)
+        self.assertEqual(threads_before, threads_after,
+                         "killable_intent left a dead thread behind in "
+                         "skill._threads after natural completion")
+
 
 class TestLayers(unittest.TestCase):
     def test_dig_for_skill(self):
