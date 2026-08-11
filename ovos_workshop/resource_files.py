@@ -22,10 +22,10 @@ from os.path import dirname
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
-from langcodes import tag_distance
 from ovos_config.locations import get_xdg_data_save_path
 from ovos_utils import flatten_list
-from ovos_spec_tools import expand, inline_keywords, MalformedTemplate
+from ovos_spec_tools import (expand, inline_keywords, MalformedTemplate,
+                             lang_distance, lang_matches)
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
 from ovos_utils.log import LOG
 
@@ -85,16 +85,11 @@ def locate_lang_directories(lang: str, skill_directory: str,
         if directory.exists():
             for folder in directory.iterdir():
                 if folder.is_dir():
-                    try:
-                        score = tag_distance(lang, folder.name)
-                    except ValueError:  # not a valid language code
-                        continue
-                    # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-                    # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-                    # 1- 3 -> These codes indicate a minor regional difference.
-                    # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-                    if score < 10:
-                        candidates.append((folder, score))
+                    # ovos_spec_tools owns the language-distance policy and
+                    # its threshold; a directory whose name is not a usable
+                    # match for `lang` scores beyond it and is skipped.
+                    if lang_matches(lang, folder.name):
+                        candidates.append((folder, lang_distance(lang, folder.name)))
     # sort by distance to target lang code
     candidates = sorted(candidates, key=lambda k: k[1])
     return [c[0] for c in candidates]
