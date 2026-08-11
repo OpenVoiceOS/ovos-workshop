@@ -547,6 +547,12 @@ class IntentServiceInterface:
             self.registered_intents.append((name, data))
         else:
             self.registered_intents[slot] = (name, data)
+        # mirror register_intent: a template that had been detach()ed (e.g.
+        # via disable_intent) must be dropped from detached_intents once it
+        # is re-registered, otherwise enable_intent()/intent_is_detached()
+        # keep reporting it as detached forever.
+        self.detached_intents = [detached for detached in self.detached_intents
+                                 if detached[0] != name]
 
     # -- lifecycle ------------------------------------------------------
 
@@ -554,12 +560,21 @@ class IntentServiceInterface:
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        if intent_name in self.intent_names:
-            LOG.info(f"Detaching intent: {intent_name}")
-            self.detached_intents.append((intent_name,
-                                          self.get_intent(intent_name)))
+        # registered_intents/detached_intents are keyed by the bare name
+        # (register_intent/register_template strip any "<skill_id>:" prefix
+        # before storing, see register_intent/register_template above).
+        # Callers (e.g. OVOSSkill.disable_intent) may pass either the bare
+        # name or the "<skill_id>:"-prefixed one, so normalize before
+        # matching -- otherwise the prefixed form never matches the bare
+        # key and the intent is never actually detached.
+        prefix = f"{self.skill_id}:"
+        key = intent_name[len(prefix):] if intent_name.startswith(prefix) \
+            else intent_name
+        if key in self.intent_names:
+            LOG.info(f"Detaching intent: {key}")
+            self.detached_intents.append((key, self.get_intent(key)))
             self.registered_intents = [pair for pair in self.registered_intents
-                                       if pair[0] != intent_name]
+                                       if pair[0] != key]
         self.bus.emit(msg.forward(SpecMessage.INTENT_DEREGISTER,
                                   {"skill_id": self.skill_id,
                                    "intent_name": intent_name}))
