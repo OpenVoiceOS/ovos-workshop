@@ -17,7 +17,15 @@ class TestUniversalSkill(unittest.TestCase):
 
 class TestUniversalFallbackSkill(unittest.TestCase):
     from ovos_workshop.skills.auto_translatable import UniversalFallback
-    test_skill = UniversalFallback()
+
+    class _Concrete(UniversalFallback):
+        """UniversalFallback inherits the abstract can_answer from
+        FallbackSkill and does not implement it, so it stays abstract."""
+
+        def can_answer(self, message):
+            return False
+
+    test_skill = _Concrete()
 
     def test_00_init(self):
         self.assertIsInstance(self.test_skill, self.UniversalFallback)

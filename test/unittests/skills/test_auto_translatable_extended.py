@@ -83,7 +83,11 @@ class TestUniversalFallbackExtended(unittest.TestCase):
     def test_is_fallback_skill(self) -> None:
         from ovos_workshop.skills.auto_translatable import UniversalFallback
         from ovos_workshop.skills.fallback import FallbackSkill
-        skill = UniversalFallback(bus=FakeBus(), skill_id="test.universal.fallback")
+        class _Concrete(UniversalFallback):
+            def can_answer(self, message):
+                return False
+
+        skill = _Concrete(bus=FakeBus(), skill_id="test.universal.fallback")
         self.assertIsInstance(skill, FallbackSkill)
 
 

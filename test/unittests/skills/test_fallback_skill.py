@@ -13,6 +13,9 @@ class V2FallbackSkill(FallbackSkill):
     def __init__(self):
         super().__init__(FakeBus(), "fallback_v2")
 
+    def can_answer(self, message):
+        return True
+
     @fallback_handler
     def handle_fallback(self, message):
         pass
@@ -23,9 +26,16 @@ class V2FallbackSkill(FallbackSkill):
 
 
 
+class _ConcreteFallback(FallbackSkill):
+    """FallbackSkill is abstract, so tests need a class that satisfies the
+    can_answer contract the same way a real skill does."""
+
+    def can_answer(self, message):
+        return False
+
+
 class TestFallbackSkillV2(TestCase):
-    fallback_skill = FallbackSkill(FakeBus(), "test_fallback_v2")
-    fallback_skill.can_answer = lambda message: False
+    fallback_skill = _ConcreteFallback(FakeBus(), "test_fallback_v2")
 
     def test_class_inheritance(self):
         from ovos_workshop.skills.ovos import OVOSSkill
@@ -181,3 +191,27 @@ class TestFallbackSkillV2(TestCase):
     def test_register_decorated(self):
         # TODO
         pass
+
+
+class TestFallbackIsAbstract(TestCase):
+    """can_answer is declared abstract, but FallbackSkill used the default
+    metaclass, so the declaration was inert: a skill without can_answer loaded
+    fine and then raised NotImplementedError inside the ping handler, which is
+    registered with speak_errors=False. The skill silently never answered."""
+
+    def test_a_skill_without_can_answer_cannot_be_created(self):
+        class Incomplete(FallbackSkill):
+            @fallback_handler
+            def handle_fallback(self, message):
+                pass
+
+        with self.assertRaises(TypeError):
+            Incomplete(FakeBus(), "incomplete.test")
+
+    def test_a_skill_with_can_answer_is_created(self):
+        class Complete(FallbackSkill):
+            def can_answer(self, message):
+                return True
+
+        skill = Complete(FakeBus(), "complete.test")
+        self.assertTrue(skill.can_answer(Message("")))

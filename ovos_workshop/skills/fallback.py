@@ -26,7 +26,7 @@ from ovos_workshop.decorators.killable import AbortEvent, killable_event
 from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
 
 
-class FallbackSkill(OVOSSkill):
+class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
     """
     Fallbacks come into play when no skill matches an Adapt or closely with
     a Padatious intent.  All Fallback skills work together to give them a
