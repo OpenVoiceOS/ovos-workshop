@@ -1,5 +1,21 @@
 # Changelog
 
+## [9.3.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.7a1) (2026-08-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.6a1...9.3.7a1)
+
+**Merged pull requests:**
+
+- fix: enable\_intent rebinds the handler after disable\_intent [\#508](https://github.com/OpenVoiceOS/ovos-workshop/pull/508) ([JarbasAl](https://github.com/JarbasAl))
+
+## [9.3.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.6a1) (2026-08-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.5a1...9.3.6a1)
+
+**Merged pull requests:**
+
+- fix: killable\_intent/killable\_event thread and bus-listener leak on natural completion [\#513](https://github.com/OpenVoiceOS/ovos-workshop/pull/513) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.5a1) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.4a2...9.3.5a1)
@@ -290,19 +306,19 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 **Merged pull requests:**
 
 - feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
-
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 **Merged pull requests:**
 
@@ -354,31 +370,18 @@
 **Merged pull requests:**
 
 - chore\(deps\): update actions/setup-python action to v6 [\#382](https://github.com/OpenVoiceOS/ovos-workshop/pull/382) ([renovate[bot]](https://github.com/apps/renovate))
-- chore\(deps\): update actions/checkout action to v6 [\#379](https://github.com/OpenVoiceOS/ovos-workshop/pull/379) ([renovate[bot]](https://github.com/apps/renovate))
 
 ## [8.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a3) (2025-12-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a2...8.0.1a3)
 
-**Merged pull requests:**
-
-- chore\(deps\): update dependency python to 3.14 [\#378](https://github.com/OpenVoiceOS/ovos-workshop/pull/378) ([renovate[bot]](https://github.com/apps/renovate))
-
 ## [8.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a2) (2025-12-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a1...8.0.1a2)
 
-**Merged pull requests:**
-
-- chore: Configure Renovate [\#377](https://github.com/OpenVoiceOS/ovos-workshop/pull/377) ([renovate[bot]](https://github.com/apps/renovate))
-
 ## [8.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a1) (2025-12-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.0...8.0.1a1)
-
-**Merged pull requests:**
-
-- fix: standalone skills wait\_for\_core [\#375](https://github.com/OpenVoiceOS/ovos-workshop/pull/375) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [8.0.0](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.0) (2025-11-09)
 
