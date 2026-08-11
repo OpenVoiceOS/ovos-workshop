@@ -68,8 +68,31 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
                     func(*a, **kw)
                 except AbortEvent:
                     pass  # intentional kill — not an error
+                finally:
+                    # the thread is finishing on its own (no abort message
+                    # ever arrived, eg. a get_response() waiter that timed
+                    # out or returned normally); unregister the `.once`
+                    # listeners now instead of leaving them on the bus
+                    # forever. Left unremoved, every call to a
+                    # killable_intent/killable_event-wrapped method leaks a
+                    # bus listener (plus its closure over `t`/`skill`/`sess`)
+                    # that never fires again - harmless for a single call,
+                    # but unbounded over the life of a long-lived skill
+                    # instance (eg. a shared test-suite skill reused across
+                    # many calls).
+                    skill.bus.remove(msg, abort)
+                    if react_to_stop:
+                        skill.bus.remove(skill.skill_id + ".stop", abort)
+                    if t in skill._threads:
+                        skill._threads.remove(t)
 
             t = create_killable_daemon(_guarded, args, kwargs, autostart=False)
+            # belt-and-suspenders: create_killable_daemon already marks the
+            # thread as daemon, but that behavior lives in the ovos-utils
+            # dependency; enforce it here too so a leaked thread (eg. a
+            # get_response() waiter whose abort message never arrives) can
+            # never block process exit, regardless of what ovos-utils does.
+            t.daemon = True
             sess = SessionManager.get()
 
             def abort(m: Message):
