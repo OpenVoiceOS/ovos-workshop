@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.8a1) (2026-08-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.7a1...9.3.8a1)
+
+**Merged pull requests:**
+
+- fix: route language matching through ovos-spec-tools [\#512](https://github.com/OpenVoiceOS/ovos-workshop/pull/512) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.7a1) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.6a1...9.3.7a1)
@@ -300,17 +308,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.1.0a1...8.2.0a1)
 
-**Merged pull requests:**
-
-- feat: yesno/selection agent plugins [\#390](https://github.com/OpenVoiceOS/ovos-workshop/pull/390) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
-
-**Merged pull requests:**
-
-- feat: use JSON-based euphony rules for word list joining [\#405](https://github.com/OpenVoiceOS/ovos-workshop/pull/405) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
@@ -320,12 +320,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
-**Merged pull requests:**
-
-- Update actions/setup-python action to v6 [\#402](https://github.com/OpenVoiceOS/ovos-workshop/pull/402) ([renovate[bot]](https://github.com/apps/renovate))
-- Update actions/checkout action to v6 [\#401](https://github.com/OpenVoiceOS/ovos-workshop/pull/401) ([renovate[bot]](https://github.com/apps/renovate))
-- chore: remove deprecated class flagged for removal in 4.0.0 [\#400](https://github.com/OpenVoiceOS/ovos-workshop/pull/400) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a1...8.0.4a2)
@@ -334,42 +328,21 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.3a1...8.0.4a1)
 
-**Merged pull requests:**
-
-- fix: update locale lookups and tests after BCP-47 folder rename [\#395](https://github.com/OpenVoiceOS/ovos-workshop/pull/395) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [8.0.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.3a1) (2026-04-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.2a1...8.0.3a1)
-
-**Merged pull requests:**
-
-- fix: use list.remove\(\) instead of list.pop\(\) in whitelist\_skill [\#394](https://github.com/OpenVoiceOS/ovos-workshop/pull/394) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [8.0.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.2a1) (2026-04-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a5...8.0.2a1)
 
-**Merged pull requests:**
-
-- fix\(i18n\): normalize locale folders to canonical BCP-47 [\#392](https://github.com/OpenVoiceOS/ovos-workshop/pull/392) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [8.0.1a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a5) (2026-03-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a4...8.0.1a5)
 
-**Merged pull requests:**
-
-- Tests docs automations [\#386](https://github.com/OpenVoiceOS/ovos-workshop/pull/386) ([JarbasAl](https://github.com/JarbasAl))
-- Add French workshop locale resources [\#385](https://github.com/OpenVoiceOS/ovos-workshop/pull/385) ([goldyfruit](https://github.com/goldyfruit))
-
 ## [8.0.1a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a4) (2025-12-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.1a3...8.0.1a4)
-
-**Merged pull requests:**
-
-- chore\(deps\): update actions/setup-python action to v6 [\#382](https://github.com/OpenVoiceOS/ovos-workshop/pull/382) ([renovate[bot]](https://github.com/apps/renovate))
 
 ## [8.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.1a3) (2025-12-19)
 
