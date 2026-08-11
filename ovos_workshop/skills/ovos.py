@@ -1896,12 +1896,33 @@ class OVOSSkill:
         self._real_wait_response(is_cancel, validator, on_fail, num_retries, message)
 
         # wait for answer from killable thread
+        # NOTE: this loop has no Event to wait on (see TODO below), so it
+        # needs its own hard deadline. Without one, a killable thread that
+        # never finishes (eg. the bus/TTS handshake it is waiting on in
+        # __get_response never completes) blocks the caller forever - see
+        # OpenVoiceOS/ovos-skill-alerts#138 for a captured py-spy stack of
+        # exactly this hang via ask_yesno -> get_response -> _wait_response.
+        # The deadline mirrors the thread's own per-attempt budget: each
+        # retry may speak a reprompt (bounded by the 15s
+        # wait_while_speaking() ceiling used elsewhere in this file) and
+        # then wait up to `get_response_timeout` for a transcription.
+        per_attempt_budget = self.config_core.get("skills", {}).get(
+            "get_response_timeout", 20) + 15
+        max_attempts = (num_retries + 1) if num_retries >= 0 else 2
+        deadline = time.time() + per_attempt_budget * max_attempts
+
         ans = []
         while not ans:
             # TODO: Refactor to Event
             time.sleep(0.1)
             ans = self.__validated_responses.get(session.session_id)
             if ans or ans is None:  # canceled response
+                break
+            if time.time() > deadline:
+                LOG.warning(f"get_response timed out waiting for a result "
+                            f"from the background thread (session: "
+                            f"{session.session_id}); giving up")
+                ans = None
                 break
 
         if session.session_id in self.__validated_responses:
