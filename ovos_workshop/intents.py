@@ -411,6 +411,24 @@ class IntentServiceInterface:
 
         intent_name = name.split(":")[-1] if name else name
         for lang in langs:
+            # A vocabulary with no cached samples cannot be described in the
+            # INTENT-4 payload. Dropping it from `required` / `one_of` /
+            # `excluded` would register a *weaker* intent than the skill
+            # declared -- notably an adapt `.require()` naming a context
+            # keyword (OVOS-CONTEXT-1), whose vocabulary is never registered.
+            # The consumer would then match the intent with the gate removed,
+            # so skip the emit entirely and let the legacy registration (which
+            # carries the full definition) stand.
+            missing = self._unsampled_vocab(
+                required_names + excluded_names +
+                [n for group in one_of_groups for n in group], lang)
+            if missing:
+                LOG.warning(
+                    f"not emitting {SpecMessage.INTENT_REGISTER_KEYWORD} for "
+                    f"intent {name} (lang={lang}): no vocabulary samples for "
+                    f"{sorted(missing)}; emitting would register the intent "
+                    f"without those constraints")
+                continue
             payload = {
                 "skill_id": self.skill_id,
                 "intent_name": intent_name,
@@ -424,6 +442,11 @@ class IntentServiceInterface:
             payload["one_of"] = [g for g in payload["one_of"] if g]
             self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_KEYWORD,
                                       payload))
+
+    def _unsampled_vocab(self, vocab_types: List[str], lang: str) -> List[str]:
+        """Names among ``vocab_types`` with no registered samples for ``lang``."""
+        return [vt for vt in vocab_types
+                if not self._get_keyword_samples(vt, lang)]
 
     def register_intent(self, name: str, intent_parser: object):
         msg = dig_for_message() or Message("")
