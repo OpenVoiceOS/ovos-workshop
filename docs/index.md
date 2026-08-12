@@ -76,6 +76,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 | [intent-layers.md](intent-layers.md) | `IntentLayers` | Enable/disable intent sets at runtime |
 | [skill-launcher.md](skill-launcher.md) | `SkillLoader`, `PluginSkillLoader` | Loading skills as plugins or in standalone mode |
 | [permissions.md](permissions.md) | `ConverseMode`, `FallbackMode` | Converse and fallback permission modes |
+| [performance-metrics.md](performance-metrics.md) | runtime metrics | Skill-handler and dialog-rendering histogram boundaries |
 
 ---
 

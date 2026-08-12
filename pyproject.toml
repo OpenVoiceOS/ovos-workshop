@@ -42,6 +42,9 @@ Repository = "https://github.com/OpenVoiceOS/OVOS-workshop"
 [project.scripts]
 ovos-skill-launcher = "ovos_workshop.skill_launcher:_launch_script"
 
+[project.entry-points."ovos.performance.metrics"]
+workshop = "ovos_workshop._metrics:performance_histograms"
+
 [tool.setuptools]
 include-package-data = true
 
