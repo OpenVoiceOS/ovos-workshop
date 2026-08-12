@@ -412,15 +412,16 @@ class IntentServiceInterface:
         intent_name = name.split(":")[-1] if name else name
         for lang in langs:
             # A vocabulary with no cached samples cannot be described in the
-            # INTENT-4 payload. Dropping it from `required` / `one_of` /
-            # `excluded` would register a *weaker* intent than the skill
-            # declared -- notably an adapt `.require()` naming a context
-            # keyword (OVOS-CONTEXT-1), whose vocabulary is never registered.
-            # The consumer would then match the intent with the gate removed,
-            # so skip the emit entirely and let the legacy registration (which
-            # carries the full definition) stand.
+            # INTENT-4 payload. Dropping it from `required` / `optional` /
+            # `one_of` / `excluded` would register a *weaker* intent than the
+            # skill declared -- notably an adapt `.require()` or
+            # `.optionally()` naming a context keyword (OVOS-CONTEXT-1),
+            # whose vocabulary is never registered. The consumer would then
+            # match the intent with the gate (or slot) removed, so skip the
+            # emit entirely and let the legacy registration (which carries
+            # the full definition) stand.
             missing = self._unsampled_vocab(
-                required_names + excluded_names +
+                required_names + optional_names + excluded_names +
                 [n for group in one_of_groups for n in group], lang)
             if missing:
                 LOG.warning(

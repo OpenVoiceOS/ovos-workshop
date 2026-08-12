@@ -425,6 +425,27 @@ class ContextOnlyRequireTest(unittest.TestCase):
 
         self.assertEqual(self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD), [])
 
+    def test_context_only_optional_suppresses_spec_emit(self):
+        """An `optionally()` naming a context keyword must also suppress the
+        spec emit: dropping it silently would still register a *stronger*
+        matcher on the wire than the legacy path (missing the optional
+        context slot in match data), and the twin parser would win the
+        match, robbing the skill of that slot.
+        """
+        self.iface.register_adapt_keyword("TellMeMoreKW", "tell me more",
+                                          lang="en-US")
+        parser = (IntentBuilder("tell_me_more")
+                  .require("TellMeMoreKW")
+                  .optionally("prev_dialog")   # context keyword, no vocab
+                  .build())
+
+        self.iface.register_adapt_intent("tell_me_more", parser)
+
+        # legacy registration still carries the full definition
+        self.assertEqual(len(self.bus.of_type("register_intent")), 1)
+        # ... and no weakened spec registration is emitted
+        self.assertEqual(self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD), [])
+
     def test_fully_sampled_intent_still_emits(self):
         self.iface.register_adapt_keyword("HelloKW", "hello", lang="en-US")
         parser = IntentBuilder("greet").require("HelloKW").build()
