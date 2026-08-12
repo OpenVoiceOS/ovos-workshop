@@ -103,7 +103,15 @@ class FallbackSkill(OVOSSkill):
         fallback skill.
         """
         super()._register_system_event_handlers()
+        # DEPRECATION WINDOW (see ovos-core kill-switch #837 conventions):
+        # older cores still poll the broadcast `ovos.skills.fallback.ping`
+        # topic and expect a broadcast `ovos.skills.fallback.pong` reply, so
+        # both the legacy and the new skill-addressed ping topics are bound
+        # to the same handler until the ovos-workshop floor pin guarantees
+        # every core talks to a dual-binding skill.
         self.add_event(f"{self.skill_id}.fallback.ping",
+                       self._handle_fallback_ack, speak_errors=False)
+        self.add_event("ovos.skills.fallback.ping",
                        self._handle_fallback_ack, speak_errors=False)
         self.add_event(f"ovos.skills.fallback.{self.skill_id}.request", self._handle_fallback_request,
                        speak_errors=False)
@@ -111,11 +119,24 @@ class FallbackSkill(OVOSSkill):
     def _handle_fallback_ack(self, message: Message):
         """
         Inform skills service we can handle fallbacks.
+
+        Replies on the topic family matching the ping that was received:
+        a legacy broadcast `ovos.skills.fallback.ping` gets a broadcast
+        `ovos.skills.fallback.pong` (the shape older cores understand),
+        while a skill-addressed `<skill_id>.fallback.ping` gets a
+        skill-addressed `<skill_id>.fallback.pong`.
         """
-        self.bus.emit(message.reply(f"{self.skill_id}.fallback.pong",
-                                    data={"skill_id": self.skill_id,
-                                          "can_handle": self.can_answer(message)},
-                                    context={"skill_id": self.skill_id}))
+        can_handle = self.can_answer(message)
+        if message.msg_type == "ovos.skills.fallback.ping":
+            self.bus.emit(message.reply("ovos.skills.fallback.pong",
+                                        data={"skill_id": self.skill_id,
+                                              "can_handle": can_handle},
+                                        context={"skill_id": self.skill_id}))
+        else:
+            self.bus.emit(message.reply(f"{self.skill_id}.fallback.pong",
+                                        data={"skill_id": self.skill_id,
+                                              "can_handle": can_handle},
+                                        context={"skill_id": self.skill_id}))
 
     def _on_timeout(self):
         """_handle_fallback_request timed out and was forcefully killed by ovos-core"""

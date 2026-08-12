@@ -65,6 +65,8 @@ class TestFallbackSkillV2(TestCase):
     def test_register_system_event_handlers(self):
         self.assertTrue(any([f"{self.fallback_skill.skill_id}.fallback.ping" in tup
                              for tup in self.fallback_skill.events]))
+        self.assertTrue(any(["ovos.skills.fallback.ping" in tup
+                             for tup in self.fallback_skill.events]))
         self.assertTrue(any([f"ovos.skills.fallback.{self.fallback_skill.skill_id}.request"
                              in tup for tup in self.fallback_skill.events]))
 
@@ -78,7 +80,7 @@ class TestFallbackSkillV2(TestCase):
                              self.fallback_skill.skill_id)
             self.assertEqual(message.data["can_handle"], "test")
             received.set()
-        
+
         orig_can_answer = self.fallback_skill.can_answer
         self.fallback_skill.can_answer = Mock(return_value="test")
         self.fallback_skill.bus.once(
@@ -91,7 +93,64 @@ class TestFallbackSkillV2(TestCase):
         self.assertTrue(received.wait(0.5))
         self.fallback_skill.can_answer.assert_called_once()
         self.fallback_skill.can_answer = orig_can_answer
-        
+
+    def test_handle_fallback_ack_skill_addressed_no_broadcast_pong(self):
+        """A skill-addressed ping must NOT trigger a broadcast pong."""
+        broadcast_received = Event()
+        addressed_received = Event()
+
+        def mock_broadcast_pong(message: Message):
+            broadcast_received.set()
+
+        def mock_addressed_pong(message: Message):
+            addressed_received.set()
+
+        orig_can_answer = self.fallback_skill.can_answer
+        self.fallback_skill.can_answer = Mock(return_value=True)
+        self.fallback_skill.bus.once(
+            "ovos.skills.fallback.pong", mock_broadcast_pong)
+        self.fallback_skill.bus.once(
+            f"{self.fallback_skill.skill_id}.fallback.pong", mock_addressed_pong)
+
+        self.fallback_skill.bus.emit(Message(
+            f"{self.fallback_skill.skill_id}.fallback.ping",
+            {"utterances": ["hello"], "lang": "en-US"},
+        ))
+        self.assertTrue(addressed_received.wait(0.5))
+        self.assertFalse(broadcast_received.is_set())
+        self.fallback_skill.can_answer = orig_can_answer
+
+    def test_handle_fallback_ack_broadcast_ping(self):
+        """Legacy broadcast ping/pong for the migration window (dev core
+        compat): general ping -> general pong, not skill-addressed."""
+        broadcast_received = Event()
+        addressed_received = Event()
+
+        def mock_broadcast_pong(message: Message):
+            self.assertEqual(message.data["skill_id"],
+                             self.fallback_skill.skill_id)
+            self.assertEqual(message.data["can_handle"], "test")
+            broadcast_received.set()
+
+        def mock_addressed_pong(message: Message):
+            addressed_received.set()
+
+        orig_can_answer = self.fallback_skill.can_answer
+        self.fallback_skill.can_answer = Mock(return_value="test")
+        self.fallback_skill.bus.once(
+            "ovos.skills.fallback.pong", mock_broadcast_pong)
+        self.fallback_skill.bus.once(
+            f"{self.fallback_skill.skill_id}.fallback.pong", mock_addressed_pong)
+
+        self.fallback_skill.bus.emit(Message(
+            "ovos.skills.fallback.ping",
+            {"utterances": ["hello"], "lang": "en-US"},
+        ))
+        self.assertTrue(broadcast_received.wait(0.5))
+        self.assertFalse(addressed_received.is_set())
+        self.fallback_skill.can_answer.assert_called_once()
+        self.fallback_skill.can_answer = orig_can_answer
+
 
     def test_handle_fallback_request(self):
         start_event = Event()
