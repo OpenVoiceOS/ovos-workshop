@@ -87,7 +87,8 @@ class TestSkill(unittest.TestCase):
         # the intent name, so it never reaches the wire
         padatious_intents = ["abort.test:test",
                              "abort.test:test2",
-                             "abort.test:test3"]
+                             "abort.test:test3",
+                             "abort.test:test4"]
         for msg in self.bus.emitted_msgs:
             if msg["type"] == "padatious:register_intent":
                 self.assertTrue(msg["data"]["name"] in padatious_intents)

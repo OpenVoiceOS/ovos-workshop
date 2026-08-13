@@ -296,7 +296,7 @@ class TestKillableIntents(unittest.TestCase):
         before = len(self.bus.ee.listeners(msg_type))
         threads_before = len(self.skill.instance._threads)
 
-        self.bus.emit(Message(f"{self.skill.skill_id}:test4.intent"))
+        self.bus.emit(Message(f"{self.skill.skill_id}:test4"))
         sleep(2)
 
         self._assert_spoken("quick done")

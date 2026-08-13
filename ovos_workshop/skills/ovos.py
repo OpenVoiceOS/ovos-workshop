@@ -1376,11 +1376,23 @@ class OVOSSkill:
                 slot_blacklist=slot_blacklist,
                 vocabs=resources.vocabularies())
         if handler:
-            self._intent_handlers[intent_file] = handler
+            # keyed canonically (bare, no "<skill_id>:" prefix, no ".intent"
+            # suffix) so enable_intent()/disable_intent() can look the
+            # handler up by the SAME spelling the registry itself uses
+            # (registered_intents/detached_intents), regardless of whether
+            # the caller re-supplies the author-facing ".intent"-suffixed
+            # name or the canonical one.
+            self._intent_handlers[name.split(':', 1)[1]] = handler
             # canonical topic only. A skill container running an old workshop
             # still listens on the `.intent`-suffixed twin; that compat is the
             # bus layer's job (`ovos_spec_tools.intent_topics`), not the
-            # skill's.
+            # skill's. IMPORTANT: this makes `websocket.modernize` /
+            # OVOS_BUS_MODERNIZE load-bearing, not a namespace convenience --
+            # a suffixed dispatch from an old core/pipeline only reaches this
+            # canonical-only binding if bus-client's receive-side
+            # modernization (2.8.0a1+) translates it first. Disabling
+            # modernize on a skill container running this workshop version
+            # silently drops that dispatch (see PR #500 "Deployment note").
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
 
@@ -1456,8 +1468,14 @@ class OVOSSkill:
         @param message: `mycroft.skill.enable_intent` Message
         """
         intent_name = message.data['intent_name']
+        # registered_intents/detached_intents are keyed by the bare canonical
+        # name; the bus payload may still carry the author-facing
+        # ".intent"-suffixed spelling, so canonicalize before comparing --
+        # otherwise the suffixed form never matches and this silently no-ops.
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
         for (name, _) in self.intent_service.detached_intents:
-            if name == intent_name:
+            if name == canonical:
                 return self.enable_intent(intent_name)
 
     def handle_disable_intent(self, message: Message):
@@ -1466,8 +1484,10 @@ class OVOSSkill:
         @param message: `mycroft.skill.disable_intent` Message
         """
         intent_name = message.data['intent_name']
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
         for (name, _) in self.intent_service.registered_intents:
-            if name == intent_name:
+            if name == canonical:
                 return self.disable_intent(intent_name)
 
     def handle_set_cross_context(self, message: Message):
@@ -2436,14 +2456,22 @@ class OVOSSkill:
             f'{self.skill_id}:{intent_name}').split(':', 1)[1]
         intent = self.intent_service.get_intent(canonical)
         if intent:
-            handler = self._intent_handlers.get(intent_name)
+            # _intent_handlers is keyed canonically (see register_intent_file/
+            # _register_adapt_intent), so look it up by the same canonical
+            # spelling regardless of which spelling the caller used.
+            handler = self._intent_handlers.get(canonical)
             if not handler:
                 self.log.error(f'Could not enable {intent_name}, no handler '
                                f'is on record for it (was it ever registered '
                                f'with a handler by this skill instance?).')
                 return False
-            if ".intent" in intent_name:
-                self.register_intent_file(intent_name, handler)
+            # padatious intents are stored as the register_template() data
+            # dict; adapt intents as the IntentBuilder/Intent object. Branch
+            # on what's actually in the registry, not on the caller's
+            # spelling -- a caller may legitimately ask for the canonical
+            # name of a padatious (".intent"-authored) intent.
+            if isinstance(intent, dict):
+                self.register_intent_file(f'{canonical}.intent', handler)
             else:
                 intent.name = intent_name
                 self.register_intent(intent, handler)

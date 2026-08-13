@@ -679,8 +679,11 @@ class TestOVOSSkill(unittest.TestCase):
     def test_disable_intent(self):
         """Regression test: disable_intent() followed by enable_intent()
         must rebind the ORIGINAL handler for a padatious (.intent file)
-        intent, both for the legacy suffixed topic and the INTENT-4
-        canonical suffix-less topic."""
+        intent, addressed by its author-facing (".intent"-suffixed) name,
+        under the INTENT-4 canonical suffix-less dispatch topic. Per the
+        canonical-registration refactor (OVOS-MSG-1 §2.1.1), the skill layer
+        binds the canonical topic only -- there is no suffixed twin to
+        assert on (see test_disable_intent_removes_the_canonical_event)."""
         from ovos_bus_client.message import Message
 
         bus = FakeBus()
@@ -698,22 +701,73 @@ class TestOVOSSkill(unittest.TestCase):
         handler.__name__ = "test_handler"
         skill.register_intent_file("time.intent", handler)
 
-        legacy_name = f"{skill.skill_id}:time.intent"
         canonical_name = f"{skill.skill_id}:time"
 
         # sanity: bound before disabling
-        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
         self.assertTrue(any(n == canonical_name for n, _ in skill.events))
 
         self.assertTrue(skill.disable_intent("time.intent"))
-        self.assertFalse(any(n == legacy_name for n, _ in skill.events))
         self.assertFalse(any(n == canonical_name for n, _ in skill.events))
         self.assertTrue(skill.intent_service.intent_is_detached("time.intent"))
 
         self.assertTrue(skill.enable_intent("time.intent"))
-        self.assertTrue(any(n == legacy_name for n, _ in skill.events))
         self.assertTrue(any(n == canonical_name for n, _ in skill.events))
         self.assertFalse(skill.intent_service.intent_is_detached("time.intent"))
+
+        called.clear()
+        bus.emit(Message(canonical_name, {}, {}))
+        self.assertTrue(called.wait(2),
+                        "handler was not rebound by enable_intent()")
+
+    def test_disable_enable_intent_canonical_spelling_round_trip(self):
+        """Regression test: disable_intent()/enable_intent() must work when
+        called with the CANONICAL (suffix-less) spelling of a padatious
+        intent, not just the author-facing ".intent"-suffixed one.
+        _intent_handlers used to be keyed by the raw spelling passed to
+        register_intent_file() ("time.intent"), while enable_intent() looked
+        the handler up by whatever spelling ITS caller used -- so
+        disable_intent("time") succeeded (the registry itself is
+        canonical-keyed) but enable_intent("time") silently failed with "no
+        handler is on record", a one-way door: once disabled by its
+        canonical name, the intent could never be re-enabled that way.
+        Also guards against re-registration leaving a duplicate bus
+        listener bound to the canonical topic."""
+        from ovos_bus_client.message import Message
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        called = Event()
+
+        def handler(message):
+            called.set()
+
+        handler.__name__ = "test_handler"
+        skill.register_intent_file("time.intent", handler)
+
+        canonical_name = f"{skill.skill_id}:time"
+
+        self.assertTrue(skill.disable_intent(canonical_name.split(':', 1)[1]))
+        self.assertTrue(skill.intent_service.intent_is_detached(
+            canonical_name.split(':', 1)[1]))
+
+        self.assertTrue(skill.enable_intent(canonical_name.split(':', 1)[1]),
+                        "enable_intent() must succeed for the canonical "
+                        "spelling, not just the '.intent'-suffixed one")
+        self.assertFalse(skill.intent_service.intent_is_detached(
+            canonical_name.split(':', 1)[1]))
+        self.assertTrue(any(n == canonical_name for n, _ in skill.events))
+
+        # guard: exactly one listener bound to the canonical topic, not a
+        # duplicate left over from re-registration
+        listener_count = len(bus.ee.listeners(canonical_name))
+        self.assertEqual(listener_count, 1,
+                         f"expected exactly one listener on {canonical_name}, "
+                         f"found {listener_count}")
 
         called.clear()
         bus.emit(Message(canonical_name, {}, {}))

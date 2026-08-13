@@ -588,16 +588,16 @@ class IntentServiceInterface:
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        # registered_intents/detached_intents are keyed by the bare name
-        # (register_intent/register_template strip any "<skill_id>:" prefix
-        # before storing, see register_intent/register_template above).
-        # Callers (e.g. OVOSSkill.disable_intent) may pass either the bare
-        # name or the "<skill_id>:"-prefixed one, so normalize before
-        # matching -- otherwise the prefixed form never matches the bare
-        # key and the intent is never actually detached.
-        prefix = f"{self.skill_id}:"
-        key = intent_name[len(prefix):] if intent_name.startswith(prefix) \
-            else intent_name
+        # registered_intents/detached_intents are keyed by the bare canonical
+        # name (register_intent/register_template strip any "<skill_id>:"
+        # prefix before storing, see register_intent/register_template
+        # above). Callers (e.g. OVOSSkill.disable_intent) may pass the bare
+        # name, the "<skill_id>:"-prefixed one, or the author-facing
+        # ".intent"-suffixed spelling, so normalize with the same helper
+        # register_template uses for padatious names -- otherwise a
+        # differently-spelled form never matches the bare key and the intent
+        # is never actually detached.
+        key = self._clean_padatious_name(intent_name)
         if key in self.intent_names:
             LOG.info(f"Detaching intent: {key}")
             self.detached_intents.append((key, self.get_intent(key)))
@@ -608,10 +608,14 @@ class IntentServiceInterface:
                                    "intent_name": intent_name}))
 
     def intent_is_detached(self, intent_name: str) -> bool:
+        # normalize the same way remove_intent() does when it stores the
+        # detached entry -- callers may pass the bare, "<skill_id>:"-prefixed
+        # or ".intent"-suffixed spelling of the name.
+        key = self._clean_padatious_name(intent_name)
         is_detached = False
         with self._iterator_lock:
             for (name, _) in self.detached_intents:
-                if name == intent_name:
+                if name == key:
                     is_detached = True
                     break
         return is_detached
@@ -625,16 +629,20 @@ class IntentServiceInterface:
         self.detached_intents = []
 
     def get_intent(self, intent_name: str) -> Optional[object]:
+        # same normalization as remove_intent()/intent_is_detached() --
+        # registered_intents/detached_intents are keyed by the bare
+        # canonical name.
+        key = self._clean_padatious_name(intent_name)
         to_return = None
         with self._iterator_lock:
             for name, intent in self.registered_intents:
-                if name == intent_name:
+                if name == key:
                     to_return = intent
                     break
         if to_return is None:
             with self._iterator_lock:
                 for name, intent in self.detached_intents:
-                    if name == intent_name:
+                    if name == key:
                         to_return = intent
                         break
         return to_return
