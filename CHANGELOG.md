@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.13a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.13a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.12a1...9.3.13a1)
+
+**Merged pull requests:**
+
+- fix: delegate set\_context/remove\_context to the session API \(finding 29 + fold-hazard fix\) [\#535](https://github.com/OpenVoiceOS/ovos-workshop/pull/535) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.12a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.12a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.11a2...9.3.12a1)
