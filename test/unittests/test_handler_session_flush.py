@@ -28,7 +28,9 @@ Two write paths are exercised:
     This test was xfail (architecture#161 workshop#532); it is now a passing
     regression guard for the finding-29 fix.
 """
+import time
 import unittest
+from unittest import mock
 
 from ovos_bus_client import Message
 from ovos_bus_client.session import Session, SessionManager
@@ -104,6 +106,55 @@ class TestHandlerSessionFlush(unittest.TestCase):
                       f"set_context() wrapper mutation missing from "
                       f"handler-complete snapshot (finding 29): {ctx}")
         self.assertEqual(ctx[stored_key]["value"], "wrapper-value")
+
+    def test_wrapper_set_context_stamps_expires_at(self):
+        """Regression for the reviewer-confirmed defect: the skill-side
+        registry write via ``set_context()`` must carry the SAME decay
+        stamp ovos-core's ``handle_add_context`` computes
+        (``Configuration()['context']['timeout']`` minutes, default 2),
+        not an immortal (missing ``expires_at``) entry - an omitted stamp
+        here folds back into ovos-core's registry and strips core's own
+        decay for that key. One decay policy, same as core.
+        """
+        def handler(message):
+            self.skill.set_context("probe", "wrapper-value", "flush.test")
+
+        before = time.time()
+        with mock.patch("ovos_workshop.intents.Configuration") as mock_cfg:
+            mock_cfg.return_value.get.return_value = {"timeout": 2}
+            self._dispatch(handler)
+        after = time.time()
+
+        stored_key = f"{self.skill_id}:probe"
+        ctx = self.captured[0].context.get("session", {}).get(
+            "intent_context") or {}
+        self.assertIn(stored_key, ctx)
+        entry = ctx[stored_key]
+        self.assertIn("expires_at", entry,
+                      f"positive-timeout write must carry expires_at: {entry}")
+        self.assertIsInstance(entry["expires_at"], float)
+        self.assertGreater(entry["expires_at"], before)
+        self.assertLessEqual(entry["expires_at"], after + 2 * 60 + 1)
+
+    def test_wrapper_set_context_immortal_when_timeout_disabled(self):
+        """Timeout <= 0 is the deliberate immortal-entry opt-out (mirrors
+        ovos-core's convention) - `expires_at` must be absent/None only in
+        that explicit case, never by default."""
+        self.captured.clear()
+
+        def handler(message):
+            self.skill.set_context("probe", "wrapper-value", "flush.test")
+
+        with mock.patch("ovos_workshop.intents.Configuration") as mock_cfg:
+            mock_cfg.return_value.get.return_value = {"timeout": 0}
+            self._dispatch(handler)
+
+        stored_key = f"{self.skill_id}:probe"
+        ctx = self.captured[0].context.get("session", {}).get(
+            "intent_context") or {}
+        self.assertIn(stored_key, ctx)
+        entry = ctx[stored_key]
+        self.assertIsNone(entry.get("expires_at"))
 
 
 if __name__ == "__main__":

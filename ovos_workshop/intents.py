@@ -1,4 +1,5 @@
 import re
+import time
 from os.path import exists
 from pathlib import Path
 from threading import RLock
@@ -8,6 +9,7 @@ import warnings
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager
 from ovos_bus_client.util import get_mycroft_bus
+from ovos_config import Configuration
 from ovos_utils.log import LOG, log_deprecation
 
 # OVOS-INTENT-4 keyword-intent definition primitives, re-exported from ovos-spec-tools.
@@ -239,9 +241,22 @@ class _AdaptIntentApi:
             msg.context["skill_id"] = self.skill_id
         if original_key is not None:
             session = _registry_session_for_context_write(msg)
+            # OVOS-CONTEXT-1: mirror ovos-core's decay policy exactly
+            # (`IntentService.handle_add_context` /
+            # `Configuration()["context"]["timeout"]`, minutes, default 2)
+            # so a skill-side write folds into the registry with the SAME
+            # `expires_at` a core-side write would carry - an omitted
+            # `expires_at` here produced immortal entries that, once folded
+            # back into ovos-core's registry, stripped core's own decay
+            # stamp for that key. One decay policy, computed the same way,
+            # on both write paths.
+            context_cfg = Configuration().get('context', {})
+            timeout_s = context_cfg.get('timeout', 2) * 60
+            expires_at = time.time() + timeout_s if timeout_s > 0 else None
             session.set_intent_context(original_key, word,
                                         scope="private",
-                                        owner_id=self.skill_id)
+                                        owner_id=self.skill_id,
+                                        expires_at=expires_at)
         data = {'context': context, 'word': word, 'origin': origin}
         if original_key is not None:
             data['key'] = original_key
