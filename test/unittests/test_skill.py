@@ -227,6 +227,34 @@ class TestSlotBlacklistFile(unittest.TestCase):
         self.assertIn("he", data["blacklist"])
         self.assertIn("she", data["blacklist"])
 
+    def test_entity_name_is_the_clean_wire_name(self):
+        """The legacy ``padatious:register_entity`` name must be exactly
+        ``<skill_id>:<entity>``. A ``_<md5>`` suffix used to be appended here,
+        which no consumer could resolve back to the "{slot}" token written in
+        the template - every file-registered entity became an unconstrained
+        wildcard slot."""
+        import re
+        self.bus.emitted_msgs = []
+        self.skill.register_entity_file("person.entity")
+        data = self._payload("padatious:register_entity", "person")
+        self.assertIsNotNone(data)
+        self.assertEqual(data["name"], f"{self.skill.skill_id}:person")
+        self.assertIsNone(re.search(r"_[0-9a-f]{32}$", data["name"]))
+
+    def test_legacy_and_spec_entity_names_agree(self):
+        """Both wire contracts must name the same entity identically, so the
+        consumer collapses the dual-emit into one registration."""
+        self.bus.emitted_msgs = []
+        self.skill.register_entity_file("person.entity")
+        legacy = self._payload("padatious:register_entity", "person")
+        spec = None
+        for msg in self.bus.emitted_msgs:
+            if msg["type"] == "ovos.entity.register":
+                spec = msg["data"]
+        self.assertIsNotNone(spec)
+        self.assertEqual(legacy["name"],
+                         f'{spec["skill_id"]}:{spec["entity_name"]}')
+
     def test_entity_without_blacklist_file(self):
         self.bus.emitted_msgs = []
         # bar has no sibling .blacklist -> empty, back-compat
