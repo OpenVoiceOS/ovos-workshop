@@ -20,7 +20,6 @@ import sys
 import time
 import traceback
 from copy import copy
-from hashlib import md5
 from inspect import signature
 from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
@@ -1421,8 +1420,15 @@ class OVOSSkill:
                 self.log.error(f'Unable to find "{entity_file}"')
                 continue
             filename = str(entity.file_path)
-            name = f"{self.skill_id}:{basename(entity_file)}_" \
-                   f"{md5(entity_file.encode('utf-8')).hexdigest()}"
+            # The entity name IS the wire contract: consumers resolve a
+            # "{slot}" in a template by the raw slot token, so the name must
+            # stay "<skill_id>:<entity>". A former "_<md5(entity_file)>"
+            # suffix here made every file-registered entity unresolvable
+            # (padatious fell back to an unconstrained wildcard slot). The
+            # hash disambiguated nothing either - "<skill_id>:" already
+            # namespaces the entity and the hash was taken over the file name
+            # that is already part of the key.
+            name = f"{self.skill_id}:{basename(entity_file)}"
             samples = read_resource_file(Path(filename))
             # OVOS-INTENT-2 §4.3: a sibling "<entity>.blacklist" locale file
             # lists slot-free phrases that MUST NOT fill the {slot} this entity
