@@ -13,7 +13,7 @@ requires-python = ">=3.9"
 dependencies = [
     "ovos-utils>= 0.13.3a2,<1.0.0",  # FakeBus folds before handlers (ovos-utils#396) — keeps in-place add_context mutations alive so intent-layer gating works
     "ovos_bus_client>=2.6.2a2,<3.0.0",  # HandlerLifecycle done-signal util (#246) + singleton-registry SessionManager (2.6.2a2)
-    "ovos-gui-api-client>=0.1.0,<1.0.0",  # EnclosureAPI moved here; bus-client copy is a deprecation shim removed in bus-client 3.0.0
+    "ovos-gui-api-client>=0.1.0,<1.0.0",  # EnclosureAPI + GUIInterface moved here; bus-client copies are deprecation shims removed in bus-client 3.0.0
     "ovos-config>=0.0.12,<3.0.0",
     "ovos-spec-tools>=1.6.0a2",  # canonical SessionManager registry + OVOS-INTENT-4 intent-definition primitives; 1.6.0a2 makes the language-distance bound inclusive, so a macrolanguage member (arz, wuu) resolves to its macrolanguage tag
     "ovos-yes-no-plugin>=0.3.0,<1.0.0",
