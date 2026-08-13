@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.11a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.11a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.11a1...9.3.11a2)
+
+**Merged pull requests:**
+
+- refactor: register canonical intent topics; compat moves to ovos-spec-tools [\#500](https://github.com/OpenVoiceOS/ovos-workshop/pull/500) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.11a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.11a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.10a1...9.3.11a1)
@@ -319,10 +327,6 @@
 ## [8.2.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.2.1a1) (2026-06-06)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.2.0a1...8.2.1a1)
-
-**Closed issues:**
-
-- Problem when running in Italian [\#410](https://github.com/OpenVoiceOS/ovos-workshop/issues/410)
 
 **Merged pull requests:**
 
