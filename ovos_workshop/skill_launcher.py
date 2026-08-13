@@ -8,6 +8,7 @@ from typing import Optional
 from time import time
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
+from ovos_bus_client.session import SessionManager
 from ovos_config.config import Configuration
 from ovos_config.locale import setup_locale
 from ovos_plugin_manager.skills import find_skill_plugins, get_skill_directories
@@ -533,6 +534,12 @@ class SkillContainer:
             self.bus = MessageBusClient()
             self.bus.run_in_thread()
             self.bus.connected_event.wait()
+
+        # mirrors ovos-core's IntentService (ovos_core/intent_services/service.py),
+        # the only other caller of connect_to_bus in the stack; without this,
+        # SessionManager.bus stays None in standalone skill containers and
+        # SessionManager.wait_while_speaking()/speak(wait=True) silently no-op
+        SessionManager.connect_to_bus(self.bus)
 
         self.bus.on("mycroft.ready", self.load_skill)
         self.bus.on("skillmanager.activate", self.do_load)
