@@ -661,7 +661,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.config_core["secondary_langs"] = []
         skill.register_entity_file("dow")
         skill.intent_service.register_entity.assert_called_once_with(
-            f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
+            f"{skill.skill_id}:dow",
             en_samples, "en-US", blacklisted_words=[])
 
         # With secondary language
@@ -671,10 +671,10 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertEqual(
             skill.intent_service.register_entity.call_count, 2)
         skill.intent_service.register_entity.assert_any_call(
-            f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
+            f"{skill.skill_id}:dow",
             en_samples, "en-US", blacklisted_words=[])
         skill.intent_service.register_entity.assert_any_call(
-            f"{skill.skill_id}:dow_d446b2a6e46e7d94cdf7787e21050ff9",
+            f"{skill.skill_id}:dow",
             uk_samples, "uk-UA", blacklisted_words=[])
 
     def test_disable_intent(self):
