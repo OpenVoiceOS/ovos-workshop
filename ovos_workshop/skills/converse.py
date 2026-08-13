@@ -4,6 +4,7 @@ from typing import Optional
 
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
+from ovos_bus_client.session import SessionManager
 from ovos_config.config import Configuration
 from ovos_spec_tools import SpecMessage, closest_lang
 from ovos_utils.lang import standardize_lang_tag
@@ -55,6 +56,10 @@ class ConversationalSkill(OVOSSkill):
 
     def _register_system_event_handlers(self):
         super()._register_system_event_handlers()
+        # OVOS-CONVERSE-1 §6.2 broadcast poll: one static topic for every
+        # candidate, membership decided by session.converse_handlers
+        self.add_event("ovos.converse.ping", self._handle_converse_broadcast_ack, speak_errors=False)
+        # V0 compat: pre-broadcast cores still address each candidate by topic
         self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
         self.add_event(f"{self.skill_id}.activate", self.handle_activate, speak_errors=False)
@@ -118,6 +123,43 @@ class ConversationalSkill(OVOSSkill):
             "skill.converse.pong",
             data={"skill_id": self.skill_id,
                   "can_handle": self.can_converse(message)},
+            context={"skill_id": self.skill_id}))
+
+    def _handle_converse_broadcast_ack(self, message: Message):
+        """
+        Answer the OVOS-CONVERSE-1 §4.2 broadcast poll.
+
+        The ping names no candidate. This skill decides whether it is one by
+        testing its own skill_id against the session's recency list
+        (`active_handlers`), and answers only when it is named (§9.3 — a skill
+        that answers when not named is non-conformant).
+
+        The candidacy test mirrors the one the emitter applies when it builds
+        the round: named in `active_handlers`, and not the current
+        `response_mode` holder. A skill holding the response window is excluded
+        from the round by the emitter, so running `can_converse` for it here
+        would wake user code for a contest it was never entered in. Expiry is
+        deliberately not checked, because the emitter's own filter does not
+        check it either — the two sides must agree on the candidate set.
+
+        The claim decision itself is unchanged: the same `can_converse`
+        callback the legacy per-skill ping uses.
+        @param message: `ovos.converse.ping` Message
+        """
+        session = SessionManager.get(message)
+        # canonical fields, not the deprecated `active_skills` /
+        # `utterance_states` views — those log a deprecation warning per ping,
+        # per skill, per utterance
+        if not any(h.get("skill_id") == self.skill_id
+                   for h in session.active_handlers):
+            return  # not a candidate this round
+        if (session.response_mode or {}).get("skill_id") == self.skill_id:
+            return  # holds the response window; the emitter excluded us
+
+        self.bus.emit(message.reply(
+            "ovos.converse.pong",
+            data={"skill_id": self.skill_id,
+                  "result": self.can_converse(message)},
             context={"skill_id": self.skill_id}))
 
     def _handle_skill_activated(self, message: Message):
