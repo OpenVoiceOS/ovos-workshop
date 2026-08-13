@@ -2528,7 +2528,14 @@ class OVOSSkill:
 
     def set_context(self, context: str, word: str = '', origin: str = ''):
         """
-        Add context to intent service
+        Add context to intent service.
+
+        CONTEXT-1 §5.0: writes directly into the current handler's session
+        (`Session.intent_context`, private scope owned by this skill) via
+        `IntentServiceInterface`/`_AdaptIntentApi`, so the mutation rides
+        forward with the very message being handled. The legacy
+        `add_context` bus message is also emitted as a compat dual-write for
+        pre-§5.0 cores.
 
         Args:
             context:    Keyword
@@ -2548,6 +2555,9 @@ class OVOSSkill:
     def remove_context(self, context: str):
         """
         Remove a keyword from the context manager.
+
+        CONTEXT-1 §5.0: same session-delegation + legacy compat dual-write
+        as `set_context` above.
         """
         if not isinstance(context, str):
             raise ValueError('context should be a string')
