@@ -24,6 +24,7 @@ from os.path import join, dirname, isdir
 from ovos_workshop.skills.ovos import OVOSSkill
 
 from ovos_utils.fakebus import FakeBus
+from ovos_bus_client.message import Message
 
 
 class TestOVOSSkill(unittest.TestCase):
@@ -736,16 +737,123 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertTrue(called.wait(2))
 
     def test_set_context(self):
-        # TODO
-        pass
+        """set_context must emit both the legacy munged `context` key
+        (adapt-engine spelling) and the original unmunged `key`, so the
+        declarative OVOS-CONTEXT-1 gate (resolve_key) can also see it."""
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+
+        received = Event()
+        payloads = []
+
+        def handler(message):
+            payloads.append(message.data)
+            received.set()
+
+        bus.on("add_context", handler)
+        skill.set_context("kitchen", "kitchen")
+        self.assertTrue(received.wait(2))
+
+        self.assertEqual(len(payloads), 1)
+        data = payloads[0]
+        self.assertEqual(data["context"], skill.alphanumeric_skill_id + "kitchen")
+        self.assertEqual(data["key"], "kitchen")
 
     def test_remove_context(self):
-        # TODO
-        pass
+        """remove_context must emit both the legacy munged `context` key
+        and the original unmunged `key`, symmetrically with set_context."""
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id=self.skill_id)
+
+        received = Event()
+        payloads = []
+
+        def handler(message):
+            payloads.append(message.data)
+            received.set()
+
+        bus.on("remove_context", handler)
+        skill.remove_context("kitchen")
+        self.assertTrue(received.wait(2))
+
+        self.assertEqual(len(payloads), 1)
+        data = payloads[0]
+        self.assertEqual(data["context"], skill.alphanumeric_skill_id + "kitchen")
+        self.assertEqual(data["key"], "kitchen")
+
+    def test_set_context_owner_is_true_caller_not_ambient_message(self):
+        """Round 2 (C1) regression: skill B calling set_context WHILE
+        handling skill A's message must resolve the private key under B's
+        own skill_id, never A's. `_AdaptIntentApi.set_context` only stamps
+        `skill_id` onto the dug ambient message IF ABSENT - so without the
+        fix, a message already carrying A's skill_id leaks straight
+        through `forward()`, and B's context is written under A's owner
+        (opening A's private gate for B's action)."""
+        bus = FakeBus()
+        skill_a = OVOSSkill(bus=bus, skill_id="skill.a")
+        skill_b = OVOSSkill(bus=bus, skill_id="skill.b")
+
+        received = Event()
+        payloads = []
+
+        def handler(message):
+            payloads.append(message)
+            received.set()
+
+        bus.on("add_context", handler)
+
+        a_message = Message("skill.a.some.handler", {},
+                            {"skill_id": "skill.a"})
+
+        def handle_as_if_dispatched(message):
+            # `message` is a local Message arg -> dig_for_message() finds
+            # THIS frame, carrying A's skill_id, even though B is the one
+            # actually calling set_context.
+            skill_b.set_context("kitchen", "kitchen")
+
+        handle_as_if_dispatched(a_message)
+        self.assertTrue(received.wait(2))
+
+        self.assertEqual(len(payloads), 1)
+        emitted = payloads[0]
+        self.assertEqual(emitted.data["key"], "kitchen")
+        self.assertEqual(
+            emitted.context.get("skill_id"), "skill.b",
+            "resolved-key mirror was forged under the ambient message's "
+            "skill_id (skill.a) instead of the true caller (skill.b)")
 
     def test_handle_set_cross_context(self):
-        # TODO
-        pass
+        """Round 2 (C1b) regression: each RECEIVING skill's
+        handle_set_cross_context must resolve the mirrored key under ITS
+        OWN skill_id, not the originating broadcaster's - the broadcast
+        message's context.skill_id is stamped by the ORIGINATOR."""
+        bus = FakeBus()
+        skill_b = OVOSSkill(bus=bus, skill_id="skill.b")
+
+        received = Event()
+        payloads = []
+
+        def handler(message):
+            payloads.append(message)
+            received.set()
+
+        bus.on("add_context", handler)
+
+        # broadcast as emitted by the originating skill (skill.a)
+        broadcast = Message("mycroft.skill.set_cross_context",
+                            {"context": "kitchen", "word": "kitchen",
+                             "origin": "skill.a"},
+                            {"skill_id": "skill.a"})
+        skill_b.handle_set_cross_context(broadcast)
+        self.assertTrue(received.wait(2))
+
+        self.assertEqual(len(payloads), 1)
+        emitted = payloads[0]
+        self.assertEqual(emitted.data["key"], "kitchen")
+        self.assertEqual(
+            emitted.context.get("skill_id"), "skill.b",
+            "cross-context receiver mirrored the resolved key under the "
+            "ORIGINATING skill's id instead of its own")
 
     def test_handle_remove_cross_context(self):
         # TODO

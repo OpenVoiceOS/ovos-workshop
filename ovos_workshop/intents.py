@@ -180,29 +180,62 @@ class _AdaptIntentApi:
         self.munge_intent_parser(intent_parser, name, self.skill_id)
         self._iface.register_intent(name, intent_parser)
 
-    def set_context(self, context: str, word: str, origin: str):
-        """Add adapt-engine context (adapt-engine only)."""
+    def set_context(self, context: str, word: str, origin: str,
+                     original_key: Optional[str] = None):
+        """Add adapt-engine context (adapt-engine only).
+
+        `context` is the munged (alphanumeric_skill_id + context) legacy
+        ADAPT key. `original_key`, when provided, is the unmunged context
+        name as passed by the caller, carried alongside so consumers can
+        also resolve it against the declarative (OVOS-CONTEXT-1) private
+        context key.
+        """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('add_context',
-                                  {'context': context, 'word': word,
-                                   'origin': origin}))
+        data = {'context': context, 'word': word, 'origin': origin}
+        if original_key is not None:
+            data['key'] = original_key
+            # Round 2 (C1): the resolved-key mirror's owner MUST be the
+            # skill actually calling set_context, never whatever ambient
+            # message happens to be on the digger stack (e.g. a handler
+            # for a DIFFERENT skill's message, which already carries that
+            # skill's skill_id and would otherwise leave it untouched).
+            # Build a forward/copy and stamp it unconditionally, never
+            # mutate the dug ambient message's context.
+            out = msg.forward('add_context', data)
+            out.context["skill_id"] = self.skill_id
+            self.bus.emit(out)
+            return
+        self.bus.emit(msg.forward('add_context', data))
 
-    def remove_context(self, context: str):
+    def remove_context(self, context: str, original_key: Optional[str] = None):
         """Remove adapt-engine context (adapt-only; see set_context)."""
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('remove_context', {'context': context}))
+        data = {'context': context}
+        if original_key is not None:
+            data['key'] = original_key
+            # Round 2 (C1): see set_context - stamp the true owner
+            # unconditionally on a forward/copy, never the ambient message.
+            out = msg.forward('remove_context', data)
+            out.context["skill_id"] = self.skill_id
+            self.bus.emit(out)
+            return
+        self.bus.emit(msg.forward('remove_context', data))
 
     def set_adapt_context(self, context: str, word: str, origin: str):
         _legacy_warn("set_adapt_context is deprecated")
-        self.set_context(context, word, origin)
+        # Round 2 (C4): this shortcut applies no skill-id munging - `context`
+        # IS the original/unmunged key, so thread it through as such too,
+        # so legacy-API callers also open the OVOS-CONTEXT-1 gate.
+        self.set_context(context, word, origin, original_key=context)
 
     def remove_adapt_context(self, context: str):
         _legacy_warn("remove_adapt_context is deprecated")
-        self.remove_context(context)
+        # Round 2 (C4): symmetric with set_adapt_context above.
+        self.remove_context(context, original_key=context)
 
     # ------------------------------------------------------------------
     #  deprecated lifecycle helpers
@@ -639,15 +672,17 @@ class IntentServiceInterface:
                      "registration (register_intent)")
         return self._adapt.register_adapt_intent(name, intent_parser)
 
-    def set_context(self, context: str, word: str, origin: str):
+    def set_context(self, context: str, word: str, origin: str,
+                     original_key: Optional[str] = None):
         _legacy_warn("IntentServiceInterface.set_context is deprecated; "
                      "adapt-engine context is engine-specific")
-        return self._adapt.set_context(context, word, origin)
+        return self._adapt.set_context(context, word, origin,
+                                        original_key=original_key)
 
-    def remove_context(self, context: str):
+    def remove_context(self, context: str, original_key: Optional[str] = None):
         _legacy_warn("IntentServiceInterface.remove_context is deprecated; "
                      "adapt-engine context is engine-specific")
-        return self._adapt.remove_context(context)
+        return self._adapt.remove_context(context, original_key=original_key)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
         _legacy_warn("IntentServiceInterface.set_adapt_context is "
