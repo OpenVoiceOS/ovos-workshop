@@ -383,3 +383,76 @@ class MalformedRegistrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContextOnlyRequireTest(unittest.TestCase):
+    """A `require()` naming a context keyword must not be dropped on the wire.
+
+    OVOS-CONTEXT-1 gating is expressed in adapt by requiring an entity that
+    only the intent-context injection can supply, so that vocabulary has no
+    samples. Emitting the INTENT-4 payload without it registers an ungated
+    copy of the intent, which then matches with no context set.
+    """
+
+    def setUp(self):
+        self.bus = CapturingBus()
+        self.iface = IntentServiceInterface(self.bus)
+        self.iface.set_id("test.skill")
+
+    def test_context_only_require_suppresses_spec_emit(self):
+        self.iface.register_adapt_keyword("TellMeMoreKW", "tell me more",
+                                          lang="en-US")
+        parser = (IntentBuilder("tell_me_more")
+                  .require("prev_dialog")      # context keyword, no vocab
+                  .require("TellMeMoreKW")
+                  .build())
+
+        self.iface.register_adapt_intent("tell_me_more", parser)
+
+        # legacy registration still carries the full definition
+        self.assertEqual(len(self.bus.of_type("register_intent")), 1)
+        # ... and no weakened spec registration is emitted
+        self.assertEqual(self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD), [])
+
+    def test_context_only_exclude_suppresses_spec_emit(self):
+        self.iface.register_adapt_keyword("HelloKW", "hello", lang="en-US")
+        parser = (IntentBuilder("greet")
+                  .require("HelloKW")
+                  .exclude("said_hello")       # context keyword, no vocab
+                  .build())
+
+        self.iface.register_adapt_intent("greet", parser)
+
+        self.assertEqual(self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD), [])
+
+    def test_context_only_optional_suppresses_spec_emit(self):
+        """An `optionally()` naming a context keyword must also suppress the
+        spec emit: dropping it silently would still register a *stronger*
+        matcher on the wire than the legacy path (missing the optional
+        context slot in match data), and the twin parser would win the
+        match, robbing the skill of that slot.
+        """
+        self.iface.register_adapt_keyword("TellMeMoreKW", "tell me more",
+                                          lang="en-US")
+        parser = (IntentBuilder("tell_me_more")
+                  .require("TellMeMoreKW")
+                  .optionally("prev_dialog")   # context keyword, no vocab
+                  .build())
+
+        self.iface.register_adapt_intent("tell_me_more", parser)
+
+        # legacy registration still carries the full definition
+        self.assertEqual(len(self.bus.of_type("register_intent")), 1)
+        # ... and no weakened spec registration is emitted
+        self.assertEqual(self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD), [])
+
+    def test_fully_sampled_intent_still_emits(self):
+        self.iface.register_adapt_keyword("HelloKW", "hello", lang="en-US")
+        parser = IntentBuilder("greet").require("HelloKW").build()
+
+        self.iface.register_adapt_intent("greet", parser)
+
+        emitted = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)
+        self.assertEqual(len(emitted), 1)
+        self.assertEqual([d["name"] for d in emitted[0][0]["required"]],
+                         ["HelloKW"])
