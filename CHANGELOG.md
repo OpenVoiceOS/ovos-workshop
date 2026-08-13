@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.10a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.9a1...9.3.10a1)
+
+**Merged pull requests:**
+
+- fix: keep context-only requires out of INTENT-4 keyword emit [\#525](https://github.com/OpenVoiceOS/ovos-workshop/pull/525) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.9a1) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.8a1...9.3.9a1)
@@ -318,15 +326,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
