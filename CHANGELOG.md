@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.3.12a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.12a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.11a2...9.3.12a1)
+
+**Merged pull requests:**
+
+- fix: emit the clean entity name from register\_entity\_file [\#528](https://github.com/OpenVoiceOS/ovos-workshop/pull/528) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.11a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.11a2) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.11a1...9.3.11a2)
@@ -338,15 +346,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
