@@ -118,7 +118,7 @@ class TestKillableIntents(unittest.TestCase):
         self.bus.emitted_msgs = []
         # skill will enter a infinite loop unless aborted
         self.assertTrue(self.skill.instance.my_special_var == "default")
-        self.bus.emit(Message(f"{self.skill.skill_id}:test.intent"))
+        self.bus.emit(Message(f"{self.skill.skill_id}:test"))
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
@@ -154,7 +154,7 @@ class TestKillableIntents(unittest.TestCase):
         self.bus.emitted_msgs = []
         # skill will enter a infinite loop unless aborted
         self.assertTrue(self.skill.instance.my_special_var == "default")
-        self.bus.emit(Message(f"{self.skill.skill_id}:test.intent"))
+        self.bus.emit(Message(f"{self.skill.skill_id}:test"))
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
@@ -199,7 +199,7 @@ class TestKillableIntents(unittest.TestCase):
         session_ctx = {"session": {"session_id": "test_gr_123"}}
 
         # Trigger the intent with an explicit session so we can match it later
-        self.bus.emit(Message(f"{self.skill.skill_id}:test2.intent",
+        self.bus.emit(Message(f"{self.skill.skill_id}:test2",
                               context=session_ctx))
         sleep(2)
 
@@ -236,7 +236,7 @@ class TestKillableIntents(unittest.TestCase):
         send "mycroft.skills.abort_execution" and confirm intent3 ignores it"""
         self.bus.emitted_msgs = []
         # skill will enter a infinite loop unless aborted
-        self.bus.emit(Message(f"{self.skill.skill_id}:test3.intent"))
+        self.bus.emit(Message(f"{self.skill.skill_id}:test3"))
         sleep(2)
         # check that intent triggered
         start_msg = {'type': 'mycroft.skill.handler.start',
@@ -296,7 +296,7 @@ class TestKillableIntents(unittest.TestCase):
         before = len(self.bus.ee.listeners(msg_type))
         threads_before = len(self.skill.instance._threads)
 
-        self.bus.emit(Message(f"{self.skill.skill_id}:test4.intent"))
+        self.bus.emit(Message(f"{self.skill.skill_id}:test4"))
         sleep(2)
 
         self._assert_spoken("quick done")
