@@ -8,9 +8,17 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pytest
 from ovos_utils.fakebus import FakeBus
 from ovos_workshop.intents import IntentServiceInterface
 from ovos_workshop.resource_files import ResourceFile, SkillResources
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_padatious_intent facade on purpose.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class TestInlineVocabReferences(unittest.TestCase):

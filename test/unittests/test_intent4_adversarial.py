@@ -8,9 +8,17 @@ inline-vocab expansion DoS (INTENT-1 §4.3), the re-registration duplicate
 """
 import threading
 
+import pytest
 from ovos_spec_tools import SpecMessage
 
 from ovos_workshop.intents import IntentServiceInterface
+
+# Deliberate legacy-coverage suite: adversarially exercises the deprecated
+# register_padatious_intent shim on purpose.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class RecordingBus:

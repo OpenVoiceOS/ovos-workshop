@@ -2549,8 +2549,8 @@ class OVOSSkill:
 
         original_context = context
         context = self.alphanumeric_skill_id + context
-        self.intent_service.set_context(context, word, origin,
-                                         original_key=original_context)
+        self.intent_service._set_context(context, word, origin,
+                                          original_key=original_context)
 
     def remove_context(self, context: str):
         """
@@ -2563,8 +2563,8 @@ class OVOSSkill:
             raise ValueError('context should be a string')
         original_context = context
         context = self.alphanumeric_skill_id + context
-        self.intent_service.remove_context(context,
-                                            original_key=original_context)
+        self.intent_service._remove_context(context,
+                                             original_key=original_context)
 
     def set_cross_skill_context(self, context: str, word: str = ''):
         """

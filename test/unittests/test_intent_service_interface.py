@@ -1,6 +1,15 @@
 import unittest
+
+import pytest
 # TODO - move test to ovos-workshop
 from ovos_workshop.intents import IntentBuilder, IntentServiceInterface
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_adapt_*/register_padatious_* facade on purpose.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class MockEmitter:

@@ -19,9 +19,18 @@ asserts the parser COUNT the consumer ends up holding, for both the
 import unittest
 from unittest import mock
 
+import pytest
 from ovos_bus_client.message import Message
 
 from ovos_workshop.intents import IntentServiceInterface, IntentBuilder
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_adapt_* facade on purpose to guard the producer/consumer
+# double-registration regression.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 try:
     from ovos_adapt.opm import AdaptPipeline

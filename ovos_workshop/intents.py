@@ -781,17 +781,32 @@ class IntentServiceInterface:
                      "registration (register_intent)")
         return self._adapt.register_adapt_intent(name, intent_parser)
 
+    def _set_context(self, context: str, word: str, origin: str,
+                      original_key: Optional[str] = None):
+        """Non-warning implementation shared by the deprecated public facade
+        (`set_context`) and OVOSSkill's own supported `set_context`/
+        `remove_context` API (ovos_workshop/skills/ovos.py), which delegates
+        here so the SUPPORTED base-class path does not itself trigger the
+        facade's external-caller deprecation warning."""
+        return self._adapt.set_context(context, word, origin,
+                                        original_key=original_key)
+
     def set_context(self, context: str, word: str, origin: str,
                      original_key: Optional[str] = None):
         _legacy_warn("IntentServiceInterface.set_context is deprecated; "
                      "adapt-engine context is engine-specific")
-        return self._adapt.set_context(context, word, origin,
-                                        original_key=original_key)
+        return self._set_context(context, word, origin,
+                                  original_key=original_key)
+
+    def _remove_context(self, context: str, original_key: Optional[str] = None):
+        """Non-warning implementation shared by the deprecated public facade
+        (`remove_context`) and OVOSSkill's own supported `remove_context`."""
+        return self._adapt.remove_context(context, original_key=original_key)
 
     def remove_context(self, context: str, original_key: Optional[str] = None):
         _legacy_warn("IntentServiceInterface.remove_context is deprecated; "
                      "adapt-engine context is engine-specific")
-        return self._adapt.remove_context(context, original_key=original_key)
+        return self._remove_context(context, original_key=original_key)
 
     def set_adapt_context(self, context: str, word: str, origin: str):
         _legacy_warn("IntentServiceInterface.set_adapt_context is "
