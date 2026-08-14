@@ -56,6 +56,7 @@ Full reference is in [`docs/`](docs/index.md):
 - [Decorators](docs/decorators.md)
 - [Settings](docs/settings.md)
 - [Resource files](docs/resource-files.md)
+- [Prerelease quirks](docs/prerelease-quirks.md) — what changed since the last stable release
 
 ## License
 
