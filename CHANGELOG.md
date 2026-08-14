@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.3.13a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.13a2) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.13a1...9.3.13a2)
+
+**Merged pull requests:**
+
+- chore: kill deprecation warnings from workshop warnings survey [\#538](https://github.com/OpenVoiceOS/ovos-workshop/pull/538) ([JarbasAl](https://github.com/JarbasAl))
+- chore: comments for humans in intents.py [\#537](https://github.com/OpenVoiceOS/ovos-workshop/pull/537) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.13a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.13a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.12a1...9.3.13a1)
@@ -343,10 +352,6 @@
 ## [8.2.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.2.1a1) (2026-06-06)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.2.0a1...8.2.1a1)
-
-**Merged pull requests:**
-
-- fix\(deps\): allow ovos-bus-client 2.x \(widen cap to \<3.0.0\) [\#416](https://github.com/OpenVoiceOS/ovos-workshop/pull/416) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [8.2.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.2.0a1) (2026-04-09)
 
