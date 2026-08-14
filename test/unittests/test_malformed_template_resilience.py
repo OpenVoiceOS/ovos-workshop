@@ -11,8 +11,16 @@ from os.path import join
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import pytest
 from ovos_workshop.intents import IntentServiceInterface
 from ovos_workshop.resource_files import SkillResources
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_padatious_intent/register_padatious_entity facade on purpose.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class MockEmitter:

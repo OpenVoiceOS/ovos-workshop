@@ -5,8 +5,7 @@ from typing import Optional
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_config.config import Configuration
-from ovos_spec_tools import SpecMessage, closest_lang
-from ovos_utils.lang import standardize_lang_tag
+from ovos_spec_tools import SpecMessage, closest_lang, standardize_lang
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
@@ -104,7 +103,7 @@ class ConversationalSkill(OVOSSkill):
 
     def _get_closest_lang(self, lang: str) -> Optional[str]:
         if self.converse_matchers:
-            lang = standardize_lang_tag(lang)
+            lang = standardize_lang(lang)
             return closest_lang(lang, list(self.converse_matchers.keys()))
         return None
 

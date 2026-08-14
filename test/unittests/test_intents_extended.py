@@ -15,7 +15,15 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from ovos_utils.fakebus import FakeBus
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_adapt_intent facade on purpose.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class TestIntentBuilder(unittest.TestCase):

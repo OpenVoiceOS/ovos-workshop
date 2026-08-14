@@ -8,11 +8,20 @@ import os
 import unittest
 from hashlib import md5
 
+import pytest
 from ovos_spec_tools import SpecMessage
 from ovos_utils.fakebus import FakeBus
 
 from ovos_workshop.intents import (IntentServiceInterface, IntentBuilder,
                                     munge_intent_parser, to_alnum)
+
+# Deliberate legacy-coverage suite: exercises the deprecated
+# register_adapt_*/register_padatious_* facade on purpose to guard the
+# OVOS-INTENT-4 producer payloads those shims still emit.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:(IntentServiceInterface\\.)?register_(adapt|padatious)_\\w+ "
+    "is deprecated:DeprecationWarning"
+)
 
 
 class CapturingBus(FakeBus):
