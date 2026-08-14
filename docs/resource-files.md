@@ -79,6 +79,36 @@ what is the weather in {location}
 (show | tell me) the weather
 ```
 
+## Entity Files (Padatious)
+
+One example value per line. An `.entity` file fills a `{slot}` named by a `.intent` template:
+
+```
+# game.entity
+chess
+poker
+solitaire
+```
+
+Every `.entity` file shipped under a skill's locale resources is registered
+automatically the first time that language's resources are loaded - there is
+no need to call `register_entity_file()` explicitly, and every file is
+registered regardless of whether a `.intent` in the skill actually names a
+matching slot. This can be turned off in `mycroft.conf`:
+
+```json
+{"skills": {"auto_register_entity_files": false}}
+```
+
+**Padatious version hazard:** on `ovos-padatious` >= 2.0.3a1, a registered
+entity is a *hint* - the matcher still accepts values outside the registered
+sample set, just with a slightly different confidence score. On older
+matchers (<= 2.0.2a1), registering an entity closes the vocabulary for that
+slot - values not in the sample set stop matching entirely. If a deployment
+is pinned to an older `ovos-padatious`, either upgrade it alongside this
+package or set `auto_register_entity_files` to `false` above to avoid
+narrowing slots that previously matched anything.
+
 ## Language Fallback
 
 When a resource is not found for the exact `lang`, the skill falls back to dialects of the same language. For example, if `en-AU` is requested but only `en-US` resources exist, `en-US` is used.
