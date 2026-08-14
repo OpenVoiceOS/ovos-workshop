@@ -181,7 +181,7 @@ class ConversationalSkill(OVOSSkill):
                 params = signature(self.converse).parameters
                 kwargs = {"message": message,
                           "utterances": message.data['utterances'],
-                          "lang": standardize_lang_tag(message.data['lang'])}
+                          "lang": standardize_lang(message.data['lang'])}
                 kwargs = {k: v for k, v in kwargs.items() if k in params}
 
                 response_message.data["result"] = self.converse(**kwargs)
