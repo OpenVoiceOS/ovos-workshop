@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.5.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.0a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.4.0a1...9.5.0a1)
+
+**Merged pull requests:**
+
+- feat: auto-register every shipped .entity file for a skill's locale [\#541](https://github.com/OpenVoiceOS/ovos-workshop/pull/541) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.4.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.4.0a1) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.14a1...9.4.0a1)
@@ -375,15 +383,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
