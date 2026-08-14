@@ -664,15 +664,16 @@ class TestOVOSSkill(unittest.TestCase):
             f"{skill.skill_id}:dow",
             en_samples, "en-US", blacklisted_words=[])
 
-        # With secondary language
+        # With secondary language - en-US's "dow" was already registered
+        # above (and auto-discovered on first resource load before that),
+        # so re-registering it here is a deduped no-op (OVOS-INTENT-3
+        # §auto-entity idempotency: register once, don't stack). Only the
+        # newly-added uk-UA language actually fires a new registration.
         skill.intent_service.register_entity.reset_mock()
         skill.config_core["secondary_langs"] = ["en-US", "uk-UA"]
         skill.register_entity_file("dow")
         self.assertEqual(
-            skill.intent_service.register_entity.call_count, 2)
-        skill.intent_service.register_entity.assert_any_call(
-            f"{skill.skill_id}:dow",
-            en_samples, "en-US", blacklisted_words=[])
+            skill.intent_service.register_entity.call_count, 1)
         skill.intent_service.register_entity.assert_any_call(
             f"{skill.skill_id}:dow",
             uk_samples, "uk-UA", blacklisted_words=[])

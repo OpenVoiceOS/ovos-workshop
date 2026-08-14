@@ -227,7 +227,11 @@ class TestSlotBlacklistFile(unittest.TestCase):
         return None
 
     def test_entity_with_blacklist_file(self):
-        self.bus.emitted_msgs = []
+        # NOTE: person.entity is auto-registered as soon as the skill's
+        # locale resources are first touched (setUp, via OVOSSkill
+        # construction) - the explicit register_entity_file() call below is
+        # now a deduped no-op, so do NOT clear emitted_msgs here or the
+        # only registration (the automatic one) is lost.
         self.skill.register_entity_file("person.entity")
         data = self._payload("padatious:register_entity", "person")
         self.assertIsNotNone(data)
@@ -242,7 +246,8 @@ class TestSlotBlacklistFile(unittest.TestCase):
         the template - every file-registered entity became an unconstrained
         wildcard slot."""
         import re
-        self.bus.emitted_msgs = []
+        # see test_entity_with_blacklist_file: person.entity is already
+        # auto-registered by setUp, don't clear emitted_msgs
         self.skill.register_entity_file("person.entity")
         data = self._payload("padatious:register_entity", "person")
         self.assertIsNotNone(data)
@@ -252,7 +257,8 @@ class TestSlotBlacklistFile(unittest.TestCase):
     def test_legacy_and_spec_entity_names_agree(self):
         """Both wire contracts must name the same entity identically, so the
         consumer collapses the dual-emit into one registration."""
-        self.bus.emitted_msgs = []
+        # see test_entity_with_blacklist_file: person.entity is already
+        # auto-registered by setUp, don't clear emitted_msgs
         self.skill.register_entity_file("person.entity")
         legacy = self._payload("padatious:register_entity", "person")
         spec = None

@@ -25,7 +25,7 @@ from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
 from pathlib import Path
 from threading import Event, RLock
-from typing import Dict, Callable, List, Optional, Union
+from typing import Dict, Callable, List, Optional, Set, Union
 
 from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
@@ -54,7 +54,7 @@ from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, log_deprecation
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
@@ -160,6 +160,20 @@ class OVOSSkill:
 
         # loaded lang file resources
         self._lang_resources = {}
+
+        # OVOS-INTENT-3 §auto-entity: tracks which languages already had
+        # their locale .entity files auto-discovered and registered, so a
+        # repeated load_lang() for the same lang (reload/retrain) never
+        # double-emits the same entity registrations.
+        self._auto_registered_entity_langs = set()
+        # OVOS-INTENT-3 §auto-entity: tracks (lang -> {entity_file, ...})
+        # already sent to the intent service, keyed by the bare entity file
+        # name (no extension). Shared by auto-discovery AND the explicit
+        # register_entity_file() API so calling both for the same file (a
+        # skill author who still calls register_entity_file() explicitly
+        # for a file that was already auto-registered) replaces rather than
+        # stacks a duplicate bus registration.
+        self._registered_entity_files: Dict[str, Set[str]] = {}
 
         # Delegator classes
         self.event_scheduler = EventSchedulerInterface()
@@ -567,6 +581,14 @@ class OVOSSkill:
         if lang not in self._lang_resources:
             self._lang_resources[lang] = SkillResources(root_directory, lang,
                                                         skill_id=self.skill_id)
+            # OVOS-INTENT-3 §auto-entity: register every shipped .entity file
+            # for this lang the first time its resources are loaded, so it
+            # reaches the matcher in the same batch as (and strictly before)
+            # any .intent template that references it. register_intent_file
+            # calls load_lang() before building/emitting its own template,
+            # so hooking the cache-miss path here guarantees ordering without
+            # requiring skill authors to call register_entity_file() at all.
+            self._auto_register_entity_files(lang)
         return self._lang_resources[lang]
 
     def load_dialog_files(self, root_directory: Optional[str] = None):
@@ -1407,6 +1429,13 @@ class OVOSSkill:
                 Saturday
                 Sunday
 
+        NOTE: every ``.entity`` file shipped in a skill's locale resources is
+        now registered automatically (see `_auto_register_entity_files`) the
+        first time that language's resources are loaded - calling this
+        method explicitly is no longer required for the entity to reach the
+        matcher. It remains useful to register an entity from a non-standard
+        location/name, or to force (re-)registration explicitly.
+
         Args:
             entity_file (string): name of file that contains examples of an
                                   entity.
@@ -1415,28 +1444,149 @@ class OVOSSkill:
             entity_file = entity_file.replace('.entity', '')
         for lang in self.native_langs:
             resources = self.load_lang(self.res_dir, lang)
+            self._register_entity_file_for_lang(entity_file, lang, resources)
+
+    def _register_entity_file_for_lang(self, entity_file: str, lang: str,
+                                       resources: SkillResources,
+                                       resolved_path: Optional[Path] = None):
+        """
+        Register a single Entity file with the intent service for a single
+        language. Shared by the explicit `register_entity_file` API and the
+        automatic per-lang discovery in `_auto_register_entity_files`.
+
+        @param entity_file: name of file that contains examples of an
+                            entity, without the ".entity" extension.
+        @param lang: language code the `resources` object was loaded for.
+        @param resources: SkillResources for `lang`, as returned by
+                          `load_lang`.
+        @param resolved_path: when the caller already holds the resolved
+                              file path (auto-discovery via `Path.rglob`),
+                              pass it directly instead of re-deriving it.
+                              `ResourceFile._locate()` (resource_files.py)
+                              matches by BASENAME against `os.walk` results,
+                              so re-searching by a subfolder-qualified name
+                              like "sub/pet" (from a discovered
+                              "sub/pet.entity") never matches anything and
+                              silently fails to register. Auto-discovery
+                              already resolved the real path while walking
+                              the entity directory, so skip the lookup.
+        """
+        if resolved_path is not None:
+            filename = str(resolved_path)
+        else:
             entity = ResourceFile(resources.types.entity, entity_file)
             if entity.file_path is None:
                 self.log.error(f'Unable to find "{entity_file}"')
-                continue
+                return
             filename = str(entity.file_path)
-            # The entity name IS the wire contract: consumers resolve a
-            # "{slot}" in a template by the raw slot token, so the name must
-            # stay "<skill_id>:<entity>". A former "_<md5(entity_file)>"
-            # suffix here made every file-registered entity unresolvable
-            # (padatious fell back to an unconstrained wildcard slot). The
-            # hash disambiguated nothing either - "<skill_id>:" already
-            # namespaces the entity and the hash was taken over the file name
-            # that is already part of the key.
-            name = f"{self.skill_id}:{basename(entity_file)}"
-            samples = read_resource_file(Path(filename))
-            # OVOS-INTENT-2 §4.3: a sibling "<entity>.blacklist" locale file
-            # lists slot-free phrases that MUST NOT fill the {slot} this entity
-            # supplies (e.g. a "person.blacklist" of pronouns keeps "he" out of
-            # the {person} slot)
-            blacklist = resources.load_blacklist_file(entity_file)
-            self.intent_service.register_entity(name, samples, lang,
-                                                blacklisted_words=blacklist)
+        # IDEMPOTENCY: keyed by the resolved file path (not the caller's
+        # spelling of `entity_file`) so auto-discovery and an explicit
+        # register_entity_file() call for the same file - or two auto
+        # passes that both resolve to the same file - register it once.
+        # Mirrors register_template()'s own "replace, don't stack" contract.
+        already = self._registered_entity_files.setdefault(lang, set())
+        if filename in already:
+            return
+        already.add(filename)
+        # The entity name IS the wire contract: consumers resolve a
+        # "{slot}" in a template by the raw slot token, so the name must
+        # stay "<skill_id>:<entity>". A former "_<md5(entity_file)>"
+        # suffix here made every file-registered entity unresolvable
+        # (padatious fell back to an unconstrained wildcard slot). The
+        # hash disambiguated nothing either - "<skill_id>:" already
+        # namespaces the entity and the hash was taken over the file name
+        # that is already part of the key.
+        name = f"{self.skill_id}:{basename(entity_file)}"
+        samples = read_resource_file(Path(filename))
+        # A bare '#' line is a mycroft-core-era convention some authors used
+        # to mean "any digit sequence goes here" (see e.g. old date-time
+        # skill forks). `read_resource_file` treats any line starting with
+        # '#' as a COMMENT and drops it before `samples` is built (verified:
+        # `read_resource_file(Path(".../offset.entity"))` on a file
+        # containing only "#" returns `[]`) - so it is never registered as a
+        # wildcard *or* a literal; it silently vanishes, and the slot it was
+        # meant to fill gets whatever samples (if any) survive from other
+        # lines. Detect it from the raw file (samples already dropped it) and
+        # flag it - a skill relying on it is shipping a dead entity file.
+        try:
+            raw_lines = Path(filename).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            raw_lines = []
+        if any(line.strip() == '#' for line in raw_lines):
+            log_deprecation(
+                f'{self.skill_id}: entity file "{entity_file}.entity" '
+                f'({lang}) contains a bare "#" placeholder line. '
+                f'read_resource_file() treats it as a COMMENT and drops it - '
+                f'it is NOT registered as a digit wildcard (or anything '
+                f'else). Replace it with real example values.',
+                "0.1.0")
+        # OVOS-INTENT-2 §4.3: a sibling "<entity>.blacklist" locale file
+        # lists slot-free phrases that MUST NOT fill the {slot} this entity
+        # supplies (e.g. a "person.blacklist" of pronouns keeps "he" out of
+        # the {person} slot)
+        blacklist = resources.load_blacklist_file(entity_file)
+        self.intent_service.register_entity(name, samples, lang,
+                                            blacklisted_words=blacklist)
+
+    def _auto_register_entity_files(self, lang: str):
+        """
+        Auto-discover and register every ".entity" file shipped in this
+        skill's locale resources for `lang`.
+
+        Historically `register_entity_file` was opt-in: a skill author had
+        to call it explicitly for each entity, and it was easy to ship a
+        ".entity" file that a ".intent" template referenced by slot name but
+        that was never actually registered, silently degrading matching.
+        There is no good reason to leave a shipped entity file unregistered,
+        so every discovered file is registered unconditionally - no
+        filtering by declared slot names.
+
+        Ordering: this is called from `load_lang` on first (cache-miss)
+        load for `lang`, and `register_intent_file` always calls
+        `load_lang` before it builds/emits its own template for that lang.
+        That means every auto-registered entity for a lang reaches the bus
+        strictly before (never after) the first intent template for that
+        same lang - the same batch/ordering guarantee `register_intent_file`
+        already relies on for manually-registered entities.
+
+        Idempotency: guarded twice - `load_lang` only calls this on a
+        cache-miss (one call per lang per skill instance in normal use),
+        and `_auto_registered_entity_langs` guards direct/repeated calls
+        (e.g. tests, or a future reload path) from double-emitting.
+
+        Can be disabled entirely via the "skills" section of mycroft.conf:
+            {"skills": {"auto_register_entity_files": false}}
+        """
+        if lang in self._auto_registered_entity_langs:
+            return
+        self._auto_registered_entity_langs.add(lang)
+
+        if not self.config_core.get("skills", {}).get(
+                "auto_register_entity_files", True):
+            return
+
+        resources = self._lang_resources.get(lang)
+        if resources is None:
+            return
+        entity_dir = resources.types.entity.base_directory
+        if not entity_dir or not Path(entity_dir).is_dir():
+            return
+
+        entity_paths = sorted(Path(entity_dir).rglob(f"*{resources.types.entity.file_extension}"))
+        for path in entity_paths:
+            # name relative to the entity base directory, extension
+            # stripped, so entities in subfolders keep a stable/readable
+            # name (e.g. "sub/foo" for "<entity_dir>/sub/foo.entity")
+            rel = path.relative_to(entity_dir)
+            entity_file = str(rel.with_suffix(''))
+            try:
+                self._register_entity_file_for_lang(entity_file, lang,
+                                                     resources,
+                                                     resolved_path=path)
+            except Exception as e:
+                self.log.exception(
+                    f'{self.skill_id}: failed to auto-register entity file '
+                    f'"{path}" ({lang}): {e}')
 
     def register_vocabulary(self, entity: str, entity_type: str,
                             lang: Optional[str] = None):
