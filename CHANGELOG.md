@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.4.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.4.0a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.14a1...9.4.0a1)
+
+**Merged pull requests:**
+
+- feat\(converse\): answer the OVOS-CONVERSE-1 broadcast poll [\#534](https://github.com/OpenVoiceOS/ovos-workshop/pull/534) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.3.14a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.14a1) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.13a2...9.3.14a1)
