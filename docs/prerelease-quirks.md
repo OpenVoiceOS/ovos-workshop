@@ -9,6 +9,14 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.5.0a3 — spec template registration carries slot_blacklist
+
+The `ovos.intent.register.template` emission now includes the
+`slot_blacklist` dict, matching the legacy `padatious:register_intent`
+payload. It was omitted, so the §4.3 slot-value exclusion feature only
+worked through the legacy emit and would have silently died with the
+legacy path's planned removal. Engines already read the field.
+
 ## 9.5.0a3 — blacklist files expand bare template syntax
 
 `BlacklistFile.load` now enumerates alternation and optional groups written

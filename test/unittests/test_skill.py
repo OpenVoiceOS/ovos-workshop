@@ -239,6 +239,25 @@ class TestSlotBlacklistFile(unittest.TestCase):
         self.assertIn("he", data["blacklist"])
         self.assertIn("she", data["blacklist"])
 
+    def test_spec_template_registration_carries_slot_blacklist(self):
+        """INTENT-4: the spec register-template emission must carry the same
+        slot_blacklist as the legacy padatious:register_intent payload — the
+        §4.3 slot-exclusion feature must survive the legacy emit's removal."""
+        self.skill.register_intent_file("foo.intent", None)
+        legacy = None
+        spec = None
+        for msg in self.bus.emitted_msgs:
+            if msg["type"] == "padatious:register_intent" and                     "foo" in msg["data"]["name"]:
+                legacy = msg["data"]
+            if msg["type"] == "ovos.intent.register.template" and                     msg["data"].get("intent_name") == "foo":
+                spec = msg["data"]
+        self.assertIsNotNone(legacy)
+        self.assertIsNotNone(spec)
+        self.assertTrue(legacy.get("slot_blacklist"),
+                        "fixture must exercise a non-empty slot blacklist")
+        self.assertEqual(spec.get("slot_blacklist"),
+                         legacy["slot_blacklist"])
+
     def test_entity_name_is_the_clean_wire_name(self):
         """The legacy ``padatious:register_entity`` name must be exactly
         ``<skill_id>:<entity>``. A ``_<md5>`` suffix used to be appended here,
