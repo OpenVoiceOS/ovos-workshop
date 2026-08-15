@@ -9,6 +9,14 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.5.0a3 — blacklist files expand bare template syntax
+
+`BlacklistFile.load` now enumerates alternation and optional groups written
+without a `<vocab>` reference — `(it|this|that)` becomes three entries
+instead of one verbatim string that could never match (the blacklist was
+silently inert). Any loaded entry still carrying unexpanded template syntax
+logs a warning naming the source file.
+
 ## 9.5.0a1 (#541)
 
 Every `.entity` file a skill ships is now auto-registered for its locale on
