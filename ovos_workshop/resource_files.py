@@ -608,8 +608,24 @@ class BlacklistFile(ResourceFile):
                         phrases.extend(flatten_list(expand(line)))
                     except MalformedTemplate as err:
                         self._warn_malformed_line(line, err)
+                elif any(c in line for c in "(|["):
+                    # bare template syntax - an alternation like
+                    # (it|this|that) or an optional [the] - is valid
+                    # intent-file syntax and must enumerate here too: stored
+                    # verbatim it can never match anything and the blacklist
+                    # is silently inert
+                    try:
+                        phrases.extend(flatten_list(expand(line)))
+                    except MalformedTemplate as err:
+                        self._warn_malformed_line(line, err)
                 else:
                     phrases.append(line)
+        for phrase in phrases:
+            if any(c in phrase for c in "(|[<"):
+                LOG.warning(
+                    f"blacklist entry {phrase!r} still carries unexpanded "
+                    f"template syntax and will never match; fix the source "
+                    f"line in {self.file_path}")
         return phrases
 
 
