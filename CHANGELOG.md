@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.5.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.1a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.0a2...9.5.1a1)
+
+**Merged pull requests:**
+
+- fix: expand bare alternation groups in blacklist files [\#548](https://github.com/OpenVoiceOS/ovos-workshop/pull/548) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.0a2) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.0a1...9.5.0a2)
