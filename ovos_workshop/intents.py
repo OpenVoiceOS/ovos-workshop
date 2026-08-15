@@ -670,7 +670,8 @@ class IntentServiceInterface:
                                    "intent_name": self._clean_padatious_name(intent_name),
                                    "lang": lang,
                                    "samples": samples,
-                                   "blacklist": blacklisted_words or []}))
+                                   "blacklist": blacklisted_words or [],
+                                   "slot_blacklist": slot_blacklist or {}}))
         if slot is None:
             self.registered_intents.append((name, data))
         else:
