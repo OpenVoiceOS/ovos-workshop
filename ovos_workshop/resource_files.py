@@ -80,6 +80,17 @@ def locate_lang_directories(lang: str, skill_directory: str,
     base_dirs = [Path(skill_directory, "locale")]
     if resource_subdirectory:
         base_dirs.append(Path(skill_directory, resource_subdirectory))
+    return match_lang_directories(lang, base_dirs)
+
+
+def match_lang_directories(lang: str, base_dirs: List[Path]) -> List[Path]:
+    """
+    Return the subdirectories of base_dirs whose names are usable matches for
+    lang, nearest first
+    @param lang: BCP-47 language code to get resources for
+    @param base_dirs: directories whose subdirectories are named by language
+    @return: list of existing resource directories for the given lang
+    """
     candidates = []
     for directory in base_dirs:
         if directory.exists():
@@ -669,9 +680,16 @@ class SkillResources:
         #  Mustache-style renderer keyed by loaded template name — a behavior
         #  change, not a mechanical swap. Left unmigrated to avoid altering
         #  dialog-rendering behavior; migrate deliberately in a follow-up.
-        base_dirs = locate_lang_directories(self.language,
-                                            self.skill_directory,
-                                            "dialog")
+        # A user override wins over the skill's own dialog, the same way it
+        # does for every other resource type. The renderer needs a directory
+        # rather than a single file, so the override directory is searched for
+        # a language subdirectory here instead of going through ResourceFile.
+        user_dir = self.types.dialog.user_directory
+        base_dirs = match_lang_directories(self.language,
+                                           [user_dir] if user_dir else [])
+        base_dirs += locate_lang_directories(self.language,
+                                             self.skill_directory,
+                                             "dialog")
         for directory in base_dirs:
             if directory.exists():
                 dialog_dir = str(directory)

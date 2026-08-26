@@ -107,8 +107,55 @@ class TestSkillResources(unittest.TestCase):
             shutil.rmtree(data_path)
 
     def test_load_dialog_renderer(self):
-        # TODO
-        pass
+        """The skill's own dialog is rendered when there is no override."""
+        skill_id = "test.dialog.plain"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the skill")
+
+    def test_a_user_dialog_override_is_rendered_instead_of_the_skill_one(self):
+        """What a skill says must be overridable, like everything else it owns.
+
+        Every other resource type prefers the user override directory, so a
+        translation written there changes what the skill hears. Dialog is what
+        the skill *says*, and it was read only from the skill's own directory,
+        so an override there was written, kept, and never used.
+        """
+        skill_id = "test.dialog.overridden"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        self._user_override(skill_id, "en-us", "hello.dialog", "hello from the user")
+
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the user")
+
+    def test_an_override_for_another_language_is_not_used(self):
+        skill_id = "test.dialog.other.lang"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        self._user_override(skill_id, "de-de", "hello.dialog", "hallo vom Benutzer")
+
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the skill")
+
+    def _skill_with_dialog(self, skill_id, file_name, text):
+        skill_dir = Path(self.test_data_path) / "skills" / skill_id
+        dialog_dir = skill_dir / "locale" / "en-us"
+        dialog_dir.mkdir(parents=True, exist_ok=True)
+        (dialog_dir / file_name).write_text(text, encoding="utf-8")
+        return skill_dir
+
+    def _user_override(self, skill_id, lang, file_name, text):
+        from ovos_config.locations import get_xdg_data_save_path
+
+        override = Path(get_xdg_data_save_path()) / "resources" / skill_id / lang
+        override.mkdir(parents=True, exist_ok=True)
+        (override / file_name).write_text(text, encoding="utf-8")
+        return override
 
     def test_define_resource_types(self):
         # TODO
