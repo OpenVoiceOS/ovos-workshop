@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.5.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.3a1) (2026-08-26)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.2a1...9.5.3a1)
+
+**Closed issues:**
+
+- speak\_dialog ignores user .dialog overrides: the dialog renderer never looks in user\_directory [\#556](https://github.com/OpenVoiceOS/ovos-workshop/issues/556)
+
+**Merged pull requests:**
+
+- fix: render a user's dialog override instead of the skill's own [\#557](https://github.com/OpenVoiceOS/ovos-workshop/pull/557) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.2a1) (2026-08-15)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.1a1...9.5.2a1)
@@ -385,10 +397,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.3.0a1...9.0.0a1)
 
-**Breaking changes:**
-
-- refactor: intent layers gate via intent context, not enable/disable [\#427](https://github.com/OpenVoiceOS/ovos-workshop/pull/427) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [8.3.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.3.0a1) (2026-06-25)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.2.1a1...8.3.0a1)
@@ -403,15 +411,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
-
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
@@ -1103,15 +1111,15 @@
 
 ## [0.0.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.16a1) (2023-12-29)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15...0.0.16a1)
-
-## [0.0.15](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15) (2023-12-29)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a6...0.0.15)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a6...0.0.16a1)
 
 ## [0.0.15a6](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15a6) (2023-12-29)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a5...0.0.15a6)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15...0.0.15a6)
+
+## [0.0.15](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15) (2023-12-29)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a5...0.0.15)
 
 ## [0.0.15a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15a5) (2023-12-29)
 
