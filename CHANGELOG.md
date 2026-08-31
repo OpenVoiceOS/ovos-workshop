@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.5.5a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a2) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.5a1...9.5.5a2)
+
+**Merged pull requests:**
+
+- docs: add AGENTS.md with the conventions for coding agents [\#562](https://github.com/OpenVoiceOS/ovos-workshop/pull/562) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a1) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.4a1...9.5.5a1)
