@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.5.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.4a1) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.3a1...9.5.4a1)
+
+**Closed issues:**
+
+- Adapt vocab from .voc files never matches .require\(\)'d intents due to inconsistent capitalization [\#559](https://github.com/OpenVoiceOS/ovos-workshop/issues/559)
+
+**Merged pull requests:**
+
+- fix: don't let a missing ahocorasick\_ner break OCP keyword registration [\#552](https://github.com/OpenVoiceOS/ovos-workshop/pull/552) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.3a1) (2026-08-26)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.2a1...9.5.3a1)
@@ -217,10 +229,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.10a1...9.3.0a1)
 
-**Merged pull requests:**
-
-- feat: emit OVOS-INTENT-4 registration topics \(dual-emit with legacy\) [\#431](https://github.com/OpenVoiceOS/ovos-workshop/pull/431) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.2.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.10a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.9a1...9.2.10a1)
@@ -380,10 +388,6 @@
 ## [9.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a2) (2026-06-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a1...9.0.1a2)
-
-**Merged pull requests:**
-
-- refactor: re-export intent-definition primitives from ovos-spec-tools [\#432](https://github.com/OpenVoiceOS/ovos-workshop/pull/432) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a1) (2026-06-27)
 
