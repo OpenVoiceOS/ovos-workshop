@@ -467,6 +467,28 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
+    def test_register_intent_adapt_context_gating_reaches_intent_service(self):
+        """OVOS-CONTEXT-1 §6: an engine that does not implement
+        OVOS-CONTEXT-1 "ignores them and matches as if absent" - the
+        declaration still has to reach the wire on adapt registrations too,
+        it is not workshop's place to strip it at the producer."""
+        from ovos_spec_tools import IntentBuilder
+
+        skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.intent_service.intent_names = []
+        skill.intent_service.intent_is_detached.return_value = False
+        parser = IntentBuilder("test_adapt").require("Foo").build()
+        skill.register_intent(parser, Mock(__name__="test"),
+                              requires_context=["confirming"],
+                              excludes_context=[{"key": "active_room", "scope": "shared"}])
+        skill.intent_service.register_intent.assert_called_once()
+        args, kwargs = skill.intent_service.register_intent.call_args
+        self.assertEqual(kwargs["requires_context"], ["confirming"])
+        self.assertEqual(kwargs["excludes_context"],
+                         [{"key": "active_room", "scope": "shared"}])
+
     def test_register_intent_file(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
         skill._lang_resources = dict()
@@ -483,7 +505,8 @@ class TestOVOSSkill(unittest.TestCase):
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         skill.intent_service.register_template.assert_called_once_with(
             f"{skill.skill_id}:time", en_samples, "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
+            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            requires_context=None, excludes_context=None)
 
         # With secondary language
         skill.intent_service.register_template.reset_mock()
@@ -493,10 +516,31 @@ class TestOVOSSkill(unittest.TestCase):
             skill.intent_service.register_template.call_count, 2)
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", en_samples, "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
+            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            requires_context=None, excludes_context=None)
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", uk_samples, "uk-UA",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY)
+            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            requires_context=None, excludes_context=None)
+
+    def test_register_intent_file_with_context_gating(self):
+        skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        en_samples = ["what time is it"]
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        skill.register_intent_file(
+            "time.intent", Mock(__name__="test"),
+            requires_context=["confirming_time"],
+            excludes_context=[{"key": "active_room", "scope": "shared"}])
+        skill.intent_service.register_template.assert_called_once_with(
+            f"{skill.skill_id}:time", en_samples, "en-US",
+            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            requires_context=["confirming_time"],
+            excludes_context=[{"key": "active_room", "scope": "shared"}])
 
     def test_register_intent_file_binds_the_canonical_event_only(self):
         # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.

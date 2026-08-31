@@ -18,6 +18,7 @@ from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
                              inline_keywords, expand, MalformedTemplate)
 from ovos_spec_tools.resources import read_resource_file
 
+from ovos_workshop.decorators import ContextGate
 from ovos_workshop.version import VERSION_MAJOR
 
 # Deprecated adapt/padatious shims are removed in the next MAJOR release.
@@ -180,12 +181,22 @@ class _AdaptIntentApi:
             self.bus.emit(msg.forward("register_vocab",
                                       {**alias_data, **compatibility_data}))
 
-    def emit_legacy_register_intent(self, msg: Message, intent_parser: object):
+    def emit_legacy_register_intent(self, msg: Message, intent_parser: object,
+                                    requires_context: Optional[List[ContextGate]] = None,
+                                    excludes_context: Optional[List[ContextGate]] = None):
         """Emit the legacy adapt ``register_intent`` topic.
 
         TODO: drop once the adapt pipeline consumes ovos.intent.register.keyword (INTENT-4 §5) directly.
         """
-        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
+        data = dict(intent_parser.__dict__)
+        # OVOS-CONTEXT-1 §6/§6.1 gating declarations, riding as unknown-field
+        # extensions per INTENT-4 §5.3. Merged onto a copy of the parser's
+        # __dict__ rather than set on the parser itself, so the builder
+        # object handed back to the caller is not mutated as a side effect
+        # of emitting.
+        data['requires_context'] = requires_context or []
+        data['excludes_context'] = excludes_context or []
+        self.bus.emit(msg.forward("register_intent", data))
 
     # ------------------------------------------------------------------
     #  adapt bus protocol
@@ -356,7 +367,9 @@ class _PadatiousIntentApi:
                                        samples: List[str], lang: str,
                                        blacklisted_words: Optional[List[str]] = None,
                                        file_name: str = '',
-                                       slot_blacklist: Optional[Dict[str, List[str]]] = None):
+                                       slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                                       requires_context: Optional[List[ContextGate]] = None,
+                                       excludes_context: Optional[List[ContextGate]] = None):
         """Emit the legacy ``padatious:register_intent`` topic.
 
         TODO: drop once the padatious pipeline consumes ovos.intent.register.template (INTENT-4 §6) directly.
@@ -367,7 +380,12 @@ class _PadatiousIntentApi:
                                    'name': intent_name,
                                    'lang': lang,
                                    'blacklisted_words': blacklisted_words,
-                                   'slot_blacklist': slot_blacklist or {}}))
+                                   'slot_blacklist': slot_blacklist or {},
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating
+                                   # declarations, riding as unknown-field
+                                   # extensions per INTENT-4 §5.3
+                                   'requires_context': requires_context or [],
+                                   'excludes_context': excludes_context or []}))
 
     # ------------------------------------------------------------------
     #  padatious bus protocol
@@ -491,7 +509,9 @@ class IntentServiceInterface:
         return descriptors
 
     def _emit_spec_keyword_intent(self, msg: Message, name: str,
-                                  intent_parser: object):
+                                  intent_parser: object,
+                                  requires_context: Optional[List[ContextGate]] = None,
+                                  excludes_context: Optional[List[ContextGate]] = None):
         required_names = [r[0] for r in intent_parser.requires]
         optional_names = [o[0] for o in intent_parser.optional]
         one_of_groups = [list(g) for g in intent_parser.at_least_one]
@@ -539,6 +559,12 @@ class IntentServiceInterface:
                 "one_of": [self._spec_keyword_descriptors(group, lang)
                            for group in one_of_groups],
                 "excluded": self._spec_keyword_descriptors(excluded_names, lang),
+                # OVOS-CONTEXT-1 §6/§6.1 gating declarations, riding as
+                # unknown-field extensions per INTENT-4 §5.3. Not
+                # vocab-bound, so unlike required/optional/excluded they
+                # are not subject to the missing-sample skip above.
+                "requires_context": requires_context or [],
+                "excludes_context": excludes_context or [],
             }
             payload["one_of"] = [g for g in payload["one_of"] if g]
             self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_KEYWORD,
@@ -549,7 +575,9 @@ class IntentServiceInterface:
         return [vt for vt in vocab_types
                 if not self._get_keyword_samples(vt, lang)]
 
-    def register_intent(self, name: str, intent_parser: object):
+    def register_intent(self, name: str, intent_parser: object,
+                        requires_context: Optional[List[ContextGate]] = None,
+                        excludes_context: Optional[List[ContextGate]] = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
@@ -561,8 +589,12 @@ class IntentServiceInterface:
                 break
         if slot is not None and self.registered_intents[slot] == (name, intent_parser):
             return
-        self._adapt.emit_legacy_register_intent(msg, intent_parser)
-        self._emit_spec_keyword_intent(msg, name, intent_parser)
+        self._adapt.emit_legacy_register_intent(msg, intent_parser,
+                                                 requires_context=requires_context,
+                                                 excludes_context=excludes_context)
+        self._emit_spec_keyword_intent(msg, name, intent_parser,
+                                       requires_context=requires_context,
+                                       excludes_context=excludes_context)
         if slot is None:
             self.registered_intents.append((name, intent_parser))
         else:
@@ -615,7 +647,9 @@ class IntentServiceInterface:
                           blacklisted_words: Optional[List[str]] = None,
                           file_name: str = '',
                           slot_blacklist: Optional[Dict[str, List[str]]] = None,
-                          vocabs: Optional[Dict[str, List[str]]] = None):
+                          vocabs: Optional[Dict[str, List[str]]] = None,
+                          requires_context: Optional[List[ContextGate]] = None,
+                          excludes_context: Optional[List[ContextGate]] = None):
         # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
         samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
         if not samples:
@@ -664,14 +698,21 @@ class IntentServiceInterface:
         self._padatious.emit_legacy_register_template(msg, intent_name, samples,
                                                        lang, blacklisted_words,
                                                        file_name,
-                                                       slot_blacklist=slot_blacklist)
+                                                       slot_blacklist=slot_blacklist,
+                                                       requires_context=requires_context,
+                                                       excludes_context=excludes_context)
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
                                    "intent_name": self._clean_padatious_name(intent_name),
                                    "lang": lang,
                                    "samples": samples,
                                    "blacklist": blacklisted_words or [],
-                                   "slot_blacklist": slot_blacklist or {}}))
+                                   "slot_blacklist": slot_blacklist or {},
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating
+                                   # declarations, riding as unknown-field
+                                   # extensions per INTENT-4 §5.3
+                                   "requires_context": requires_context or [],
+                                   "excludes_context": excludes_context or []}))
         if slot is None:
             self.registered_intents.append((name, data))
         else:

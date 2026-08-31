@@ -128,7 +128,32 @@ class KeywordIntentRegistrationTest(unittest.TestCase):
                          'name': f'{sid}:test',
                          'excludes': [],
                          'optional': [(f'{sid}testB', f'{sid}testB')],
-                         'requires': [(f'{sid}testA', f'{sid}testA')]}
+                         'requires': [(f'{sid}testA', f'{sid}testA')],
+                         'requires_context': [],
+                         'excludes_context': []}
+        self.check_emitter([expected_data])
+
+    def test_register_intent_with_context_gating(self):
+        """CONTEXT-1 §6: 'an engine that does not implement OVOS-CONTEXT-1
+        ignores them and matches as if absent' - the declaration must still
+        reach the wire on adapt registrations, not be stripped at the
+        producer."""
+        intent_service = IntentServiceInterface(self.emitter)
+        intent_service.register_adapt_keyword('testA', 'testA', lang='en-US')
+        self.emitter.reset()
+
+        sid = "IntentServiceInterface"
+        intent = IntentBuilder("test2").require("testA")
+        intent_service.register_intent(f"{sid}:test2", intent,
+                                       requires_context=["confirming"],
+                                       excludes_context=[{"key": "active_room", "scope": "shared"}])
+        expected_data = {'at_least_one': [],
+                         'name': "test2",
+                         'excludes': [],
+                         'optional': [],
+                         'requires': [("testA", "testA")],
+                         'requires_context': ["confirming"],
+                         'excludes_context': [{"key": "active_room", "scope": "shared"}]}
         self.check_emitter([expected_data])
 
 
@@ -161,6 +186,23 @@ class UtteranceIntentRegistrationTest(unittest.TestCase):
         intent_service.register_padatious_intent('test', filename, lang='en-US')
         expected_data = {'file_name': '/tmp/test.intent', 'lang': 'en-US', 'name': 'test',
                          'samples': ['this is a test', 'test the intent'], 'blacklisted_words': None,
-                         'slot_blacklist': {}}
+                         'slot_blacklist': {}, 'requires_context': [], 'excludes_context': []}
+        self.check_emitter([expected_data])
+
+    def test_register_intent_with_context_gating(self):
+        intent_service = IntentServiceInterface(self.emitter)
+        filename = "/tmp/test.intent"
+        with open(filename, "w") as f:
+            f.write("this is a test\ntest the intent")
+
+        intent_service.register_template(
+            'test', ["this is a test", "test the intent"], lang='en-US',
+            requires_context=["confirming"],
+            excludes_context=[{"key": "active_room", "scope": "shared"}])
+        expected_data = {'file_name': '', 'lang': 'en-US', 'name': 'test',
+                         'samples': ['this is a test', 'test the intent'],
+                         'blacklisted_words': None, 'slot_blacklist': {},
+                         'requires_context': ["confirming"],
+                         'excludes_context': [{"key": "active_room", "scope": "shared"}]}
         self.check_emitter([expected_data])
 
