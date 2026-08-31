@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.5.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a1) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.4a1...9.5.5a1)
+
+**Merged pull requests:**
+
+- fix: connect SessionManager to the bus in standalone skill containers [\#526](https://github.com/OpenVoiceOS/ovos-workshop/pull/526) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.4a1) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.3a1...9.5.4a1)
@@ -392,10 +400,6 @@
 ## [9.0.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a1) (2026-06-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.0a1...9.0.1a1)
-
-**Merged pull requests:**
-
-- fix: allow latest padacioso \(widen cap to \<3.0.0\) [\#433](https://github.com/OpenVoiceOS/ovos-workshop/pull/433) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.0.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.0a1) (2026-06-26)
 
