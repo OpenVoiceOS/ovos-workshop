@@ -26,6 +26,8 @@ try:
 except ImportError:
     AhocorasickNER = None  # optional dependency
 
+_ner_missing_warned = False
+
 # backwards compat imports, do not delete, skills import from here
 from ovos_workshop.decorators.ocp import ocp_play, ocp_next, ocp_pause, ocp_resume, ocp_search, \
     ocp_previous, ocp_featured_media
@@ -239,12 +241,22 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
             samples (List[str]): A list of phrases or keywords to register for the label.
             lang (str, optional): The language code for registration. If not specified, registers for all native languages.
         """
-        if AhocorasickNER is None:
-            raise ImportError("can not register ocp keywords, AhocorasickNER is not installed, 'pip install ahocorasick_ner'")
-
         if label not in self._ocp_ents:
             self._ocp_ents[label] = []
         self._ocp_ents[label] += samples
+
+        global _ner_missing_warned
+        if AhocorasickNER is None:
+            # local matching is an optional optimization, the bus registration
+            # (the actual contract with OCP) still needs to happen
+            if not _ner_missing_warned:
+                LOG.warning("ahocorasick_ner is not installed, OCP keyword "
+                             "matching will not run locally, 'pip install "
+                             "ahocorasick_ner' to enable it. keywords are "
+                             "still registered with OCP over the bus")
+                _ner_missing_warned = True
+            return
+
         langs = [lang] if lang else self.native_langs
         for lang in langs:
             if lang not in self.ocp_matchers:
@@ -325,22 +337,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         #      prefer to search netflix instead of spotify
 
         # NB: we send a file path, bus messages with thousands of entities dont work well
+        payload = {"skill_id": self.skill_id,
+                   "label": label,  # if in OCP_ENTITIES it influences classifier
+                   "media_type": media_type}
         if len(samples) >= 20:
             csv = f"{self.ocp_cache_dir}/{self.skill_id}_{label}.csv"
-            self.export_ocp_keywords_csv(csv, label=label)
-            self.bus.emit(
-                Message('ovos.common_play.register_keyword',
-                        {"skill_id": self.skill_id,
-                         "label": label,  # if in OCP_ENTITIES it influences classifier
-                         "csv": csv,
-                         "media_type": media_type}))
+            try:
+                self.export_ocp_keywords_csv(csv, label=label)
+                payload["csv"] = csv
+            except Exception as e:
+                LOG.debug(f"could not export OCP keywords csv, sending "
+                          f"samples directly instead: {e}")
+                payload["samples"] = samples
         else:
-            self.bus.emit(
-                Message('ovos.common_play.register_keyword',
-                        {"skill_id": self.skill_id,
-                         "label": label,  # if in OCP_ENTITIES it influences classifier
-                         "samples": samples,
-                         "media_type": media_type}))
+            payload["samples"] = samples
+        self.bus.emit(Message('ovos.common_play.register_keyword', payload))
 
     def deregister_ocp_keyword(self, media_type: MediaType, label: str,
                                langs: List[str] = None):

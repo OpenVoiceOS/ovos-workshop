@@ -13,8 +13,10 @@
 # limitations under the License.
 """Extended tests for ovos_workshop/skills/common_play.py — OVOSCommonPlaybackSkill."""
 import os
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from ovos_utils.fakebus import FakeBus
 
@@ -110,6 +112,121 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
         result = self.skill.ocp_voc_match("play some music")
         self.assertIsInstance(result, dict)
         self.assertEqual(result, {})
+
+
+class TestOCPKeywordSoftFail(unittest.TestCase):
+    """register_ocp_keyword must still emit ovos.common_play.register_keyword
+    over the bus even when the optional ahocorasick_ner dependency is missing.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self._orig_config_home = os.environ.get("XDG_CONFIG_HOME")
+        self._orig_cache_home = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self.tmp
+        os.environ["XDG_CACHE_HOME"] = self.tmp
+        self.bus = FakeBus()
+        self.skill = _SimplePlaybackSkill.get(self.bus)
+
+    def tearDown(self) -> None:
+        if self._orig_config_home is not None:
+            os.environ["XDG_CONFIG_HOME"] = self._orig_config_home
+        else:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        if self._orig_cache_home is not None:
+            os.environ["XDG_CACHE_HOME"] = self._orig_cache_home
+        else:
+            os.environ.pop("XDG_CACHE_HOME", None)
+
+    def _collect(self, event):
+        messages = []
+        self.bus.on(event, lambda m: messages.append(m))
+        return messages
+
+    def test_register_ocp_keyword_emits_with_ner_available(self) -> None:
+        """Sanity check: with AhocorasickNER present, the message still emits
+        with the same payload shape (samples list)."""
+        from ovos_utils.ocp import MediaType
+
+        messages = self._collect("ovos.common_play.register_keyword")
+        self.skill.register_ocp_keyword(MediaType.MUSIC, "artist_name",
+                                         ["queen", "abba"], langs=["en-us"])
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].data["skill_id"], "test.common_play")
+        self.assertEqual(messages[0].data["label"], "artist_name")
+        self.assertEqual(sorted(messages[0].data["samples"]), ["abba", "queen"])
+
+    def test_register_ocp_keyword_soft_fails_without_ahocorasick_ner(self) -> None:
+        """With ahocorasick_ner unavailable (AhocorasickNER is None), the
+        bus emit must still happen with the same payload shape, and no
+        exception should propagate."""
+        from ovos_utils.ocp import MediaType
+        import ovos_workshop.skills.common_play as common_play_mod
+
+        messages = self._collect("ovos.common_play.register_keyword")
+
+        with patch.object(common_play_mod, "AhocorasickNER", None):
+            # must not raise, unlike the unfixed code which raised ImportError
+            self.skill.register_ocp_keyword(MediaType.MUSIC, "artist_name",
+                                             ["queen", "abba"], langs=["en-us"])
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].data["skill_id"], "test.common_play")
+        self.assertEqual(messages[0].data["label"], "artist_name")
+        self.assertEqual(messages[0].data["media_type"], MediaType.MUSIC)
+        self.assertEqual(sorted(messages[0].data["samples"]), ["abba", "queen"])
+        # no local matcher was built for the missing optional dependency
+        self.assertNotIn("en-us", self.skill.ocp_matchers)
+
+    def test_register_ocp_keyword_soft_fails_with_empty_samples(self) -> None:
+        """Even with an empty sample list and no ahocorasick_ner, the bus
+        emit is still the contract and must still fire."""
+        from ovos_utils.ocp import MediaType
+        import ovos_workshop.skills.common_play as common_play_mod
+
+        messages = self._collect("ovos.common_play.register_keyword")
+
+        with patch.object(common_play_mod, "AhocorasickNER", None):
+            self.skill.register_ocp_keyword(MediaType.MUSIC, "artist_name",
+                                             [], langs=["en-us"])
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].data["samples"], [])
+
+    def test_register_ocp_keyword_soft_fails_large_sample_set(self) -> None:
+        """The >=20 samples branch exports a CSV via export_ocp_keywords_csv,
+        which depends on ocp_matchers being populated. Without
+        ahocorasick_ner that export is not possible, so the emit must fall
+        back to sending the raw samples instead of silently dropping them."""
+        from ovos_utils.ocp import MediaType
+        import ovos_workshop.skills.common_play as common_play_mod
+
+        messages = self._collect("ovos.common_play.register_keyword")
+        samples = [f"track{i}" for i in range(25)]
+
+        with patch.object(common_play_mod, "AhocorasickNER", None):
+            self.skill.register_ocp_keyword(MediaType.MUSIC, "album_name",
+                                             samples, langs=["en-us"])
+
+        self.assertEqual(len(messages), 1)
+        self.assertIn("samples", messages[0].data)
+        self.assertEqual(sorted(messages[0].data["samples"]), sorted(samples))
+        self.assertNotIn("csv", messages[0].data)
+
+    def test_register_ocp_keyword_warns_once(self) -> None:
+        """The missing-dependency warning should be logged, not silently
+        swallowed, so operators can discover why local matching is off."""
+        from ovos_utils.ocp import MediaType
+        import ovos_workshop.skills.common_play as common_play_mod
+
+        common_play_mod._ner_missing_warned = False
+        with patch.object(common_play_mod, "AhocorasickNER", None), \
+                patch.object(common_play_mod, "LOG") as mock_log:
+            self.skill.register_ocp_keyword(MediaType.MUSIC, "artist_name",
+                                             ["queen"], langs=["en-us"])
+            self.skill.register_ocp_keyword(MediaType.MUSIC, "artist_name",
+                                             ["abba"], langs=["en-us"])
+        self.assertEqual(mock_log.warning.call_count, 1)
 
 
 if __name__ == "__main__":
