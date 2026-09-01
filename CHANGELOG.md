@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.1a1) (2026-09-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a3...9.6.1a1)
+
+**Merged pull requests:**
+
+- fix: make default\_shutdown re-entrant [\#573](https://github.com/OpenVoiceOS/ovos-workshop/pull/573) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.0a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a3) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a2...9.6.0a3)
@@ -412,10 +420,6 @@
 ## [9.0.1a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a5) (2026-06-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a4...9.0.1a5)
-
-**Merged pull requests:**
-
-- refactor: delegate handler-lifecycle done-signal to shared HandlerLifecycle util [\#440](https://github.com/OpenVoiceOS/ovos-workshop/pull/440) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.0.1a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a4) (2026-06-28)
 
