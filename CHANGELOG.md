@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a2) (2026-09-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a1...9.6.0a2)
+
+**Merged pull requests:**
+
+- docs: warn that bare requires\_context entries are private-scoped [\#568](https://github.com/OpenVoiceOS/ovos-workshop/pull/568) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a1) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.6a1...9.6.0a1)
@@ -404,10 +412,6 @@
 ## [9.0.1a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a4) (2026-06-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a3...9.0.1a4)
-
-**Merged pull requests:**
-
-- refactor: use SpecMessage enum for spec topic strings [\#438](https://github.com/OpenVoiceOS/ovos-workshop/pull/438) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.0.1a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a3) (2026-06-28)
 
