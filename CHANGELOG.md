@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.0a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a3) (2026-09-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a2...9.6.0a3)
+
+**Merged pull requests:**
+
+- docs: intent\_handler docstring — context gating reaches every registration payload [\#570](https://github.com/OpenVoiceOS/ovos-workshop/pull/570) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a2) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a1...9.6.0a2)
