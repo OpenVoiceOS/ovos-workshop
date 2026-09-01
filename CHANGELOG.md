@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.5.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.6a1) (2026-09-01)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.5a2...9.5.6a1)
+
+**Merged pull requests:**
+
+- fix: allow ovos-config 3.x [\#564](https://github.com/OpenVoiceOS/ovos-workshop/pull/564) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.5.5a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a2) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.5a1...9.5.5a2)
@@ -397,10 +405,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a2...9.0.1a3)
 
-**Merged pull requests:**
-
-- docs: mark mycroft.skill.handler.\* as internal workshop-\>core sync \(not spec\) [\#436](https://github.com/OpenVoiceOS/ovos-workshop/pull/436) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.0.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.1a2) (2026-06-27)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.1a1...9.0.1a2)
@@ -427,15 +431,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
