@@ -109,6 +109,8 @@ def handle_decline_milk(self, message):
     self.speak_dialog("ok.no.milk")
 ```
 
+Bare-string entries like `requires_context=["confirming_milk"]` default to `"private"` scope owned by the declaring skill. This works correctly when the same skill that set the flag checks for it. A context entry stored with `scope="shared"` is only matched by the explicit form `requires_context=[{"key": "confirming_milk", "scope": "shared"}]`. A scope mismatch does not raise an error. Instead, the gated intent silently never matches, leaving no trace in the logs.
+
 `yes.intent`/`no.intent` only match in the narrow window between the
 question and the answer; outside it the same words have no context to
 attach to and the intents are silent.
