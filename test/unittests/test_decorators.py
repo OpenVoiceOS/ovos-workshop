@@ -46,6 +46,32 @@ class TestDecorators(unittest.TestCase):
         self.assertEqual(test_handler.intents, ["test_intent", mock_intent])
         self.assertFalse(called)
 
+    def test_intent_handler_context_gating(self):
+        """OVOS-CONTEXT-1 §6/§6.1: requires_context/excludes_context land on
+        the decorated function verbatim, short-form (bare key) and
+        long-form ({"key":..., "scope":...}) entries alike."""
+        from ovos_workshop.decorators import intent_handler
+
+        @intent_handler("confirm.intent",
+                        requires_context=["confirming_milk"],
+                        excludes_context=[{"key": "active_room", "scope": "shared"}])
+        def test_handler():
+            pass
+
+        self.assertEqual(test_handler.requires_context, ["confirming_milk"])
+        self.assertEqual(test_handler.excludes_context,
+                         [{"key": "active_room", "scope": "shared"}])
+
+    def test_intent_handler_context_gating_undeclared(self):
+        from ovos_workshop.decorators import intent_handler
+
+        @intent_handler("plain.intent")
+        def test_handler():
+            pass
+
+        self.assertEqual(test_handler.requires_context, [])
+        self.assertEqual(test_handler.excludes_context, [])
+
     def test_skill_api_method(self):
         from ovos_workshop.decorators import skill_api_method
         called = False

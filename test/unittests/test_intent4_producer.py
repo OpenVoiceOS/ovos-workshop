@@ -108,6 +108,53 @@ class AdaptKeywordSpecTest(unittest.TestCase):
         # legacy register_intent still emitted (dual-emit)
         self.assertEqual(len(self.bus.of_type("register_intent")), 1)
 
+    def test_register_keyword_intent_context_gating_undeclared_defaults_empty(self):
+        """OVOS-CONTEXT-1 §6/§6.1: an intent with no gating declaration has
+        no precondition - both fields ride the payload as empty lists."""
+        self.iface.register_adapt_keyword("setKW", "set", lang="en-US")
+        parser = IntentBuilder("set_brightness").require("setKW").build()
+        self.iface.register_intent("set_brightness", parser)
+
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)[0]
+        self.assertEqual(data["requires_context"], [])
+        self.assertEqual(data["excludes_context"], [])
+        legacy, _ = self.bus.of_type("register_intent")[0]
+        self.assertEqual(legacy["requires_context"], [])
+        self.assertEqual(legacy["excludes_context"], [])
+
+    def test_register_keyword_intent_context_gating_verbatim_both_payloads(self):
+        """CONTEXT-1 §6 states an engine that does not implement
+        OVOS-CONTEXT-1 "ignores them and matches as if absent" - the
+        declaration must still reach the wire on adapt/keyword
+        registrations, both the spec `ovos.intent.register.keyword`
+        payload (INTENT-4 §5, same unknown-fields tolerance as §6) and the
+        legacy `register_intent` payload. Short-form (bare string) and
+        long-form ({"key":..., "scope":...}) entries both survive
+        verbatim, and round-trip through Message (de)serialization."""
+        requires = ["confirming_milk"]
+        excludes = [{"key": "active_room", "scope": "shared"}]
+        self.iface.register_adapt_keyword("setKW", "set", lang="en-US")
+        parser = IntentBuilder("set_brightness").require("setKW").build()
+        self.iface.register_intent("set_brightness", parser,
+                                   requires_context=requires,
+                                   excludes_context=excludes)
+
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)[0]
+        self.assertEqual(data["requires_context"], requires)
+        self.assertEqual(data["excludes_context"], excludes)
+
+        legacy, _ = self.bus.of_type("register_intent")[0]
+        self.assertEqual(legacy["requires_context"], requires)
+        self.assertEqual(legacy["excludes_context"], excludes)
+
+        from ovos_bus_client.message import Message
+        for msg_type, payload in ((SpecMessage.INTENT_REGISTER_KEYWORD, data),
+                                   ("register_intent", legacy)):
+            wire = Message(msg_type, payload).serialize()
+            restored = Message.deserialize(wire)
+            self.assertEqual(restored.data["requires_context"], requires)
+            self.assertEqual(restored.data["excludes_context"], excludes)
+
     def test_munged_vocab_names_are_unmunged_on_wire(self):
         # mimic the real skill flow where vocab/parser names carry the
         # to_alnum(skill_id) prefix; the wire `name` must drop it.
@@ -182,6 +229,50 @@ class PadatiousSpecTest(unittest.TestCase):
                                              self.intent_file, lang="en-US")
         data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
         self.assertEqual(data["blacklist"], [])
+
+    def test_register_template_context_gating_undeclared_defaults_empty(self):
+        """OVOS-CONTEXT-1 §6/§6.1: an intent that declares no
+        requires_context/excludes_context has no gating precondition -
+        both fields ride the payload as empty lists rather than being
+        omitted."""
+        self.iface.register_template("music.skill:play_music",
+                                     ["play {query}"], lang="en-US")
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+        self.assertEqual(data["requires_context"], [])
+        self.assertEqual(data["excludes_context"], [])
+        legacy, _ = self.bus.of_type("padatious:register_intent")[0]
+        self.assertEqual(legacy["requires_context"], [])
+        self.assertEqual(legacy["excludes_context"], [])
+
+    def test_register_template_context_gating_verbatim_both_payloads(self):
+        """§6 short-form and §6.1 long-form entries ride verbatim on both
+        the spec `ovos.intent.register.template` payload and the legacy
+        `padatious:register_intent` payload; a captured payload round-trips
+        through Message (de)serialization unchanged."""
+        requires = ["confirming_milk"]
+        excludes = [{"key": "active_room", "scope": "shared"}]
+        self.iface.register_template("music.skill:play_music",
+                                     ["play {query}"], lang="en-US",
+                                     requires_context=requires,
+                                     excludes_context=excludes)
+
+        data, _ = self.bus.of_type(SpecMessage.INTENT_REGISTER_TEMPLATE)[0]
+        self.assertEqual(data["requires_context"], requires)
+        self.assertEqual(data["excludes_context"], excludes)
+
+        legacy, _ = self.bus.of_type("padatious:register_intent")[0]
+        self.assertEqual(legacy["requires_context"], requires)
+        self.assertEqual(legacy["excludes_context"], excludes)
+
+        # round-trip through Message (de)serialization: nothing is lost or
+        # mutated by the JSON envelope both topics actually travel over.
+        from ovos_bus_client.message import Message
+        for msg_type, payload in ((SpecMessage.INTENT_REGISTER_TEMPLATE, data),
+                                   ("padatious:register_intent", legacy)):
+            wire = Message(msg_type, payload).serialize()
+            restored = Message.deserialize(wire)
+            self.assertEqual(restored.data["requires_context"], requires)
+            self.assertEqual(restored.data["excludes_context"], excludes)
 
     def test_register_entity_emits_spec_topic(self):
         self.iface.register_padatious_entity("music.skill:engine",

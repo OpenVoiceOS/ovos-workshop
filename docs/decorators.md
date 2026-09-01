@@ -63,6 +63,56 @@ def handle_my_no_stop(self, message): ...
 
 A method can have multiple `@intent_handler` decorators to handle multiple intents with the same function.
 
+#### OVOS-CONTEXT-1 gating: `requires_context` / `excludes_context`
+
+`requires_context` and `excludes_context` declare the OVOS-CONTEXT-1
+§6 / §6.1 gating an intent needs: an engine that implements the spec will
+not report a match unless every `requires_context` entry is a live session
+context entry, and none of the `excludes_context` entries are. Each entry is
+either a bare key string (scope defaults to `"private"`, owned by this
+skill) or a `{"key": ..., "scope": "private"|"shared"}` mapping.
+
+The declaration rides both `.intent` file (Padatious/template) and
+`IntentBuilder` (Adapt/keyword) registrations — CONTEXT-1 §6 is explicit
+that "an engine that does not implement OVOS-CONTEXT-1 ignores them and
+matches as if absent," so it is not workshop's place to strip the field
+for one engine family. Adapt itself has no OVOS-CONTEXT-1-aware matcher
+today, so declaring `requires_context`/`excludes_context` on an
+`IntentBuilder`-based `@intent_handler` currently has no effect on Adapt's
+own matching, but the declaration still reaches the wire for any engine
+that does honour it.
+
+The classic use is a confirmation branch: a top-level intent asks a
+yes/no question and sets a flag via `Session.set_intent_context`, and the
+`yes`/`no` follow-ups only match while that flag is live.
+
+```python
+from ovos_bus_client.session import SessionManager
+
+@intent_handler("order_milk.intent")
+def handle_order_milk(self, message):
+    session = SessionManager.get(message)
+    session.set_intent_context("confirming_milk", None,
+                               scope="private", owner_id=self.skill_id,
+                               turns_remaining=1)
+    # speak_dialog/speak forward() the dispatch Message, which carries
+    # the mutated session (OVOS-CONTEXT-1 §5.3 point 3); a handler that
+    # emits nothing does not propagate its context write.
+    self.speak_dialog("confirm.milk")
+
+@intent_handler("yes.intent", requires_context=["confirming_milk"])
+def handle_confirm_milk(self, message):
+    self.speak_dialog("adding.milk")
+
+@intent_handler("no.intent", requires_context=["confirming_milk"])
+def handle_decline_milk(self, message):
+    self.speak_dialog("ok.no.milk")
+```
+
+`yes.intent`/`no.intent` only match in the narrow window between the
+question and the answer; outside it the same words have no context to
+attach to and the intents are silent.
+
 ---
 
 ### `@conversational_intent`

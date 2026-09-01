@@ -1,5 +1,12 @@
 from functools import wraps
-from typing import Optional, Callable, List
+from typing import Optional, Callable, Dict, List, Union
+
+# OVOS-CONTEXT-1 §6/§6.1: a gate entry is either a bare key string
+# (short form, scope defaults to "private") or a {"key": ..., "scope": ...}
+# mapping (long form). This module does not normalize or interpret the
+# entry - it is carried verbatim to the registration payload; resolving
+# scope and looking up the stored key is the consuming engine's job.
+ContextGate = Union[str, Dict[str, str]]
 from ovos_utils.log import log_deprecation
 import warnings
 from ovos_workshop.decorators.killable import killable_intent, killable_event
@@ -54,10 +61,20 @@ def removes_context(context: str):
     return context_removes_decorator
 
 
-def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = None):
+def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = None,
+                    requires_context: Optional[List[ContextGate]] = None,
+                    excludes_context: Optional[List[ContextGate]] = None):
     """
     Decorator for adding a method as an intent handler.
     @param intent_parser: string intent name or adapt.IntentBuilder object
+    @param voc_blacklist: list of vocab entries that suppress this intent
+    @param requires_context: OVOS-CONTEXT-1 §6 positive gating declaration -
+        each entry is a bare key string (short form, scope defaults to
+        "private") or a {"key": ..., "scope": "private"|"shared"} mapping
+        (long form). File intents only - adapt has its own context
+        mechanism and does not consume this declaration.
+    @param excludes_context: OVOS-CONTEXT-1 §6.1 negative gating declaration,
+        same entry shape as requires_context. File intents only.
     """
 
     def real_decorator(func):
@@ -67,8 +84,14 @@ def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = N
             func.intents = []
         if not hasattr(func, 'voc_blacklist'):
             func.voc_blacklist = []
+        if not hasattr(func, 'requires_context'):
+            func.requires_context = []
+        if not hasattr(func, 'excludes_context'):
+            func.excludes_context = []
         func.intents.append(intent_parser)
         func.voc_blacklist += voc_blacklist or []
+        func.requires_context += requires_context or []
+        func.excludes_context += excludes_context or []
         return func
 
     return real_decorator

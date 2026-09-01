@@ -9,6 +9,22 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.5.5a3 — intent registration carries OVOS-CONTEXT-1 gating
+
+`@intent_handler` accepts `requires_context`/`excludes_context` kwargs —
+OVOS-CONTEXT-1 §6/§6.1 gating declarations, each entry a bare key string
+or a `{"key": ..., "scope": "private"|"shared"}` mapping. They ride the
+`ovos.intent.register.template` / legacy `padatious:register_intent`
+payloads for `.intent` file handlers, and the `ovos.intent.register.keyword`
+/ legacy `register_intent` payloads for `IntentBuilder` (Adapt) handlers,
+as additional fields (INTENT-4 §5.3/§5's unknown-field tolerance),
+defaulting to an empty list when undeclared. Adapt has no
+OVOS-CONTEXT-1-aware matcher, so the declaration currently has no effect
+on Adapt's own matching, but per CONTEXT-1 §6 "an engine that does not
+implement OVOS-CONTEXT-1 ignores them and matches as if absent" — the
+field still reaches the wire rather than being stripped at the producer.
+Enforcement is engine-side; workshop only carries the declaration.
+
 ## 9.5.0a3 — spec template registration carries slot_blacklist
 
 The `ovos.intent.register.template` emission now includes the

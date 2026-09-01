@@ -60,6 +60,7 @@ from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
+from ovos_workshop.decorators import ContextGate
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
@@ -945,7 +946,11 @@ class OVOSSkill:
             if hasattr(method, 'intents'):
                 for intent in getattr(method, 'intents'):
                     voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
-                    self.register_intent(intent, method, voc_blacklist=voc_blacklist)
+                    requires_context = method.requires_context if hasattr(method, 'requires_context') else []
+                    excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
+                    self.register_intent(intent, method, voc_blacklist=voc_blacklist,
+                                         requires_context=requires_context,
+                                         excludes_context=excludes_context)
 
             if hasattr(method, 'intent_files'):
                 for intent_file in getattr(method, 'intent_files'):
@@ -1309,7 +1314,9 @@ class OVOSSkill:
             self.intent_layers.update_layer(layer_name, [name])
 
     def register_intent(self, intent_parser: Union[IntentBuilder, Intent, str],
-                        handler: callable, voc_blacklist: Optional[List[str]] = None):
+                        handler: callable, voc_blacklist: Optional[List[str]] = None,
+                        requires_context: Optional[List[ContextGate]] = None,
+                        excludes_context: Optional[List[ContextGate]] = None):
         """
         Register an Intent with the intent service.
 
@@ -1317,15 +1324,33 @@ class OVOSSkill:
             intent_parser: Intent, IntentBuilder object or padatious intent
                            file to parse utterance for the handler.
             handler (func): function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration - each
+                              entry a bare key string or a
+                              {"key":..., "scope":...} mapping. Carried on
+                              both file-intent and adapt-intent
+                              registration payloads; adapt has no
+                              OVOS-CONTEXT-1-aware matcher of its own, but
+                              per §6 "an engine that does not implement
+                              OVOS-CONTEXT-1 ignores them and matches as
+                              if absent"
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              entry shape and carry-through as
+                              requires_context
         """
         if isinstance(intent_parser, str):
             if not intent_parser.endswith('.intent'):
                 raise ValueError
-            return self.register_intent_file(intent_parser, handler, voc_blacklist)
-        return self._register_adapt_intent(intent_parser, handler)
+            return self.register_intent_file(intent_parser, handler, voc_blacklist,
+                                             requires_context=requires_context,
+                                             excludes_context=excludes_context)
+        return self._register_adapt_intent(intent_parser, handler,
+                                           requires_context=requires_context,
+                                           excludes_context=excludes_context)
 
     def register_intent_file(self, intent_file: str, handler: callable,
-                             voc_blacklist: Optional[List[str]] = None):
+                             voc_blacklist: Optional[List[str]] = None,
+                             requires_context: Optional[List[ContextGate]] = None,
+                             excludes_context: Optional[List[ContextGate]] = None):
         """Register an Intent file with the intent service.
 
         For example:
@@ -1349,6 +1374,11 @@ class OVOSSkill:
                          that should activate the intent.  Must end with
                          '.intent'
             handler:     function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration - each
+                              entry a bare key string or a
+                              {"key":..., "scope":...} mapping
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              entry shape as requires_context
         """
         # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
         # The intent NAME is the author's label for the intent, not the name of
@@ -1395,7 +1425,9 @@ class OVOSSkill:
                 name, samples, lang,
                 blacklisted_words=disallowed_strings,
                 slot_blacklist=slot_blacklist,
-                vocabs=resources.vocabularies())
+                vocabs=resources.vocabularies(),
+                requires_context=requires_context,
+                excludes_context=excludes_context)
         if handler:
             # keyed canonically (bare, no "<skill_id>:" prefix, no ".intent"
             # suffix) so enable_intent()/disable_intent() can look the
@@ -1747,13 +1779,24 @@ class OVOSSkill:
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
-                               handler: callable):
+                               handler: callable,
+                               requires_context: Optional[List[ContextGate]] = None,
+                               excludes_context: Optional[List[ContextGate]] = None):
         """
         Register an adapt intent.
 
         Args:
             intent_parser: Intent object to parse utterance for the handler.
             handler (func): function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration. Adapt
+                              does not itself gate on it (it has no
+                              OVOS-CONTEXT-1-aware matcher), but the
+                              declaration still rides the registration
+                              payload per CONTEXT-1 §6: "an engine that
+                              does not implement OVOS-CONTEXT-1 ignores
+                              them and matches as if absent."
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              carry-through as requires_context
         """
         if hasattr(intent_parser, "build"):
             try:
@@ -1778,7 +1821,9 @@ class OVOSSkill:
         # internal path: bypass the deprecated register_adapt_intent shim's warning
         self.intent_service._adapt.munge_intent_parser(intent_parser, name,
                                                         self.intent_service.skill_id)
-        self.intent_service.register_intent(name, intent_parser)
+        self.intent_service.register_intent(name, intent_parser,
+                                            requires_context=requires_context,
+                                            excludes_context=excludes_context)
         if handler:
             self._intent_handlers[name] = handler
             self.add_event(intent_parser.name, handler,
