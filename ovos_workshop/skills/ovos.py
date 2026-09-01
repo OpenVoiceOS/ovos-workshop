@@ -990,8 +990,15 @@ class OVOSSkill:
     def __handle_common_query_ping(self, message):
         if self._cq_handler:
             # announce skill to common query pipeline
+            # ARCHITECTURE common-query.md §6.2: pong carries `utterance` and
+            # `can_answer` alongside the pre-spec `skill_id`/`is_classic_cq`
+            # keys; the consumer (ovos-common-query-pipeline-plugin) only
+            # reads the latter today, so both are kept for one stable cycle.
             self.bus.emit(message.reply("ovos.common_query.pong",
-                                        {"skill_id": self.skill_id, "is_classic_cq": False},
+                                        {"utterance": message.data.get("utterance", ""),
+                                         "skill_id": self.skill_id,
+                                         "can_answer": True,
+                                         "is_classic_cq": False},
                                         {"skill_id": self.skill_id}))
 
     def __handle_query_action(self, message: Message):
