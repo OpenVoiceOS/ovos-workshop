@@ -128,6 +128,64 @@ class TestFallbackSkillV2(TestCase):
 
         self.fallback_skill._fallback_handlers = []
 
+    def test_handle_fallback_request_emits_handled_once_per_sweep(self):
+        """PIPELINE-1 §9.5 legacy shim (core < 2.3.0): the fallback sweep may
+        span several registered fallback skills, each with its own
+        `ovos.skills.fallback.<skill_id>.request` handler. A declined attempt
+        is not the end of the sweep - only the skill that actually handles
+        the utterance (or, absent one, the orchestrator) should emit the
+        `ovos.utterance.handled` end-marker."""
+        bus = FakeBus()
+        events = []
+        bus.on("ovos.utterance.handled", lambda m: events.append(m))
+
+        declining = _ConcreteFallback(bus, "declining.fallback")
+        handling = _ConcreteFallback(bus, "handling.fallback")
+
+        declining._fallback_handlers = [(1, lambda message: False)]
+        handling._fallback_handlers = [(2, lambda message: True)]
+
+        with patch("ovos_workshop.skills.fallback._core_owns_utterance_handled",
+                  return_value=False):
+            # legacy fallback service tries skills in priority order
+            declining._handle_fallback_request(Message("test"))
+            time.sleep(0.2)
+            self.assertEqual(len(events), 0,
+                             "a declined attempt must not emit the end-marker")
+
+            handling._handle_fallback_request(Message("test"))
+            time.sleep(0.2)
+            self.assertEqual(len(events), 1,
+                             "the handling attempt must emit exactly once")
+
+        declining._fallback_handlers = []
+        handling._fallback_handlers = []
+
+    def test_handle_fallback_request_all_decline_emits_none(self):
+        """When every fallback skill in the sweep declines, the legacy shim
+        must not emit `ovos.utterance.handled` itself - mirroring core >=
+        2.3.0, where the per-attempt path never owns the no-match terminal
+        (that is `IntentService.send_complete_intent_failure`'s job, once,
+        at the end of the whole utterance-handling loop)."""
+        bus = FakeBus()
+        events = []
+        bus.on("ovos.utterance.handled", lambda m: events.append(m))
+
+        first = _ConcreteFallback(bus, "first.declining.fallback")
+        second = _ConcreteFallback(bus, "second.declining.fallback")
+        first._fallback_handlers = [(1, lambda message: False)]
+        second._fallback_handlers = [(2, lambda message: False)]
+
+        with patch("ovos_workshop.skills.fallback._core_owns_utterance_handled",
+                  return_value=False):
+            first._handle_fallback_request(Message("test"))
+            second._handle_fallback_request(Message("test"))
+            time.sleep(0.2)
+            self.assertEqual(len(events), 0)
+
+        first._fallback_handlers = []
+        second._fallback_handlers = []
+
     def test_register_fallback(self):
         priority = 75
 

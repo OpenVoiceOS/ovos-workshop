@@ -158,8 +158,13 @@ class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
-        if not _core_owns_utterance_handled():
+        if status and not _core_owns_utterance_handled():
             # PIPELINE-1 §9.5: skip if core (>=2.3.0a1) already owns this emit.
+            # A declined attempt is not the end of the fallback sweep - other
+            # (lower priority) fallback skills may still be tried by the
+            # legacy fallback service, mirroring ovos-core's own
+            # `_dispatch_match` -> `on_terminal` emit, which only fires once a
+            # match is actually dispatched (ovos_core/intent_services/service.py).
             self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
 
     def register_fallback(self, handler: Callable, priority: int) -> None:

@@ -9,6 +9,22 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.6.0a4 — legacy fallback shim emits ovos.utterance.handled once per sweep
+
+Only matters on deployments still running `ovos-core < 2.3.0`, where
+`FallbackSkill` owns the PIPELINE-1 §9.5 end-marker itself. Previously each
+`ovos.skills.fallback.<skill_id>.request` handled by a skill emitted
+`ovos.utterance.handled` unconditionally, including a decline — with several
+fallback skills registered at the same priority range, a declined attempt by
+an earlier skill in the chain emitted the end-marker before a later skill in
+the same sweep actually handled the utterance, so a single utterance could
+produce multiple `ovos.utterance.handled` events. The shim now only emits
+when the skill's own attempt actually succeeds, mirroring `ovos-core`'s own
+`IntentService._dispatch_match` -> `on_terminal` emit, which likewise only
+fires once a match is dispatched. An all-decline sweep no longer emits the
+end-marker from the shim at all; on `ovos-core < 2.3.0` that terminal case is
+not covered by ovos-workshop.
+
 ## 9.5.5a3 — intent registration carries OVOS-CONTEXT-1 gating
 
 `@intent_handler` accepts `requires_context`/`excludes_context` kwargs —
