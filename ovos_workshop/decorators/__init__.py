@@ -71,10 +71,12 @@ def intent_handler(intent_parser: object, voc_blacklist: Optional[List[str]] = N
     @param requires_context: OVOS-CONTEXT-1 §6 positive gating declaration -
         each entry is a bare key string (short form, scope defaults to
         "private") or a {"key": ..., "scope": "private"|"shared"} mapping
-        (long form). File intents only - adapt has its own context
-        mechanism and does not consume this declaration.
+        (long form). Applies to any intent type and reaches every
+        registration payload. Engines implementing OVOS-CONTEXT-1 enforce
+        the gate, while engines that do not ignore it.
     @param excludes_context: OVOS-CONTEXT-1 §6.1 negative gating declaration,
-        same entry shape as requires_context. File intents only.
+        same entry shape as requires_context. Applies to any intent type
+        and reaches every registration payload.
     """
 
     def real_decorator(func):
