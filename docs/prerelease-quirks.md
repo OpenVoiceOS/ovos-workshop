@@ -9,6 +9,22 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.6.2a1 — common-query pong carries the ratified fields
+
+The `ovos.common_query.pong` a common-query skill emits now includes the
+ARCHITECTURE `common-query.md` §6.2 fields — `utterance` (echoed from the
+ping) and `can_answer` — alongside the pre-spec `skill_id`/`is_classic_cq`
+keys, which are kept for one stable cycle and removed at the next major.
+`ovos-common-query-pipeline-plugin`'s `OVOSCommonQAPipeline.handle_skill_pong`
+still only reads `skill_id`/`is_classic_cq` at registration time, so the
+new keys are additive and change nothing for that consumer today.
+`can_answer` is always `True` here: the pong the workshop fires is a
+registration-time announcement ("this skill has a common-query handler"),
+not a per-utterance verdict — the classic protocol's real accept/decline
+happens later, per phrase, via `question:query`/`question:query.response`.
+`latency_ms` is omitted; no synchronous timing estimate is available at
+this point in the flow.
+
 ## 9.6.0a4 — skill teardown (`shutdown` + `default_shutdown`) is re-entrant
 
 `BaseSkill` now guards its whole teardown pair with a lock and a
