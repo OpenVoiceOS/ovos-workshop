@@ -1129,6 +1129,115 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertTrue(message.data["skill_id"].startswith(test_skill_id))
         self.assertEqual(message.context["skill_id"], test_skill_id)
 
+    def test_default_shutdown_is_reentrant(self):
+        """
+        SkillManager.unload_skill() and __del__ (triggered by GC on another
+        thread) can both call default_shutdown() for the same instance. The
+        second concurrent call must be a no-op: settings must only be stored
+        once and no exception (eg. the ValueError from an unguarded
+        EventSchedulerInterface.scheduled_repeats mutation) may escape.
+        """
+        import time as _time
+
+        test_skill_id = "test_reentrant_shutdown.skill"
+        test_skill = OVOSSkill(bus=self.bus, skill_id=test_skill_id)
+        test_skill.settings["changed"] = True
+        test_skill.stop = Mock()
+        test_skill.shutdown = Mock()
+        test_skill.settings_change_callback = Mock()
+
+        store_calls = []
+
+        def _slow_store():
+            # widen the race window so two threads reliably interleave
+            _time.sleep(0.05)
+            store_calls.append(1)
+
+        test_skill.settings.store = Mock(side_effect=_slow_store)
+        test_skill._settings_watchdog = Mock()
+        test_skill.gui.shutdown = Mock()
+        test_skill.event_scheduler = Mock()
+        test_skill.events = Mock()
+
+        errors = []
+
+        def _run():
+            try:
+                test_skill.default_shutdown()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [Thread(target=_run) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(store_calls), 1)
+        test_skill.settings.store.assert_called_once()
+
+    def test_del_does_not_rerun_shutdown_after_explicit_unload(self):
+        """
+        SkillManager.unload_skill() calls skill.shutdown() +
+        default_shutdown() explicitly, then GC eventually drops the last
+        reference and __del__ runs the same pair again on (possibly) another
+        thread. __del__ must notice the explicit unload already happened and
+        skip calling the skill-authored shutdown() a second time -- that is
+        the dangerous half of the teardown (arbitrary skill cleanup: sockets,
+        threads, unsubscribes), unlike default_shutdown() which is already
+        internally idempotent.
+        """
+        test_skill_id = "test_del_shutdown_once.skill"
+        test_skill = OVOSSkill(bus=self.bus, skill_id=test_skill_id)
+        test_skill.stop = Mock()
+        test_skill.shutdown = Mock()
+        test_skill.settings_change_callback = Mock()
+        test_skill.settings.store = Mock()
+        test_skill._settings_watchdog = Mock()
+        test_skill.gui.shutdown = Mock()
+        test_skill.event_scheduler = Mock()
+        test_skill.events = Mock()
+
+        # simulate SkillManager.unload_skill()
+        test_skill.shutdown()
+        test_skill.default_shutdown()
+
+        # simulate GC dropping the last reference
+        test_skill.__del__()
+
+        test_skill.shutdown.assert_called_once()
+
+    def test_del_alone_still_fully_tears_down_skill(self):
+        """
+        The common case: no explicit SkillManager.unload_skill() call, GC
+        simply drops the last reference to the skill and __del__ runs alone.
+        __del__ must not treat itself as a duplicate teardown -- it only
+        checks the shared flag (never sets it), so on this path the flag is
+        still unset and the full shutdown() + default_shutdown() pair runs
+        exactly once.
+        """
+        test_skill_id = "test_del_alone.skill"
+        test_skill = OVOSSkill(bus=self.bus, skill_id=test_skill_id)
+        test_skill.settings["changed"] = True
+        test_skill.stop = Mock()
+        test_skill.shutdown = Mock()
+        test_skill.settings_change_callback = Mock()
+        test_skill.settings.store = Mock()
+        test_skill._settings_watchdog = Mock()
+        test_skill.gui.shutdown = Mock()
+        test_skill.event_scheduler = Mock()
+        test_skill.events = Mock()
+
+        # simulate GC dropping the last reference with no prior explicit
+        # unload
+        test_skill.__del__()
+
+        test_skill.shutdown.assert_called_once()
+        test_skill.settings.store.assert_called_once()
+        test_skill.gui.shutdown.assert_called_once()
+        test_skill.event_scheduler.shutdown.assert_called_once()
+
     def test_schedule_event(self):
         # TODO
         pass

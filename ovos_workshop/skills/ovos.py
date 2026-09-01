@@ -139,6 +139,8 @@ class OVOSSkill:
         self._initial_settings = settings or dict()
         self._settings_watchdog = None
         self._settings_lock = RLock()
+        self._shutdown_lock = RLock()
+        self._shutdown_done = False
 
         # Override to register a callback method that will be called every time
         # the skill's settings are updated. The referenced method should
@@ -1231,7 +1233,18 @@ class OVOSSkill:
         NOTE: this method does NOT call `skill.shutdown()`. The skill-specific
         `shutdown()` hook is invoked separately by the caller (eg.
         `SkillManager.unload_skill()` or `__del__`), before/around this method.
+
+        This method is re-entrant: `SkillManager.unload_skill()` may call it
+        explicitly on the main thread while `__del__` calls it again from
+        whichever thread drops the last reference to the skill instance and
+        triggers garbage collection. The second call is a no-op.
         """
+        with self._shutdown_lock:
+            if self._shutdown_done:
+                self.log.debug(f"default_shutdown already ran for "
+                               f"{self.skill_id}, skipping")
+                return
+            self._shutdown_done = True
         if hasattr(self, 'status'):
             self.status.set_stopping()
         try:
@@ -1272,6 +1285,19 @@ class OVOSSkill:
                     {'skill_id': self.skill_id}))
 
     def __del__(self):
+        # The racing second teardown call is always this __del__, triggered
+        # by GC dropping the last reference (possibly on another thread)
+        # after SkillManager.unload_skill() already ran shutdown() +
+        # default_shutdown() explicitly. Only check the flag here (never set
+        # it) and bail out before calling the skill-authored shutdown() if
+        # default_shutdown() already ran it as part of an explicit unload.
+        # On the common pure-GC path (no prior explicit unload) the flag is
+        # still unset, so __del__ runs shutdown() + default_shutdown() as
+        # normal, and default_shutdown() itself sets the flag.
+        if hasattr(self, '_shutdown_lock'):
+            with self._shutdown_lock:
+                if self._shutdown_done:
+                    return
         try:
             self.shutdown()
         except Exception as e:

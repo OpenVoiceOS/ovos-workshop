@@ -9,6 +9,21 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.6.0a4 — skill teardown (`shutdown` + `default_shutdown`) is re-entrant
+
+`BaseSkill` now guards its whole teardown pair with a lock and a
+`_shutdown_done` flag, set only by `default_shutdown()`. `__del__` only
+checks the flag, never sets it, before calling the skill-authored
+`shutdown()`. This covers both races without breaking the common case:
+if `SkillManager.unload_skill()` already ran `skill.shutdown()` then
+`default_shutdown()` explicitly, a later GC-triggered `__del__()` sees the
+flag set and returns immediately instead of re-running the skill's own
+cleanup (closing sockets, unsubscribing callbacks, stopping threads) and
+`settings.store()`/`gui.shutdown()`/`event_scheduler.shutdown()` a second
+time; if GC alone drops the last reference with no prior explicit unload,
+the flag is still unset, so `__del__` runs the full teardown pair exactly
+once and `default_shutdown()` sets the flag on its way through.
+
 ## 9.5.5a3 — intent registration carries OVOS-CONTEXT-1 gating
 
 `@intent_handler` accepts `requires_context`/`excludes_context` kwargs —
