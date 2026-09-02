@@ -304,30 +304,6 @@ class _AdaptIntentApi:
             return
         self.bus.emit(msg.forward('remove_context', data))
 
-    def set_adapt_context(self, context: str, word: str, origin: str):
-        _legacy_warn("set_adapt_context is deprecated")
-        # `context` here IS the unmunged key; pass it as original_key so
-        # the CONTEXT-1 gate is reachable for legacy callers.
-        self.set_context(context, word, origin, original_key=context)
-
-    def remove_adapt_context(self, context: str):
-        _legacy_warn("remove_adapt_context is deprecated")
-        # symmetric with set_adapt_context
-        self.remove_context(context, original_key=context)
-
-    # ------------------------------------------------------------------
-    #  deprecated lifecycle helpers
-    # ------------------------------------------------------------------
-
-    def detach_intent(self, intent_name: str):
-        _legacy_warn("detach_intent is deprecated, use remove_intent")
-        name = intent_name.split(':')[1]
-        self._iface.remove_intent(name)
-
-    def get_intent_names(self):
-        _legacy_warn("get_intent_names is deprecated, use intent_names property")
-        return self._iface.intent_names
-
 
 class _PadatiousIntentApi:
     """Padatious engine protocol — delete when Padatious support is dropped."""
@@ -843,25 +819,6 @@ class IntentServiceInterface:
         _legacy_warn("IntentServiceInterface.remove_context is deprecated; "
                      "adapt-engine context is engine-specific")
         return self._remove_context(context, original_key=original_key)
-
-    def set_adapt_context(self, context: str, word: str, origin: str):
-        _legacy_warn("IntentServiceInterface.set_adapt_context is "
-                     "deprecated; adapt-engine context is engine-specific")
-        return self._adapt.set_adapt_context(context, word, origin)
-
-    def remove_adapt_context(self, context: str):
-        _legacy_warn("IntentServiceInterface.remove_adapt_context is "
-                     "deprecated; adapt-engine context is engine-specific")
-        return self._adapt.remove_adapt_context(context)
-
-    def detach_intent(self, intent_name: str):
-        _legacy_warn("IntentServiceInterface.detach_intent is deprecated; "
-                     "migrate to spec-compliant deregistration")
-        return self._adapt.detach_intent(intent_name)
-
-    def get_intent_names(self):
-        _legacy_warn("IntentServiceInterface.get_intent_names is deprecated")
-        return self._adapt.get_intent_names()
 
     def register_padatious_intent(self, intent_name: str, filename: str,
                                   lang: str,
