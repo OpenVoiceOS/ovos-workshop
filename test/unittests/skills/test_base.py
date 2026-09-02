@@ -290,9 +290,35 @@ class TestOVOSSkill(unittest.TestCase):
         # TODO
         pass
 
-    def test_register_decorated(self):
-        # TODO
-        pass
+    def test_register_decorated_intent_files_forwards_context_gates(self):
+        """OVOS-CONTEXT-1 §6: an intent_files-decorated handler's gate
+        declarations must reach register_intent_file the same way the
+        `intents` branch already forwards them to register_intent, or the
+        gate is silently dropped on the intent_files registration path."""
+        def handler(self, message):
+            pass
+
+        handler.intent_files = ["time.intent"]
+        handler.requires_context = ["confirming_time"]
+        handler.excludes_context = [{"key": "active_room", "scope": "shared"}]
+
+        skill_cls = type("_IntentFileContextGateSkill", (OVOSSkill,),
+                         {"handle_time_intent": handler})
+        skill = skill_cls(bus=self.bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.intent_service = Mock()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        skill.config_core["lang"] = "en-US"
+        skill.config_core["secondary_langs"] = []
+
+        skill.intent_service.register_template.reset_mock()
+        skill._register_decorated()
+
+        skill.intent_service.register_template.assert_called_once_with(
+            f"{skill.skill_id}:time", ["what time is it"], "en-US",
+            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            requires_context=["confirming_time"],
+            excludes_context=[{"key": "active_room", "scope": "shared"}])
 
     def test_find_resource(self):
         # TODO
