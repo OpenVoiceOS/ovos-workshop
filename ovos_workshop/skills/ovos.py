@@ -955,8 +955,12 @@ class OVOSSkill:
                                          excludes_context=excludes_context)
 
             if hasattr(method, 'intent_files'):
+                requires_context = method.requires_context if hasattr(method, 'requires_context') else []
+                excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
                 for intent_file in getattr(method, 'intent_files'):
-                    self.register_intent_file(intent_file, method)
+                    self.register_intent_file(intent_file, method,
+                                              requires_context=requires_context,
+                                              excludes_context=excludes_context)
 
             if hasattr(method, 'intent_layers'):
                 for layer_name, intent_files in \

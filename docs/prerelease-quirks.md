@@ -9,6 +9,15 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.6.2a4 — `intent_files` decorator registrations now carry context gates
+
+A decorated handler's `intent_files` entries reach `register_intent_file`
+with its `requires_context`/`excludes_context` declarations attached; the
+`intents` branch of `_register_decorated` already forwarded them, but the
+`intent_files` branch silently dropped them, so a decorated skill gating an
+`.intent`-file handler had its OVOS-CONTEXT-1 §6/§6.1 declaration lost
+before it ever reached the wire.
+
 ## 9.6.2a1 — common-query pong carries the ratified fields
 
 The `ovos.common_query.pong` a common-query skill emits now includes the
