@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.2a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a3) (2026-09-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a2...9.6.2a3)
+
+**Merged pull requests:**
+
+- docs: cross-link the technical manual [\#505](https://github.com/OpenVoiceOS/ovos-workshop/pull/505) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.2a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a2) (2026-09-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a1...9.6.2a2)
@@ -467,15 +475,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
-
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
