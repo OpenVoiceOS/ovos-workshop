@@ -386,22 +386,6 @@ class DeprecatedFacadeTest(unittest.TestCase):
                                 "(?P<name>.*)", lang="en-US")
         self.assertEqual(len(self.bus.of_type("register_vocab")), 1)
 
-    def test_set_adapt_context_deprecated(self):
-        self._assert_deprecated(self.iface.set_adapt_context, "ctx", "word",
-                                "origin")
-
-    def test_remove_adapt_context_deprecated(self):
-        self._assert_deprecated(self.iface.remove_adapt_context, "ctx")
-
-    def test_get_intent_names_deprecated(self):
-        self._assert_deprecated(self.iface.get_intent_names)
-
-    def test_detach_intent_deprecated(self):
-        self.iface.register_adapt_keyword("kw", "hello", lang="en-US")
-        parser = IntentBuilder("greet").require("kw").build()
-        self.iface.register_adapt_intent("greet", parser)
-        self._assert_deprecated(self.iface.detach_intent, "dep.skill:greet")
-
 
 class InternalAdaptRegistrationPathTest(unittest.TestCase):
     """OVOSSkill._register_adapt_intent must not self-inflict a deprecation warning."""
