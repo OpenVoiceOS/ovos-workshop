@@ -24,13 +24,27 @@ from inspect import signature
 from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
 from pathlib import Path
-from threading import Event, RLock
+from queue import Queue
+from threading import Event, RLock, Thread
 from typing import Dict, Callable, List, Optional, Set, Union
 
 from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
 from ovos_gui_api_client import EnclosureAPI
 from ovos_bus_client.apis.events import EventSchedulerInterface
+try:
+    from ovos_bus_client.apis.scheduler import SchedulerClient
+except ImportError:  # pre-SCHEDULER-1 ovos-bus-client
+    SchedulerClient = None
+
+#: put on a skill's scheduler queue to stop its sending thread
+_STOP_SENDING = object()
+
+#: how long an unloading skill waits for its queued scheduler requests to go
+#: out: twice a request's own timeout, so one request already in flight and
+#: one behind it can both finish, and a silent scheduler cannot hang a
+#: shutdown
+SCHEDULER_SHUTDOWN_TIMEOUT = 6.0
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
 from ovos_bus_client.handler import HandlerLifecycle
@@ -41,6 +55,7 @@ from ovos_spec_tools import (SpecMessage, canonical_intent_topic,
                              standardize_lang)
 from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
+from ovos_config.locale import get_config_tz
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_number_parser import pronounce_number
@@ -51,6 +66,7 @@ from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngin
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
+from ovos_utils.time import now_local
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
@@ -177,6 +193,13 @@ class OVOSSkill:
         # for a file that was already auto-registered) replaces rather than
         # stacks a duplicate bus registration.
         self._registered_entity_files: Dict[str, Set[str]] = {}
+
+        # names of the repeating schedules this skill made through
+        # SCHEDULER-1, so that cancelling them all does not depend on
+        # bookkeeping that belongs to the older interface
+        self._repeating_schedules: Set[str] = set()
+        self._scheduler_requests = Queue()
+        self._scheduler_sender = None
 
         # Delegator classes
         self.event_scheduler = EventSchedulerInterface()
@@ -1286,6 +1309,9 @@ class OVOSSkill:
         try:
             # removing events
             if self.event_scheduler:
+                if not self.repeating_schedules_outlive_the_skill:
+                    self.cancel_all_repeating_events()
+                self._stop_sending_to_scheduler()
                 self.event_scheduler.shutdown()
                 self.events.clear()
         except Exception as e:
@@ -1296,15 +1322,9 @@ class OVOSSkill:
                     {'skill_id': self.skill_id}))
 
     def __del__(self):
-        # The racing second teardown call is always this __del__, triggered
-        # by GC dropping the last reference (possibly on another thread)
-        # after SkillManager.unload_skill() already ran shutdown() +
-        # default_shutdown() explicitly. Only check the flag here (never set
-        # it) and bail out before calling the skill-authored shutdown() if
-        # default_shutdown() already ran it as part of an explicit unload.
-        # On the common pure-GC path (no prior explicit unload) the flag is
-        # still unset, so __del__ runs shutdown() + default_shutdown() as
-        # normal, and default_shutdown() itself sets the flag.
+        # GC can drop the last reference after an explicit unload already
+        # tore the skill down. Read the flag, never set it: on the ordinary
+        # path nothing unloaded the skill and the full teardown runs here.
         if hasattr(self, '_shutdown_lock'):
             with self._shutdown_lock:
                 if self._shutdown_done:
@@ -2554,6 +2574,154 @@ class OVOSSkill:
         """
         return self.events.remove(name)
 
+    # scheduled events
+    # These methods are the skill-facing scheduling API. They speak SCHEDULER-1
+    # through the scheduler client when one is installed and a scheduler is
+    # answering on the bus, and the pre-specification mycroft.scheduler.*
+    # protocol when either is missing. Whichever they speak, they behave the
+    # way a skill has always been able to rely on: they do not block the
+    # caller and a scheduler that refuses or never answers reaches the log,
+    # not the skill.
+
+    #: A repeating schedule made through SCHEDULER-1 belongs to the skill id
+    #: rather than to the process, so it is left running when the skill stops
+    #: and is still there when the skill comes back. Set this false to cancel
+    #: repeats on shutdown, as the pre-specification protocol did.
+    repeating_schedules_outlive_the_skill = True
+
+    @property
+    def _use_spec_scheduler(self) -> bool:
+        """
+        Whether to schedule through SCHEDULER-1 rather than the old topics.
+
+        Having the client is not the same as having something to talk to: the
+        scheduler runs in another process on its own release cycle, so its
+        presence is asked for once and remembered. Every call that goes out
+        on the sending thread asks it there; get_scheduled_event_status waits
+        for its answer anyway and asks on the caller's thread.
+        """
+        if SchedulerClient is None or \
+                not isinstance(self.event_scheduler, SchedulerClient):
+            return False
+        return self.event_scheduler.is_available()
+
+    def _send_to_scheduler(self, description: str, request: Callable):
+        """
+        Send one scheduler request without holding the caller up.
+
+        Scheduling has never blocked a skill or raised at it when the
+        scheduler was unhappy, and that is the contract whichever protocol
+        carries it. Requests go out on one thread in the order they were
+        made, and only failures reach the log.
+        """
+        self._scheduler_requests.put((description, request))
+        if self._scheduler_sender is None:
+            self._scheduler_sender = Thread(
+                target=self._send_scheduler_requests, daemon=True,
+                name=f"{self.skill_id}-scheduler")
+            self._scheduler_sender.start()
+
+    def _send_scheduler_requests(self):
+        while True:
+            description, request = self._scheduler_requests.get()
+            try:
+                if request is _STOP_SENDING:
+                    return
+                request()
+            except Exception as failure:
+                LOG.error(f"{description} failed: {failure}")
+            finally:
+                self._scheduler_requests.task_done()
+
+    def _scheduler_requests_sent(self):
+        """
+        Wait for the requests already made to reach the scheduler.
+        """
+        self._scheduler_requests.join()
+
+    def _stop_sending_to_scheduler(self,
+                                   timeout: float = SCHEDULER_SHUTDOWN_TIMEOUT):
+        """
+        Let the queued requests go out, then stop the sending thread.
+
+        An unloaded skill's process may exit immediately afterwards, so a
+        cancellation still sitting on the queue would simply never happen and
+        the shutdown policy would come down to luck. The wait is bounded: a
+        scheduler that has stopped answering must not be able to hang a
+        shutdown, and the thread is a daemon that dies with the process
+        either way.
+        """
+        if self._scheduler_sender is None:
+            return
+        self._scheduler_requests.put(("stopping", _STOP_SENDING))
+        self._scheduler_sender.join(timeout)
+        if self._scheduler_sender.is_alive():
+            LOG.warning(f"scheduler requests from {self.skill_id} were still "
+                        f"going out after {timeout}s and were abandoned")
+        self._scheduler_sender = None
+
+    def _spec_schedule_name(self, name: Optional[str],
+                            handler: Callable) -> str:
+        """
+        The name a SCHEDULER-1 schedule is known by, and cancelled by.
+
+        Without one the handler's name is used. The older interface derives
+        its own default differently and keeps it: a schedule an older release
+        persisted is stored under that name, and reaching it later is the
+        only way to cancel it. Renaming the handler orphans the schedule on
+        either path.
+        """
+        return name or handler.__name__
+
+    def _schedule_context(self, context: Optional[dict]) -> dict:
+        """
+        The message context a scheduled handler is called with: the one the
+        caller gave, else the context of the message being handled.
+
+        The scheduler stores it and fires the occurrence with it, so it is
+        settled here, once, while the message that would supply it is still
+        in flight.
+        """
+        message = dig_for_message()
+        context = dict(context or (message.context if message else {}))
+        context["skill_id"] = self.skill_id
+        return context
+
+    def _schedule_instant(self, when: datetime.datetime) -> datetime.datetime:
+        """
+        A scheduling time as a point on the time line. A naive datetime is
+        read in the configured timezone, never the platform's.
+        """
+        if when.tzinfo is None:
+            return when.replace(tzinfo=get_config_tz())
+        return when
+
+    def _one_shot_timing(self, when: Union[int, float, datetime.datetime]) -> dict:
+        """
+        A single-shot `when` as the one timing a schedule record carries.
+        """
+        if isinstance(when, (int, float)):
+            if when < 0:
+                raise ValueError(f"Expected datetime or positive int/float. "
+                                 f"got: {when}")
+            return {"in_seconds": when}
+        if not isinstance(when, datetime.datetime):
+            raise TypeError(f"Expected datetime, int, or float but got: {when}")
+        return {"at": self._schedule_instant(when)}
+
+    def _first_occurrence(self, when: Optional[Union[int, float, datetime.datetime]],
+                          frequency: Union[int, float]) -> datetime.datetime:
+        """
+        When a repeating schedule fires for the first time: the time asked
+        for, or one period from now.
+        """
+        if when is None:
+            return now_local() + datetime.timedelta(seconds=frequency)
+        timing = self._one_shot_timing(when)
+        if "in_seconds" in timing:
+            return now_local() + datetime.timedelta(seconds=timing["in_seconds"])
+        return timing["at"]
+
     def schedule_event(self, handler: callable,
                        when: Union[int, float, datetime.datetime],
                        data: Optional[dict] = None, name: Optional[str] = None,
@@ -2567,19 +2735,30 @@ class OVOSSkill:
                                    number of seconds in the future when the
                                    handler should be called
             data (dict, optional): data to send when the handler is called
-            name (str, optional):  reference name
-                                   NOTE: This will not warn or replace a
-                                   previously scheduled event of the same
-                                   name.
+            name (str, optional):  reference name. Against a SCHEDULER-1
+                                   scheduler the same name is one schedule
+                                   and using it again replaces the pending
+                                   event; against the older scheduler it adds
+                                   a second one. Without a name each derives
+                                   one from the handler in its own way, so
+                                   name a schedule you mean to cancel.
             context (dict, optional): context (dict, optional): message
                                       context to send when the handler
                                       is called
         """
-        message = dig_for_message()
-        context = context or message.context if message else {}
-        context["skill_id"] = self.skill_id
-        return self.event_scheduler.schedule_event(handler, when, data, name,
-                                                   context=context)
+        context = self._schedule_context(context)
+        timing = self._one_shot_timing(when)
+
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.schedule_event(handler, when, data, name,
+                                                    context=context)
+                return
+            self.event_scheduler.schedule(
+                self._spec_schedule_name(name, handler), handler,
+                data=data, context=context, **timing)
+
+        self._send_to_scheduler(f"scheduling {name or handler.__name__}", send)
 
     def schedule_repeating_event(self, handler: Callable,
                                  when: Optional[Union[int, float, datetime.datetime]],
@@ -2598,27 +2777,54 @@ class OVOSSkill:
                                         from now
             frequency (float/int):      time in seconds between calls
             data (dict, optional):      data to send when the handler is called
-            name (str, optional):       reference name, must be unique
+            name (str, optional):       reference name. Scheduling a name
+                                        that is already repeating is ignored;
+                                        cancel it first to replace it. Name a
+                                        schedule you mean to cancel: without
+                                        one, each protocol derives a name
+                                        from the handler in its own way.
             context (dict, optional):   context (dict, optional): message
                                         context to send when the handler
                                         is called
         """
-        message = dig_for_message()
-        context = context or message.context if message else {}
-        context["skill_id"] = self.skill_id
-        self.event_scheduler.schedule_repeating_event(handler, when, frequency,
-                                                      data, name,
-                                                      context=context)
+        context = self._schedule_context(context)
+        first = self._first_occurrence(when, frequency)
+
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.schedule_repeating_event(
+                    handler, when, frequency, data, name, context=context)
+                return
+            repeating = self._spec_schedule_name(name, handler)
+            if repeating in self._repeating_schedules:
+                LOG.debug('The event is already scheduled, cancel previous '
+                          'event if this scheduling should replace the last.')
+                return
+            self._repeating_schedules.add(repeating)
+            self.event_scheduler.schedule(
+                repeating, handler, data=data, context=context,
+                every={"seconds": frequency, "start": first.isoformat()})
+
+        self._send_to_scheduler(f"scheduling {name or handler.__name__}", send)
 
     def update_scheduled_event(self, name: str, data: Optional[dict] = None):
         """
         Change data of event.
 
+        The time the event fires is not touched, whether it was scheduled for
+        an instant, after a delay, or on a recurrence.
+
         Args:
             name (str): reference name of event (from original scheduling)
             data (dict): event data
         """
-        self.event_scheduler.update_scheduled_event(name, data)
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.update_scheduled_event(name, data)
+                return
+            self.event_scheduler.reschedule(name, data=data or {})
+
+        self._send_to_scheduler(f"updating {name}", send)
 
     def cancel_scheduled_event(self, name: str):
         """
@@ -2628,27 +2834,63 @@ class OVOSSkill:
         Args:
             name (str): reference name of event (from original scheduling)
         """
-        self.event_scheduler.cancel_scheduled_event(name)
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.cancel_scheduled_event(name)
+                return
+            self._repeating_schedules.discard(name)
+            self.event_scheduler.cancel(name)
 
-    def get_scheduled_event_status(self, name: str) -> int:
+        self._send_to_scheduler(f"cancelling {name}", send)
+
+    def get_scheduled_event_status(self, name: str) -> Optional[int]:
         """Get scheduled event data and return the amount of time left
+
+        This is the one scheduling call that waits, because it has an answer
+        to bring back. "Nothing by that name is scheduled" is one of the
+        answers: it comes back as None, so that
+        `if self.get_scheduled_event_status(name):` reads as "is this still
+        coming". Only a scheduler that says nothing at all raises.
 
         Args:
             name (str): reference name of event (from original scheduling)
 
         Returns:
-            int: the time left in seconds
+            int: seconds until the event fires, or None when nothing by that
+                 name is scheduled any more. An event due this second
+                 answers 0, which is falsy for the same reason it is small.
 
         Raises:
-            Exception: Raised if event is not found
+            Exception: Raised if the scheduler does not answer
         """
-        return self.event_scheduler.get_scheduled_event_status(name)
+        self._scheduler_requests_sent()
+        if not self._use_spec_scheduler:
+            # the older scheduler answers "not scheduled" with an empty
+            # payload, which its own client reads off the end of
+            try:
+                return self.event_scheduler.get_scheduled_event_status(name)
+            except (KeyError, IndexError):
+                return None
+        schedule = self.event_scheduler.get(name)
+        upcoming = schedule["state"]["next"] if schedule else None
+        if upcoming is None:
+            return None
+        due = datetime.datetime.fromisoformat(upcoming)
+        return int(due.timestamp()) - int(time.time())
 
     def cancel_all_repeating_events(self):
         """
         Cancel any repeating events started by the skill.
         """
-        self.event_scheduler.cancel_all_repeating_events()
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.cancel_all_repeating_events()
+                return
+            for name in sorted(self._repeating_schedules):
+                self._repeating_schedules.discard(name)
+                self.event_scheduler.cancel(name)
+
+        self._send_to_scheduler("cancelling every repeating event", send)
 
     # intent/context skill dev facing utils
     def disable_intent(self, intent_name: str) -> bool:
