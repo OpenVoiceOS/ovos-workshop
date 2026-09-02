@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.3a1) (2026-09-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a3...9.6.3a1)
+
+**Merged pull requests:**
+
+- fix: intent\_files registrations forward context gates [\#580](https://github.com/OpenVoiceOS/ovos-workshop/pull/580) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.2a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a3) (2026-09-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a2...9.6.2a3)
