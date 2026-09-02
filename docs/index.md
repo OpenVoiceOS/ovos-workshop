@@ -4,7 +4,11 @@
 
 **Package:** `ovos-workshop`
 **Source:** `ovos_workshop/`
-**Entry point group:** `opm.skills`
+**Entry point group:** `opm.skill`
+
+For the full skill-authoring guide (class hierarchy, quick-start, bus basics, settings, resources, decorators, plugin discovery), see the
+[OVOS Technical Manual: Workshop Overview](https://tigregotico.github.io/ovos-technical-manual/workshop-overview/).
+This page and the files below cover repo-local detail (exact source line citations, files without a manual counterpart) that the manual omits by design.
 
 ---
 
@@ -31,29 +35,8 @@ def create_skill():
 `pyproject.toml` entry point:
 
 ```toml
-[project.entry-points."opm.skills"]
+[project.entry-points."opm.skill"]
 hello-world-skill = "hello_world_skill:HelloWorldSkill"
-```
-
----
-
-## Full Class Hierarchy
-
-```
-OVOSSkill                             ovos_workshop/skills/ovos.py
-├── ConversationalSkill               ovos_workshop/skills/converse.py
-│   └── ActiveSkill                   ovos_workshop/skills/active.py
-├── FallbackSkill                     ovos_workshop/skills/fallback.py
-├── CommonQuerySkill                  ovos_workshop/skills/common_query_skill.py
-├── OVOSCommonPlaybackSkill           ovos_workshop/skills/common_play.py
-│   └── OVOSGameSkill                 ovos_workshop/skills/game_skill.py
-│       └── ConversationalGameSkill   ovos_workshop/skills/game_skill.py
-├── UniversalSkill                    ovos_workshop/skills/auto_translatable.py
-│   ├── UniversalFallback             ovos_workshop/skills/auto_translatable.py
-│   └── UniversalCommonQuerySkill     ovos_workshop/skills/auto_translatable.py
-│       (deprecated)
-└── OVOSAbstractApplication           ovos_workshop/app.py
-    (not loaded by ovos-core)
 ```
 
 ---
@@ -62,7 +45,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 
 | Document | Key Classes | Description |
 |---|---|---|
-| [skill-classes.md](skill-classes.md) | `OVOSSkill`, `FallbackSkill`, `CommonQuerySkill`, `OVOSCommonPlaybackSkill`, `ActiveSkill`, `OVOSGameSkill`, `ConversationalGameSkill`, `UniversalSkill`, `UniversalFallback` | Full class reference and when to use each |
+| [skill-classes.md](skill-classes.md) | `OVOSSkill`, `FallbackSkill`, `OVOSCommonPlaybackSkill`, `ActiveSkill`, `OVOSGameSkill`, `ConversationalGameSkill`, `UniversalSkill`, `UniversalFallback`, `IdleDisplaySkill` | Class reference and when to use each |
 | [ovos-skill.md](ovos-skill.md) | `OVOSSkill` | Base class: intent registration, settings, resources, GUI, lifecycle |
 | [decorators.md](decorators.md) | `intent_handler`, `killable_intent`, `ocp_search`, `layer_intent`, `skill_api_method` | All intent and utility decorators with source citations |
 | [app.md](app.md) | `OVOSAbstractApplication` | Skill-like app that runs without the intent service |
@@ -79,80 +62,15 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 
 ---
 
-## Key Concepts
-
-### MessageBus
-
-OVOS uses a WebSocket publish/subscribe bus. Every message has three fields:
-
-```python
-Message(
-    msg_type="my.event.type",   # str: event name
-    data={"key": "value"},      # dict: payload
-    context={"session_id": ...} # dict: metadata
-)
-```
-
-Skills interact with the bus through `self.bus`. Use `self.add_event()` to subscribe and `self.bus.emit()` to publish.
-
-### Settings
-
-Skills store persistent configuration in `~/.config/ovos/skills/<skill_id>/settings.json`. Access via `self.settings`:
-
-```python
-volume = self.settings.get("volume", 50)
-self.settings["volume"] = 80
-```
-
-Settings changes are automatically persisted. `OVOSAbstractApplication` uses `apps/` instead of `skills/`.
-See [settings.md](settings.md) for change callbacks and file watching.
-
-### Resources
-
-Resource files live in the skill's `locale/` directory, organized by language tag:
-
-```
-locale/
-  en-us/
-    dialog/   # .dialog files: spoken responses
-    vocab/    # .voc files: keyword lists for Adapt
-    intent/   # .intent files: Padatious training phrases
-    regex/    # .rx files: named-entity patterns
-```
-
-Access via `self.speak_dialog("my.response")`, `self.get_response()`, etc.
-See [resource-files.md](resource-files.md).
-
-### Intents
-
-Two intent engines are supported:
-
-- **Adapt**: keyword-based, uses `IntentBuilder` and `.voc` files.
-- **Padatious**: ML phrase-matching, uses `.intent` files.
-
-Register intents with `@intent_handler` or `self.register_intent()`.
-See [decorators.md](decorators.md) and [ovos-skill.md](ovos-skill.md).
-
-### Decorators
-
-Decorators are the primary way to register skill behaviour:
-
-```python
-from ovos_workshop.decorators import intent_handler, fallback_handler, skill_api_method
-from ovos_workshop.decorators.killable import killable_intent
-from ovos_workshop.decorators.layers import enables_layer, layer_intent
-from ovos_workshop.decorators.ocp import ocp_search, ocp_featured_media
-```
-
-See [decorators.md](decorators.md) for a complete reference with source citations.
-
-### Plugin Discovery
+## Plugin Discovery
 
 Skills are discovered via Python entry points in `pyproject.toml`:
 
 ```toml
-[project.entry-points."opm.skills"]
+[project.entry-points."opm.skill"]
 my-skill-id = "my_skill.skill:MySkill"
 ```
 
-`ovos-plugin-manager` scans the `opm.skills` group at runtime and loads matching classes.
+`ovos-plugin-manager` scans the `opm.skill` group at runtime and loads matching classes. It still accepts the older `ovos.plugin.skill` group name as a deprecated alias.
+
+See the manual's [Workshop Overview](https://tigregotico.github.io/ovos-technical-manual/workshop-overview/) for the MessageBus, settings, resources, intents, and decorators concepts shared by every skill.

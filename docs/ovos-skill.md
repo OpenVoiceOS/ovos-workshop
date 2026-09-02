@@ -2,6 +2,9 @@
 
 **Module:** `ovos_workshop.skills.ovos.OVOSSkill`
 
+See the manual's [OVOSSkill](https://tigregotico.github.io/ovos-technical-manual/ovos-skill/) page for the
+skill-author-focused guide. This page adds exact source citations and is kept for repo-local reference.
+
 `OVOSSkill` is the base class that all OVOS skills inherit from. It handles startup, intent registration, resource loading, settings, event management, GUI, and shutdown.
 
 ## Constructor
