@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.2a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a2) (2026-09-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a1...9.6.2a2)
+
+**Merged pull requests:**
+
+- ci: channel-compat — run the unit tests on the OVOS distro release channels [\#504](https://github.com/OpenVoiceOS/ovos-workshop/pull/504) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a1) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.1a1...9.6.2a1)
