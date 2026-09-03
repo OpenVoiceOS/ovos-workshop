@@ -56,6 +56,7 @@ hello-world-skill = "hello_world_skill:HelloWorldSkill"
 | [filesystem.md](filesystem.md) | `FileSystemAccess` | Sandboxed, XDG-compliant file storage for skills |
 | [resource-files.md](resource-files.md) | `SkillResources` | Locale, dialog, vocab, regex, and other resource files |
 | [settings.md](settings.md) | `SkillSettingsManager` | Skill settings: persistence, change callbacks, file watching |
+| [scheduled-events.md](scheduled-events.md) | `OVOSSkill.schedule_event`, `OVOSSkill.schedule_repeating_event` | Calling a handler later, once or repeatedly |
 | [intent-layers.md](intent-layers.md) | `IntentLayers` | Enable/disable intent sets at runtime |
 | [skill-launcher.md](skill-launcher.md) | `SkillLoader`, `PluginSkillLoader` | Loading skills as plugins or in standalone mode |
 | [permissions.md](permissions.md) | `ConverseMode`, `FallbackMode` | Converse and fallback permission modes |
