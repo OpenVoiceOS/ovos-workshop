@@ -3004,12 +3004,13 @@ class OVOSSkill:
         """
         Add context to intent service.
 
-        CONTEXT-1 §5.0: writes directly into the current handler's session
-        (`Session.intent_context`, private scope owned by this skill) via
-        `IntentServiceInterface`/`_AdaptIntentApi`, so the mutation rides
-        forward with the very message being handled. The legacy
-        `add_context` bus message is also emitted as a compat dual-write for
-        pre-§5.0 cores.
+        CONTEXT-1 §5.0: writes directly into the session bound to the
+        current dispatch message (`Session.intent_context`, private scope
+        owned by this skill) via `IntentServiceInterface`/`_AdaptIntentApi`,
+        so the mutation rides forward on whatever Message this handler
+        emits next (§5.3). The legacy `add_context` bus message - a
+        different mechanism, the adapt-engine `session.context` field - is
+        also emitted, for pre-spec orchestrators only.
 
         Args:
             context:    Keyword
@@ -3030,7 +3031,7 @@ class OVOSSkill:
         """
         Remove a keyword from the context manager.
 
-        CONTEXT-1 §5.0: same session-delegation + legacy compat dual-write
+        CONTEXT-1 §5.0: same session-delegation + legacy compat emit
         as `set_context` above.
         """
         if not isinstance(context, str):

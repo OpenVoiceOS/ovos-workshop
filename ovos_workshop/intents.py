@@ -55,37 +55,26 @@ def _legacy_warn(msg, version=_DEPRECATION_VERSION):
     warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
-def _registry_session_for_context_write(msg: Message) -> "Session":
-    """Resolve the session object to mutate for an in-lifecycle context write.
+_add_context_legacy_warned = False
 
-    ``SessionManager.get(message)`` always folds the incoming message's
-    session onto the live registry entry (``SessionManager._store``); for
-    NAMED sessions that fold is full-replace (``Session.update_from``).
-    Calling it a second time within the SAME handler - e.g. once in
-    `remove_context` and again in `set_context` - re-folds the message's
-    now-STALE snapshot back onto the registry singleton, resurrecting
-    whatever the first call had just removed ("tombstone resurrection"):
-    the message was stamped before the handler ran, so its embedded
-    session snapshot never sees the first write, and folding it a second
-    time overwrites that write with the pre-handler state. Any handler
-    that touches `intent_context` more than once therefore wedges - the
-    layer it just removed comes back, and layer advancement can never
-    progress.
 
-    Fix (mirrors ``ovos_core.intent_services.service.IntentService.
-    _registry_session_for_context_write``): resolve the session_id off the
-    message and, if the registry already holds a live entry for it, mutate
-    that object directly - no fold. Fall back to ``SessionManager.get(msg)``
-    (today's fold-on-first-touch behavior) only when no registry entry
-    exists yet (first contact for this session - the fold is then correct
-    and happens exactly once). The rule of thumb: one fold per session
-    lifecycle, at entry; in-lifecycle writes must never re-fold.
+def _legacy_warn_add_context_once():
+    """`_legacy_warn` for the `add_context`/`remove_context` compat emit.
+
+    Every other legacy path in this module is one explicit call a skill
+    author opts into; this one fires on every `set_context`/`remove_context`
+    call, including from inside hot intent-handling loops, so a per-call
+    `warnings.warn` would be noise rather than signal. Warn once per
+    process instead - still `_legacy_warn`, so the removal-version message
+    and log_deprecation bookkeeping are identical to every other shim here.
     """
-    session_data = msg.context.get("session") if msg and msg.context else None
-    session_id = session_data.get("session_id") if isinstance(session_data, dict) else None
-    if session_id and session_id in SessionManager.sessions:
-        return SessionManager.sessions[session_id]
-    return SessionManager.get(msg)
+    global _add_context_legacy_warned
+    if _add_context_legacy_warned:
+        return
+    _add_context_legacy_warned = True
+    _legacy_warn("add_context/remove_context (the adapt-engine "
+                 "session.context field) is a pre-OVOS-CONTEXT-1 compat "
+                 "path kept for orchestrators that still consume it")
 
 
 class _AdaptIntentApi:
@@ -236,23 +225,21 @@ class _AdaptIntentApi:
         name as passed by the caller.
 
         CONTEXT-1 §5.0: the session is the only context write path. When
-        `original_key` is available this writes directly into the live
-        session's `intent_context` map (private scope, owner=self.skill_id)
-        via `Session.set_intent_context` - the session write rides forward
-        on this very message (bus-client re-stamps every forward/reply with
-        the live local session), so the context is visible to the
-        immediately-following core dispatch; emitting alone raced the reply
-        snapshot and could lose the write. The legacy `add_context` bus
-        message is ALSO emitted unconditionally below, unchanged, as a
-        COMPAT dual-write for cores that predate §5.0 and still apply that
-        topic; modern cores must treat re-applying the same key/value as a
-        no-op.
+        `original_key` is available this writes directly into the
+        `session` bound to `msg` (`SessionManager.get(msg)`, ovos-spec-tools
+        >=1.10.3a1) via `Session.set_intent_context` - `forward`/`reply`
+        derived from `msg` stamp from that same bound object (CONTEXT-1
+        §5.3), so the write rides out on whatever this call emits next. The
+        legacy `add_context` message below is a *different* mechanism (the
+        adapt-engine `session.context` field, not `intent_context`) kept for
+        cores that still consume it, and warns once per process via
+        `_legacy_warn_add_context_once` (see that helper).
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
         if original_key is not None:
-            session = _registry_session_for_context_write(msg)
+            session = SessionManager.get(msg)
             # OVOS-CONTEXT-1: mirror ovos-core's decay policy
             # (`context.timeout`, minutes, default 2) so a skill-side write
             # folds into the registry with the SAME `expires_at` a core-side
@@ -266,6 +253,10 @@ class _AdaptIntentApi:
                                         scope="private",
                                         owner_id=self.skill_id,
                                         expires_at=expires_at)
+        # `add_context` mutates the adapt-engine `session.context` field, a
+        # different mechanism than `intent_context` above, kept for
+        # orchestrators that predate OVOS-CONTEXT-1 and still consume it.
+        _legacy_warn_add_context_once()
         data = {'context': context, 'word': word, 'origin': origin}
         if original_key is not None:
             data['key'] = original_key
@@ -281,17 +272,18 @@ class _AdaptIntentApi:
     def remove_context(self, context: str, original_key: Optional[str] = None):
         """Remove adapt-engine context (adapt-only; see set_context).
 
-        CONTEXT-1 §5.0: same session-delegation + legacy compat dual-write
+        CONTEXT-1 §5.0: same session-delegation + legacy compat emit
         as `set_context` above.
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
         if original_key is not None:
-            session = _registry_session_for_context_write(msg)
+            session = SessionManager.get(msg)
             session.remove_intent_context(original_key,
                                            scope="private",
                                            owner_id=self.skill_id)
+        _legacy_warn_add_context_once()
         data = {'context': context}
         if original_key is not None:
             data['key'] = original_key
