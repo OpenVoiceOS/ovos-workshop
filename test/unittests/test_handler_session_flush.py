@@ -50,7 +50,6 @@ class TestHandlerSessionFlush(unittest.TestCase):
         # isolate from any singleton state a previous test left behind
         sess = Session(session_id="flush-test-session")
         SessionManager.sessions[sess.session_id] = sess
-        SessionManager.default_session = SessionManager.default_session
         self.session_id = sess.session_id
 
     def _dispatch(self, handler):
