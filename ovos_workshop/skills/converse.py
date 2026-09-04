@@ -6,14 +6,14 @@ from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
 from ovos_bus_client.session import SessionManager
 from ovos_config.config import Configuration
-from ovos_spec_tools import SpecMessage, closest_lang, standardize_lang
+from ovos_spec_tools import closest_lang, standardize_lang
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.resource_files import ResourceFile
-from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
+from ovos_workshop.skills.ovos import OVOSSkill
 
 
 class ConversationalSkill(OVOSSkill):
@@ -234,12 +234,8 @@ class ConversationalSkill(OVOSSkill):
                 response_message.data["error"] =  repr(e)
 
         self.bus.emit(response_message)
-        if not _core_owns_utterance_handled():
-            # PIPELINE-1 §9.5: skip if core (>=2.3.0a1) already owns this emit.
-            if is_latest:
-                self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
-            else:
-                self.bus.emit(message.reply(SpecMessage.UTTERANCE_HANDLED))
+        # PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+        # converse match itself; the skill must not also emit it.
 
     def _handle_converse_intents(self, message):
         """ called before converse method
