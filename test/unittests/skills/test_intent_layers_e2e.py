@@ -143,7 +143,7 @@ class IntentLayersE2ETest(unittest.TestCase):
 
     def setUp(self):
         self.skill.intent_layers.reset()
-        SessionManager.default_session.context.clear_context()
+        SessionManager.get_default_session().context.clear_context()
         self.skill.reached = []
         time.sleep(0.3)
 
@@ -174,7 +174,7 @@ class IntentLayersE2ETest(unittest.TestCase):
 
     def _tokens(self):
         return [c["key"] for c in
-                SessionManager.default_session.context.get_context()]
+                SessionManager.get_default_session().context.get_context()]
 
     # tests ------------------------------------------------------------------
     def test_layers_advance_in_sequence_and_gate_intents(self):
