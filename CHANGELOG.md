@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.5a1) (2026-09-04)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.4a1...9.6.5a1)
+
+**Merged pull requests:**
+
+- fix: write intent context through the dispatch message's session \(OVOS-CONTEXT-1 §5.3\) [\#584](https://github.com/OpenVoiceOS/ovos-workshop/pull/584) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.4a1) (2026-09-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.3a1...9.6.4a1)
