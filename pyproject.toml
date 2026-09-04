@@ -12,10 +12,10 @@ authors = [{name = "jarbasAi", email = "jarbasai@mailfence.com"}]
 requires-python = ">=3.9"
 dependencies = [
     "ovos-utils>= 0.13.3a2,<1.0.0",  # FakeBus folds before handlers (ovos-utils#396) — keeps in-place add_context mutations alive so intent-layer gating works
-    "ovos_bus_client>=2.8.0a1,<3.0.0",  # legacy .intent dispatch-topic bridge (#271) — old containers keep hearing intents after the canonical-topic switch; also HandlerLifecycle done-signal util (#246) + singleton-registry SessionManager
+    "ovos_bus_client>=2.11.2a1,<3.0.0",  # legacy .intent dispatch-topic bridge (#271) — old containers keep hearing intents after the canonical-topic switch; also HandlerLifecycle done-signal util (#246) + singleton-registry SessionManager binds a message's session to that message (OVOS-CONTEXT-1 §5.3)
     "ovos-gui-api-client>=0.1.0,<1.0.0",  # EnclosureAPI moved here; bus-client copy is a deprecation shim removed in bus-client 3.0.0
     "ovos-config>=0.0.12,<4.0.0",
-    "ovos-spec-tools>=1.7.0a1",  # canonical_intent_topic (OVOS-MSG-1 §2.1.1 dispatch-topic shape) + canonical SessionManager registry + OVOS-INTENT-4 intent-definition primitives + inclusive language-distance bound (macrolanguage members resolve to their macrolanguage tag)
+    "ovos-spec-tools>=1.10.3a1",  # canonical_intent_topic (OVOS-MSG-1 §2.1.1 dispatch-topic shape) + canonical SessionManager registry + OVOS-INTENT-4 intent-definition primitives + inclusive language-distance bound (macrolanguage members resolve to their macrolanguage tag) + SessionManager.get binds the returned session to its message so a handler's mutation rides forward/reply (OVOS-CONTEXT-1 §5.3)
     "ovos-yes-no-plugin>=0.3.0,<1.0.0",
     "ovos-option-matcher-fuzzy-plugin>=0.0.1,<1.0.0",
     "ovos-number-parser>=0.0.1,<1.0.0",
