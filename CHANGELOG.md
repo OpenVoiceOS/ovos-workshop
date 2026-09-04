@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a1) (2026-09-04)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.6a1...9.6.7a1)
+
+**Merged pull requests:**
+
+- fix: SessionManager.default\_session attribute references [\#588](https://github.com/OpenVoiceOS/ovos-workshop/pull/588) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.6a1) (2026-09-04)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.5a1...9.6.6a1)
@@ -376,10 +384,6 @@
 ## [9.2.6a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.6a2) (2026-07-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.6a1...9.2.6a2)
-
-**Merged pull requests:**
-
-- chore: import EnclosureAPI from ovos-gui-api-client [\#480](https://github.com/OpenVoiceOS/ovos-workshop/pull/480) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.6a1) (2026-07-23)
 
