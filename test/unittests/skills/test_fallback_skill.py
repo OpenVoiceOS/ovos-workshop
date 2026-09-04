@@ -192,6 +192,23 @@ class TestFallbackSkillV2(TestCase):
         # TODO
         pass
 
+    def test_handle_fallback_request_never_emits_utterance_handled(self):
+        # PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+        # fallback match itself; the skill must not also emit it.
+        from ovos_spec_tools import SpecMessage
+        msg = Message("test", {}, {"utterance_id": "uid-fb"})
+
+        captured = []
+        self.fallback_skill.bus.on(SpecMessage.UTTERANCE_HANDLED.value,
+                                   lambda m: captured.append(m))
+        self.fallback_skill._fallback_handlers = [
+            (100, lambda message: True)]
+        self.fallback_skill._handle_fallback_request(msg)
+        time.sleep(0.2)  # runs in a killable thread
+
+        self.assertEqual(captured, [])
+        self.fallback_skill._fallback_handlers = []
+
 
 class TestFallbackIsAbstract(TestCase):
     """can_answer is declared abstract, but FallbackSkill used the default

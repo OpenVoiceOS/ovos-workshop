@@ -35,6 +35,30 @@ class _ConcreteConversationalSkill(ConversationalSkill):
         return True
 
 
+class TestConverseRequestUtteranceHandled(unittest.TestCase):
+    """PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+    converse match itself; the skill must not also emit it."""
+
+    def setUp(self) -> None:
+        self.bus = FakeBus()
+        self.skill = _ConcreteConversationalSkill(skill_id="converse.utt.test",
+                                                  bus=self.bus)
+
+    def test_handle_converse_request_never_emits_utterance_handled(self) -> None:
+        from ovos_spec_tools import SpecMessage
+        msg = Message(f"{self.skill.skill_id}.converse.request",
+                      {"utterances": ["hi"], "lang": "en-US"},
+                      {"utterance_id": "uid-cv"})
+
+        captured = []
+        self.bus.on(SpecMessage.UTTERANCE_HANDLED.value,
+                    lambda m: captured.append(m))
+        self.skill._handle_converse_request(msg)
+        time.sleep(0.3)  # runs in a killable thread
+
+        self.assertEqual(captured, [])
+
+
 class TestConversationalSkillInit(unittest.TestCase):
     """Tests for ConversationalSkill basic initialization."""
 

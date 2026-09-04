@@ -86,17 +86,6 @@ from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.util import join_word_list, simple_trace
 
 
-def _core_owns_utterance_handled() -> bool:
-    """PIPELINE-1 §9.5: core >= 2.3.0 emits ``ovos.utterance.handled`` on every
-    terminal path, the matched path included — the framework must not double-emit.
-    Older or absent core -> the framework still owns the emit (back-compat)."""
-    try:
-        from ovos_core.version import OVOS_VERSION_TUPLE
-    except ImportError:
-        return False
-    return OVOS_VERSION_TUPLE >= (2, 3, 0)
-
-
 class OVOSSkill:
     """
     Base class for OpenVoiceOS skills providing common behaviour and parameters
@@ -1802,9 +1791,7 @@ class OVOSSkill:
             # the shared HandlerLifecycle util (same topic/payload/context).
             HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
                              data=skill_data, handler_info=handler_info).complete()
-        if is_intent and not _core_owns_utterance_handled():
-            # PIPELINE-1 §9.5: skip if core (>=2.3.0a1) already owns this emit.
-            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED, skill_data))
+        # PIPELINE-1 §9.5: the orchestrator owns the end marker; skills never emit it.
 
         try:
             if self.settings != self._initial_settings:

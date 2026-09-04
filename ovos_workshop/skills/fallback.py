@@ -17,13 +17,12 @@ from typing import Callable, Optional, List
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
-from ovos_spec_tools import SpecMessage
 from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 
 from ovos_workshop.decorators.killable import AbortEvent, killable_event
-from ovos_workshop.skills.ovos import _core_owns_utterance_handled, OVOSSkill
+from ovos_workshop.skills.ovos import OVOSSkill
 
 
 class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
@@ -158,9 +157,8 @@ class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
-        if not _core_owns_utterance_handled():
-            # PIPELINE-1 §9.5: skip if core (>=2.3.0a1) already owns this emit.
-            self.bus.emit(message.forward(SpecMessage.UTTERANCE_HANDLED))
+        # PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+        # fallback match itself; the skill must not also emit it.
 
     def register_fallback(self, handler: Callable, priority: int) -> None:
         """
