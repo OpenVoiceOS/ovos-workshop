@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.6a1) (2026-09-04)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.5a1...9.6.6a1)
+
+**Merged pull requests:**
+
+- fix: the orchestrator alone emits ovos.utterance.handled \(PIPELINE-1 §9.5\) [\#586](https://github.com/OpenVoiceOS/ovos-workshop/pull/586) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.5a1) (2026-09-04)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.4a1...9.6.5a1)
@@ -377,73 +385,37 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.5a1...9.2.6a1)
 
-**Merged pull requests:**
-
-- fix: play\_audio docstring wait timeout says 15s, actual default is 30s [\#477](https://github.com/OpenVoiceOS/ovos-workshop/pull/477) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.2.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.5a1) (2026-07-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.4a1...9.2.5a1)
-
-**Merged pull requests:**
-
-- fix: default\_shutdown\(\) docstring incorrectly claims it calls skill.shutdown\(\) [\#476](https://github.com/OpenVoiceOS/ovos-workshop/pull/476) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.4a1) (2026-07-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.3a1...9.2.4a1)
 
-**Merged pull requests:**
-
-- fix: require ovos-core with OVOS-CONTEXT-1 set\_context mirror [\#459](https://github.com/OpenVoiceOS/ovos-workshop/pull/459) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.2.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.3a1) (2026-07-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.2a1...9.2.3a1)
-
-**Merged pull requests:**
-
-- fix: bound inline-vocab expansion and dedupe intent re-registration [\#470](https://github.com/OpenVoiceOS/ovos-workshop/pull/470) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.2a1) (2026-07-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.1a1...9.2.2a1)
 
-**Merged pull requests:**
-
-- fix: expand inline \<voc\> refs before registering intents to the engine [\#458](https://github.com/OpenVoiceOS/ovos-workshop/pull/458) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.2.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.1a1) (2026-07-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.0a1...9.2.1a1)
-
-**Merged pull requests:**
-
-- fix: skip malformed template lines instead of failing the whole resource [\#466](https://github.com/OpenVoiceOS/ovos-workshop/pull/466) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.0a1) (2026-07-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.1.1a1...9.2.0a1)
 
-**Merged pull requests:**
-
-- feat: emit OVOS-INTENT-2 §4.3 entity/slot blacklist on registration [\#454](https://github.com/OpenVoiceOS/ovos-workshop/pull/454) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.1.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.1a1) (2026-07-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.1.0a1...9.1.1a1)
 
-**Merged pull requests:**
-
-- fix: resolve inline \<voc\> references when loading .intent/.blacklist [\#455](https://github.com/OpenVoiceOS/ovos-workshop/pull/455) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.1.0a1) (2026-07-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.0.4a1...9.1.0a1)
-
-**Merged pull requests:**
-
-- feat: support .blacklist locale resource for intents \(OVOS-INTENT-2\) [\#450](https://github.com/OpenVoiceOS/ovos-workshop/pull/450) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.0.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.0.4a1) (2026-07-02)
 
@@ -495,15 +467,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
-
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
