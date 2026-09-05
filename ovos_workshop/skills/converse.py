@@ -129,20 +129,16 @@ class ConversationalSkill(OVOSSkill):
         Answer the OVOS-CONVERSE-1 §4.2 broadcast poll.
 
         The ping names no candidate. This skill decides whether it is one by
-        testing its own skill_id against the session's recency list
-        (`active_handlers`), and answers only when it is named (§9.3 — a skill
-        that answers when not named is non-conformant).
+        testing its own skill_id against the session's converse-eligibility
+        list, and answers only when it is named (§9.3 — a skill that answers
+        when not named is non-conformant).
 
-        The candidacy test mirrors the one the emitter applies when it builds
-        the round: named in `active_handlers`, and not the current
-        `response_mode` holder. A skill holding the response window is excluded
-        from the round by the emitter, so running `can_converse` for it here
-        would wake user code for a contest it was never entered in. Expiry is
-        deliberately not checked, because the emitter's own filter does not
-        check it either — the two sides must agree on the candidate set.
-
-        The claim decision itself is unchanged: the same `can_converse`
-        callback the legacy per-skill ping uses.
+        The candidacy test is `session.converse_handlers` membership
+        (OVOS-CONVERSE-1 §9.3: "on each ping MUST check whether its own
+        `skill_id` appears in `context.session.converse_handlers`"), which is
+        distinct from `session.active_handlers` (§2.1: "It is distinct from
+        `session.active_handlers`"). The claim decision itself is unchanged:
+        the same `can_converse` callback the legacy per-skill ping uses.
         @param message: `ovos.converse.ping` Message
         """
         session = SessionManager.get(message)
@@ -150,10 +146,8 @@ class ConversationalSkill(OVOSSkill):
         # `utterance_states` views — those log a deprecation warning per ping,
         # per skill, per utterance
         if not any(h.get("skill_id") == self.skill_id
-                   for h in session.active_handlers):
+                   for h in session.converse_handlers):
             return  # not a candidate this round
-        if (session.response_mode or {}).get("skill_id") == self.skill_id:
-            return  # holds the response window; the emitter excluded us
 
         self.bus.emit(message.reply(
             "ovos.converse.pong",
@@ -194,24 +188,10 @@ class ConversationalSkill(OVOSSkill):
         with `converse`.
         @param message: `{self.skill_id}.converse.request` Message
         """
-        # NOTE: there was a routing bug before ovos-core 2.0.3 that ovos-workshop depended on
-        is_latest = True
-        try:
-            from ovos_core.version import OVOS_VERSION_TUPLE
-            if OVOS_VERSION_TUPLE < (2, 0, 3):
-                is_latest = False
-        except ImportError:
-            # Assume latest when ovos-core isn't available (eg. standalone skills)
-            pass
-
-        if is_latest:
-            # swap source/destination in context (ensure skill emitted messages have correct routing)
-            message = message.reply(message.msg_type, message.data)
-            response_message = message.forward('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": False})
-        else:
-            response_message = message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": False})
+        # swap source/destination in context (ensure skill emitted messages have correct routing)
+        message = message.reply(message.msg_type, message.data)
+        response_message = message.forward('skill.converse.response',
+                                    {"skill_id": self.skill_id, "result": False})
 
         # check if a conversational intent triggered
         # these are skill specific intents that may trigger instead of converse

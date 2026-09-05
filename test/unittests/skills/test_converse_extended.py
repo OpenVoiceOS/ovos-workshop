@@ -156,6 +156,42 @@ class TestConversationalSkillHandlers(unittest.TestCase):
         self.skill.handle_deactivate(msg)  # Should not raise
 
 
+class TestConverseRequestNoOvosCoreProbe(unittest.TestCase):
+    """ovos-core versions before 2.0.3 are outside the backcompat target
+    (targets latest-alpha x latest-stable for one stable cycle); the
+    `ovos_core.version` probe in `_handle_converse_request` is dead code
+    that only matters for those unsupported cores."""
+
+    def setUp(self) -> None:
+        self.bus = FakeBus()
+        self.skill = _CountingConversationalSkill(skill_id="converse.probe.test",
+                                                   bus=self.bus)
+
+    def test_converse_request_does_not_import_ovos_core(self) -> None:
+        import builtins
+        real_import = builtins.__import__
+
+        def _blocking_import(name, *args, **kwargs):
+            if name == "ovos_core" or name.startswith("ovos_core."):
+                raise AssertionError("ovos_core must not be imported")
+            return real_import(name, *args, **kwargs)
+
+        responses = []
+        self.bus.on("skill.converse.response", responses.append)
+
+        with patch.object(builtins, "__import__", _blocking_import):
+            self.bus.emit(Message(f"{self.skill.skill_id}.converse.request",
+                                  {"utterances": ["hi"], "lang": "en-US"},
+                                  {"skill_id": self.skill.skill_id}))
+            deadline = time.monotonic() + 5
+            while not responses and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+        self.assertTrue(responses, "no skill.converse.response was emitted")
+        self.assertNotIn("error", responses[-1].data)
+        self.assertTrue(responses[-1].data["result"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -190,7 +226,7 @@ class TestConverseBroadcastPoll(unittest.TestCase):
     def _ping(self, *candidates, topic="ovos.converse.ping"):
         sess = Session("s")
         for skill_id in candidates:
-            sess.activate_skill(skill_id)
+            sess.add_converse_handler(skill_id)
         return Message(topic, {"utterances": ["hello"], "lang": "en-US"},
                        {"session": sess.serialize()})
 
@@ -240,33 +276,61 @@ class TestConverseBroadcastPoll(unittest.TestCase):
         # legacy leg keeps its legacy field name
         self.assertTrue(self.pongs[1].data["can_handle"])
 
-    def test_response_mode_holder_is_not_woken(self) -> None:
-        """DEFECT (red before fix). A skill holding the response window is
-        excluded from the round by the emitter, so its can_converse must not
-        run — waking user code for a contest it was never entered in.
+    def test_response_mode_holder_still_pongs(self) -> None:
+        """OVOS-CONVERSE-1 §2.1: the response-mode holder exemption keeps the
+        holder from being evicted or pruned so the §2.2 identity invariant
+        can recognise it; there is no rule that the holder stays silent on a
+        poll. As long as the holder is named in `session.converse_handlers`
+        it MUST answer the broadcast poll like any other candidate.
         """
         sess = Session("s")
-        sess.activate_skill("converse.test")
+        sess.add_converse_handler("converse.test")
         sess.set_response_mode("converse.test", time.time() + 300)
         ping = Message("ovos.converse.ping",
                        {"utterances": ["hello"], "lang": "en-US"},
                        {"session": sess.serialize()})
         self.bus.emit(ping)
 
-        self.assertEqual(self.skill.can_converse_calls, [],
-                         "can_converse ran for a skill core left out of the round")
-        self.assertEqual(self.pongs, [])
+        self.assertEqual(self.skill.can_converse_calls, ["ovos.converse.ping"])
+        self.assertEqual(len(self.pongs), 1)
+        self.assertTrue(self.pongs[0].data["result"])
 
     def test_another_skills_response_mode_does_not_exclude_us(self) -> None:
-        """The exclusion is holder-specific, not a global mute."""
+        """The response-mode holder exemption is holder-specific, not a
+        global mute."""
         sess = Session("s")
-        sess.activate_skill("converse.test")
+        sess.add_converse_handler("converse.test")
         sess.set_response_mode("some.other.skill", time.time() + 300)
         self.bus.emit(Message("ovos.converse.ping",
                               {"utterances": ["hello"], "lang": "en-US"},
                               {"session": sess.serialize()}))
 
         self.assertEqual(len(self.pongs), 1)
+        self.assertTrue(self.pongs[0].data["result"])
+
+    def test_candidacy_is_converse_handlers_not_active_handlers(self) -> None:
+        """OVOS-CONVERSE-1 §9.3: on each ping the skill MUST check its own
+        skill_id against `context.session.converse_handlers`; §2.1 states
+        that list "is distinct from `session.active_handlers`". A skill
+        named only in `active_handlers` (not in `converse_handlers`) MUST
+        NOT pong; a skill named only in `converse_handlers` (not in
+        `active_handlers`) MUST pong.
+        """
+        sess = Session("s")
+        sess.activate_skill("converse.test")  # active_handlers only
+        self.bus.emit(Message("ovos.converse.ping",
+                              {"utterances": ["hello"], "lang": "en-US"},
+                              {"session": sess.serialize()}))
+        self.assertEqual(self.pongs, [],
+                         "skill ponged from active_handlers membership alone")
+
+        sess2 = Session("s2")
+        sess2.add_converse_handler("converse.test")  # converse_handlers only
+        self.bus.emit(Message("ovos.converse.ping",
+                              {"utterances": ["hello"], "lang": "en-US"},
+                              {"session": sess2.serialize()}))
+        self.assertEqual(len(self.pongs), 1,
+                         "skill did not pong from converse_handlers membership")
         self.assertTrue(self.pongs[0].data["result"])
 
     def test_candidacy_test_reads_only_canonical_fields(self) -> None:
