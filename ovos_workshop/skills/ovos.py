@@ -1143,7 +1143,16 @@ class OVOSSkill:
         Register default messagebus event handlers
         """
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
-        self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
+        # STOP-1 §4.3: the targeted `<skill_id>:stop` dispatch is a handler
+        # dispatch like any other and MUST go through the same
+        # mycroft.skill.handler.{start,complete,error} done-signal as every
+        # other dispatched handler, so ovos-core's dispatcher can resolve its
+        # in-flight entry instead of falling back to the PIPELINE-1 §8.3
+        # timeout. `mycroft.stop` above is the broadcast fallback, not a
+        # dispatch topic, and keeps no lifecycle signal.
+        self.add_event(f"{self.skill_id}.stop", self._handle_session_stop,
+                       handler_info='mycroft.skill.handler', is_intent=True,
+                       intent_name='stop', speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
@@ -2638,7 +2647,7 @@ class OVOSSkill:
     def add_event(self, name: str, handler: callable,
                   handler_info: Optional[str] = None, once: bool = False,
                   speak_errors: bool = True, activation: Optional[bool] = None,
-                  is_intent: bool = False):
+                  is_intent: bool = False, intent_name: Optional[str] = None):
         """
         Create event handler for executing intent or other event.
 
@@ -2653,8 +2662,19 @@ class OVOSSkill:
                                            spoken to inform the user whenever
                                            an exception happens inside the handler
             activation  (bool, optional): activate skill if True, deactivate if False, do nothing if None
+            intent_name (string, optional): rides in the framework done-signal
+                                   payload's ``intent_name`` field. ovos-core's
+                                   dispatcher (``_resolve_entry``) reads it to
+                                   disambiguate which in-flight dispatch for
+                                   this ``skill_id`` a done-signal concludes,
+                                   needed whenever more than one dispatch to
+                                   the same skill can be in flight at once
+                                   (eg. a targeted `<skill_id>:stop` racing an
+                                   already-running intent handler).
         """
         skill_data = {'name': get_handler_name(handler)}
+        if intent_name:
+            skill_data['intent_name'] = intent_name
 
         def on_error(error, message):
             if isinstance(error, AbortEvent):

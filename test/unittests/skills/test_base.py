@@ -1122,8 +1122,39 @@ class TestOVOSSkill(unittest.TestCase):
         pass
 
     def test_handle_stop(self):
-        # TODO
-        pass
+        """STOP-1 §4.3: the targeted `<skill_id>:stop` dispatch completes
+        like any other dispatched handler — the orchestrator's dispatcher
+        resolves the in-flight entry from the workshop->core done-signal
+        (`mycroft.skill.handler.start`/`.complete`), so the skill's stop
+        handler MUST fire that trio exactly like an intent handler, in
+        addition to the existing `.stop.response` reply (STOP-1 §4.2/§8).
+        """
+        emitted = []
+        self.bus.on("mycroft.skill.handler.start", lambda m: emitted.append(m))
+        self.bus.on("mycroft.skill.handler.complete", lambda m: emitted.append(m))
+        self.bus.on(f"{self.skill_id}.stop.response", lambda m: emitted.append(m))
+
+        self.skill.stop = Mock(return_value=False)
+        self.bus.emit(Message(f"{self.skill_id}.stop",
+                              context={"session": {"session_id": "test-stop-session"}}))
+
+        types = [m.msg_type for m in emitted]
+        self.assertEqual(types.count("mycroft.skill.handler.start"), 1)
+        self.assertEqual(types.count("mycroft.skill.handler.complete"), 1)
+        self.assertEqual(types.count(f"{self.skill_id}.stop.response"), 1)
+
+        # ovos-core's dispatcher (`_resolve_entry`) keys the done-signal on
+        # exactly these three fields: context["skill_id"], a well-formed
+        # context["session"], and data["intent_name"] — the last one
+        # disambiguates this dispatch from any other in-flight dispatch for
+        # the same skill_id (eg. an already-running intent handler), which
+        # skill_id alone cannot do.
+        complete_msg = [m for m in emitted
+                        if m.msg_type == "mycroft.skill.handler.complete"][0]
+        self.assertEqual(complete_msg.context["skill_id"], self.skill_id)
+        self.assertEqual(complete_msg.context["session"]["session_id"],
+                         "test-stop-session")
+        self.assertEqual(complete_msg.data["intent_name"], "stop")
 
     def test_stop(self):
         self.skill.stop()
