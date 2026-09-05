@@ -83,6 +83,18 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
                     skill.bus.remove(msg, abort)
                     if react_to_stop:
                         skill.bus.remove(skill.skill_id + ".stop", abort)
+                        # STOP-1 §5.3/§9: a skill performing user-visible
+                        # activity MUST also react to the `ovos.stop` global
+                        # broadcast, not only its own targeted `<skill_id>.stop`
+                        # dispatch. Kept alongside the legacy topic above for
+                        # one deprecation cycle. Registered under its own
+                        # closure (not `abort` itself): `ovos.stop` is a
+                        # namespace-migrated topic and FakeBus/MessageBusClient
+                        # key their legacy<->ovos.* dedup guard per HANDLER, so
+                        # reusing `abort` here would fold it into the same
+                        # dedup entry as the non-migrated `msg`/`<skill_id>.stop`
+                        # registrations above and hijack their removal.
+                        skill.bus.remove("ovos.stop", on_global_stop)
                     if t in skill._threads:
                         skill._threads.remove(t)
 
@@ -142,6 +154,9 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
                     raise
                 cb()
 
+            def on_global_stop(m: Message):
+                abort(m)
+
             # save reference to threads so they can be killed later
             if not hasattr(skill, "_threads"):
                 skill._threads = []
@@ -149,6 +164,7 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
             skill.bus.once(msg, abort)
             if react_to_stop:
                 skill.bus.once(skill.skill_id + ".stop", abort)
+                skill.bus.once("ovos.stop", on_global_stop)
             t.start()
             return t
 

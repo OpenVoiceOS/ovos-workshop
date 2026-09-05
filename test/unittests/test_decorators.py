@@ -211,6 +211,37 @@ class TestKillableIntents(unittest.TestCase):
         sleep(2)
         self.assertTrue(self.bus.emitted_msgs == [])
 
+    def test_skill_stop_ovos_stop_broadcast(self):
+        """STOP-1 §5.3/§9: a skill performing user-visible activity MUST
+        subscribe to the `ovos.stop` global broadcast, not only its own
+        targeted `<skill_id>.stop` dispatch, and abort in-flight killable
+        activity on it exactly the same way."""
+        self.bus.emitted_msgs = []
+        self.assertTrue(self.skill.instance.my_special_var == "default")
+        self.bus.emit(Message(f"{self.skill.skill_id}:test"))
+        sleep(2)
+        start_msg = {'type': 'mycroft.skill.handler.start',
+                     'data': {'name': 'TestAbortSkill.handle_test_abort_intent'}}
+        self.assertIn(start_msg, self.bus.emitted_msgs)
+        self._assert_spoken('still here')
+        self.assertTrue(self.skill.instance.my_special_var == "changed")
+
+        # check that intent reacts to the ovos.stop global broadcast
+        self.bus.emitted_msgs = []
+        self.bus.emit(Message("ovos.stop"))
+        sleep(2)
+
+        # check that stop method was called
+        self.assertTrue(self.skill.instance.stop_called)
+
+        # check that TTS stop message was emmited
+        tts_stop = {'type': 'mycroft.audio.speech.stop', 'data': {}}
+        self.assertIn(tts_stop, self.bus.emitted_msgs)
+
+        # check that cleanup callback was called
+        self._assert_spoken('I am dead')
+        self.assertTrue(self.skill.instance.my_special_var == "default")
+
     def test_get_response(self):
         """ send "mycroft.skills.abort_question" and
         confirm only get_response is aborted, speech after is still spoken.
@@ -319,7 +350,11 @@ class TestKillableIntents(unittest.TestCase):
         """
         self.bus.emitted_msgs = []
         msg_type = "mycroft.skills.abort_execution"
+        stop_msg_type = f"{self.skill.skill_id}.stop"
+        global_stop_msg_type = "ovos.stop"
         before = len(self.bus.ee.listeners(msg_type))
+        stop_before = len(self.bus.ee.listeners(stop_msg_type))
+        global_stop_before = len(self.bus.ee.listeners(global_stop_msg_type))
         threads_before = len(self.skill.instance._threads)
 
         self.bus.emit(Message(f"{self.skill.skill_id}:test4"))
@@ -331,6 +366,22 @@ class TestKillableIntents(unittest.TestCase):
         self.assertEqual(before, after,
                          "killable_intent leaked a bus listener after the "
                          "wrapped handler finished on its own")
+
+        stop_after = len(self.bus.ee.listeners(stop_msg_type))
+        self.assertEqual(stop_before, stop_after,
+                         "killable_intent leaked a bus listener on "
+                         f"'{stop_msg_type}' after the wrapped handler "
+                         "finished on its own")
+
+        # STOP-1 §5.3/§9: killable_intent also listens on the global
+        # `ovos.stop` broadcast (react_to_stop=True by default); that
+        # listener must be cleaned up on natural completion too, same as
+        # the legacy `<skill_id>.stop` listener above.
+        global_stop_after = len(self.bus.ee.listeners(global_stop_msg_type))
+        self.assertEqual(global_stop_before, global_stop_after,
+                         "killable_intent leaked a bus listener on "
+                         f"'{global_stop_msg_type}' after the wrapped "
+                         "handler finished on its own")
 
         threads_after = len(self.skill.instance._threads)
         self.assertEqual(threads_before, threads_after,
