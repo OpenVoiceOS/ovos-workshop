@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.8a1) (2026-09-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a3...9.6.8a1)
+
+**Merged pull requests:**
+
+- fix: complete the targeted stop dispatch's handler-lifecycle trio [\#594](https://github.com/OpenVoiceOS/ovos-workshop/pull/594) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.7a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a3) (2026-09-05)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a2...9.6.7a3)
@@ -376,10 +384,6 @@
 ## [9.2.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.8a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.7a1...9.2.8a1)
-
-**Merged pull requests:**
-
-- fix: gate ovos.utterance.handled in converse/fallback when core owns the emit \(PIPELINE-1 §9.5\) [\#486](https://github.com/OpenVoiceOS/ovos-workshop/pull/486) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.7a1) (2026-07-24)
 
