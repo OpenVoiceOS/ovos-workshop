@@ -16,9 +16,11 @@ import datetime
 import os
 import re
 import shutil
+import string
 import sys
 import time
 import traceback
+import unicodedata
 from copy import copy
 from inspect import signature
 from itertools import chain
@@ -26,7 +28,7 @@ from os.path import join, abspath, dirname, basename, isfile
 from pathlib import Path
 from queue import Queue
 from threading import Event, RLock, Thread
-from typing import Dict, Callable, List, Optional, Set, Union
+from typing import Dict, Callable, List, Optional, Set, Tuple, Union
 
 from json_database import JsonStorage
 from ovos_bus_client import MessageBusClient
@@ -2488,32 +2490,79 @@ class OVOSSkill:
 
         return match
 
-    def voc_match_all(self, utt: str, voc_filename: str,
-                       lang: Optional[str] = None,
-                       exact: bool = False, ensure_ascii=True) -> List[str]:
+    @staticmethod
+    def _normalize_with_offsets(utt: str) -> Tuple[str, List[int]]:
         """
-        Determine which vocabulary entries the given utterance matches.
+        Apply the same accent/punctuation stripping as
+        `remove_accents_and_punct`, but keep a per-character map back to the
+        original string so match spans found in the normalized text can be
+        translated back to offsets into `utt`.
 
-        This is the multi-match counterpart to `voc_match`, returning every
-        matched vocab entry instead of a single boolean, enabling in-handler
-        recovery of the value that was matched (e.g. for `<voc>`-inline
-        intents where the matched keyword needs to be passed downstream).
-        Matches are deduplicated and ordered longest-first (ties keep their
-        relative order), so callers that only want the single best match
-        can use `voc_match_all(...)[0]`.
+        Returns:
+            Tuple[str, List[int]]: the normalized string, and a list where
+                                   `idx_map[j]` is the index in the original
+                                   `utt` that produced normalized char `j`.
+        """
+        rm_chars = set(c for c in string.punctuation if c not in ("{", "}"))
+        out_chars = []
+        idx_map = []
+        for i, ch in enumerate(utt):
+            for c in unicodedata.normalize('NFD', ch):
+                if unicodedata.category(c) == 'Mn' or c in rm_chars:
+                    continue
+                out_chars.append(c)
+                idx_map.append(i)
+        return ''.join(out_chars), idx_map
+
+    def voc_match_span(self, utt: str, voc_filename: str,
+                        lang: Optional[str] = None,
+                        exact: bool = False,
+                        ensure_ascii: bool = True) -> List[Tuple[str, int, int]]:
+        """
+        Determine which vocabulary entries the given utterance matches, and
+        where in the utterance each match occurs.
+
+        This is the span-reporting counterpart to `voc_match`, returning
+        every matched vocab entry together with its `(start, end)` offset
+        into `utt`, enabling in-handler recovery of the exact text that
+        matched (e.g. for `<voc>`-inline intents where the matched keyword
+        needs to be sliced back out of the original utterance).
+
+        Results are returned in UTTERANCE ORDER, i.e. sorted by `start`
+        offset (not longest-first: a later, shorter match is intentionally
+        listed after an earlier, longer one). Each occurrence of a matched
+        entry gets its own span, so a repeated keyword produces multiple
+        entries. `matched_entry` is always the canonical spelling as written
+        in the `.voc` file, never a normalized form.
+
+        Overlap rule: spans never overlap. When two candidate matches
+        overlap (e.g. vocab entries "new york" and "york" both matching the
+        utterance "new york"), the LONGEST candidate wins that stretch of
+        text and the shorter, overlapping candidate is dropped entirely.
+
+        Offset reference: `ensure_ascii=True` matches leniently by stripping
+        accents/punctuation before comparing, but the returned `start`/`end`
+        always index into the ORIGINAL `utt` as passed in, so
+        `utt[start:end]` reproduces the actually-matched substring
+        regardless of `ensure_ascii`.
 
         Args:
             utt (str): Utterance to be tested
             voc_filename (str): Name of vocabulary file (e.g. 'cancel' for
                                 'locale/en-us/cancel.voc')
             lang (str): Language code, defaults to self.lang
-            exact (bool): Whether the vocab must exactly match the utterance
+            exact (bool): Whether the vocab must exactly match the utterance.
+                         When True, a match yields a single span covering
+                         the whole utterance: `(0, len(utt))`.
             ensure_ascii (bool): Whether to ignore accents and punctuation
 
         Returns:
-            List[str]: all distinct vocab entries matched in the utterance,
-                       ordered longest-first. Empty list if there is no
-                       match.
+            List[Tuple[str, int, int]]: `(matched_entry, start, end)` for
+                       every match, in utterance order. Empty list if there
+                       is no match. Callers that only want the entries can
+                       use `[m[0] for m in voc_match_span(...)]`; callers
+                       that only want the first/best-positioned match can
+                       use `voc_match_span(...)[0]`.
         """
         lang = lang or self.lang
         try:
@@ -2523,24 +2572,49 @@ class OVOSSkill:
                 f"{self.skill_id} failed to find voc file '{voc_filename}' for lang '{lang}' in `{self.res_dir}'")
             return []
 
-        matches = []
-        if utt and _vocs:
-            orig_vocs = _vocs
-            if ensure_ascii:
-                utt = remove_accents_and_punct(utt)
-                _vocs = [remove_accents_and_punct(v) for v in _vocs]
+        matches: List[Tuple[str, int, int]] = []
+        if not utt or not _vocs:
+            return matches
 
-            if exact:
-                # Check for exact match
-                matches = [orig for orig, i in zip(orig_vocs, _vocs)
-                           if i.strip().lower() == utt.lower()]
-            else:
-                # Check for matches against complete words
-                matches = [orig for orig, i in zip(orig_vocs, _vocs)
-                           if re.match(r'.*\b' + re.escape(i) + r'\b.*', utt, re.IGNORECASE)]
+        orig_vocs = _vocs
+        if ensure_ascii:
+            search_utt, idx_map = self._normalize_with_offsets(utt)
+            _vocs = [remove_accents_and_punct(v) for v in _vocs]
+        else:
+            search_utt, idx_map = utt, list(range(len(utt)))
 
-        matches = sorted(matches, key=len, reverse=True)
-        return list(dict.fromkeys(matches))
+        if exact:
+            for orig, i in zip(orig_vocs, _vocs):
+                if i.strip().lower() == search_utt.lower():
+                    matches.append((orig, 0, len(utt)))
+                    break
+        else:
+            # collect every candidate span first, so overlaps across
+            # different vocab entries can be resolved (longest wins)
+            candidates = []  # (start_n, end_n, orig)
+            for orig, i in zip(orig_vocs, _vocs):
+                pattern = r'\b' + re.escape(i) + r'\b'
+                for m in re.finditer(pattern, search_utt, re.IGNORECASE):
+                    start_n, end_n = m.span()
+                    if start_n == end_n:
+                        continue
+                    candidates.append((start_n, end_n, orig))
+
+            # longest first (ties: leftmost first), greedily accept
+            # non-overlapping candidates so the longest entry always wins
+            # a contested stretch of text
+            occupied: List[Tuple[int, int]] = []
+            for start_n, end_n, orig in sorted(
+                    candidates, key=lambda c: (-(c[1] - c[0]), c[0])):
+                if any(start_n < e and s < end_n for s, e in occupied):
+                    continue
+                occupied.append((start_n, end_n))
+                start = idx_map[start_n] if idx_map else start_n
+                end = idx_map[end_n - 1] + 1 if idx_map else end_n
+                matches.append((orig, start, end))
+
+        matches.sort(key=lambda t: t[1])
+        return matches
 
     def remove_voc(self, utt: str, voc_filename: str,
                    lang: Optional[str] = None) -> str:

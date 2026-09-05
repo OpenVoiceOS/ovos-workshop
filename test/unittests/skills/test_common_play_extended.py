@@ -109,9 +109,16 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
 
     def test_ocp_voc_match_no_matchers(self) -> None:
         """ocp_voc_match returns empty dict when no matchers registered."""
-        result = self.skill.ocp_voc_match("play some music")
+        with self.assertWarns(DeprecationWarning):
+            result = self.skill.ocp_voc_match("play some music")
         self.assertIsInstance(result, dict)
         self.assertEqual(result, {})
+
+    def test_ocp_voc_match_deprecated(self) -> None:
+        """ocp_voc_match is deprecated in favor of voc_match_span."""
+        with self.assertWarns(DeprecationWarning) as ctx:
+            self.skill.ocp_voc_match("play some music")
+        self.assertIn("voc_match_span", str(ctx.warning))
 
 
 class TestOCPKeywordSoftFail(unittest.TestCase):

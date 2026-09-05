@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import warnings
 from inspect import signature
 from threading import Event
 from typing import List, Callable, Optional, Dict
@@ -19,8 +20,13 @@ from typing import List, Callable, Optional, Dict
 from ovos_bus_client import Message
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_utils import camel_case_split
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, log_deprecation
 from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.version import VERSION_MAJOR
+
+# ocp_voc_match predates `voc_match_span`; deprecated shims are removed in
+# the next MAJOR release.
+_OCP_VOC_MATCH_REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 try:
     from ahocorasick_ner import AhocorasickNER
 except ImportError:
@@ -213,16 +219,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def ocp_voc_match(self, utterance, lang=None):
         """
         Match registered OCP keywords in an utterance using the Aho–Corasick algorithm.
-        
+
         Efficiently identifies and returns the longest matching keyword for each registered label in the given utterance, based on OCP keyword registration for the specified language.
-        
+
         Parameters:
             utterance (str): The input text to search for OCP keyword matches.
             lang (str, optional): The language code to use for matching. Defaults to the skill's current language.
-        
+
         Returns:
             dict: A mapping of entity labels to the longest matched keyword found in the utterance.
+
+        .. deprecated:: use `voc_match_span` instead
         """
+        msg = ("ocp_voc_match is deprecated, use voc_match_span instead")
+        log_deprecation(msg, _OCP_VOC_MATCH_REMOVAL_VERSION)
+        warnings.warn(msg, DeprecationWarning, stacklevel=2)
         lang = lang or self.lang
         if lang not in self.ocp_matchers:
             return {}
