@@ -7,7 +7,7 @@
 **Entry point group:** `opm.skill`
 
 For the full skill-authoring guide (class hierarchy, quick-start, bus basics, settings, resources, decorators, plugin discovery), see the
-[OVOS Technical Manual: Workshop Overview](https://tigregotico.github.io/ovos-technical-manual/workshop-overview/).
+[OVOS Technical Manual: Workshop Overview](https://openvoiceos.github.io/beta-technical-manual/workshop-overview/).
 This page and the files below cover repo-local detail (exact source line citations, files without a manual counterpart) that the manual omits by design.
 
 ---
@@ -74,4 +74,4 @@ my-skill-id = "my_skill.skill:MySkill"
 
 `ovos-plugin-manager` scans the `opm.skill` group at runtime and loads matching classes. It still accepts the older `ovos.plugin.skill` group name as a deprecated alias.
 
-See the manual's [Workshop Overview](https://tigregotico.github.io/ovos-technical-manual/workshop-overview/) for the MessageBus, settings, resources, intents, and decorators concepts shared by every skill.
+See the manual's [Workshop Overview](https://openvoiceos.github.io/beta-technical-manual/workshop-overview/) for the MessageBus, settings, resources, intents, and decorators concepts shared by every skill.
