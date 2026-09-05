@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.7a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a2) (2026-09-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a1...9.6.7a2)
+
+**Merged pull requests:**
+
+- Add voc\_match\_all to recover matched vocab entries [\#591](https://github.com/OpenVoiceOS/ovos-workshop/pull/591) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a1) (2026-09-04)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.6a1...9.6.7a1)
@@ -361,10 +369,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.8a1...9.2.9a1)
 
-**Merged pull requests:**
-
-- fix: compare ovos\_core.version tuple in \_core\_owns\_utterance\_handled \(no packaging dep\) [\#482](https://github.com/OpenVoiceOS/ovos-workshop/pull/482) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.2.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.8a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.7a1...9.2.8a1)
@@ -376,10 +380,6 @@
 ## [9.2.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.7a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.6a2...9.2.7a1)
-
-**Merged pull requests:**
-
-- fix: migrate internal calls off deprecated ovos\_utils/resource shims [\#483](https://github.com/OpenVoiceOS/ovos-workshop/pull/483) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.6a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.6a2) (2026-07-23)
 
