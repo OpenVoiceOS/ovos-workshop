@@ -2,7 +2,7 @@
 
 All skill base classes are available from their individual modules. The table below shows the full class hierarchy.
 
-See the manual's [Skill Classes](https://tigregotico.github.io/ovos-technical-manual/skill-classes/) page for a
+See the manual's [Skill Classes](https://openvoiceos.github.io/beta-technical-manual/skill-classes/) page for a
 higher-level tour with maturity badges and deprecation notes. This page adds source-line citations for each class.
 
 ```
