@@ -289,7 +289,7 @@ class TestOVOSSkill(unittest.TestCase):
         self.assertFalse(skill.voc_match("it is nice outside", "condition",
                                           lang=lang))
 
-    def test_voc_match_all(self):
+    def test_voc_match_span(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
         skill._lang_resources = dict()
         skill.res_dir = join(dirname(__file__), "test_locale")
@@ -297,45 +297,67 @@ class TestOVOSSkill(unittest.TestCase):
 
         # no match -> empty list
         self.assertEqual(
-            skill.voc_match_all("it is nice outside", "condition",
-                                 lang=lang),
+            skill.voc_match_span("it is nice outside", "condition",
+                                  lang=lang),
             [])
 
-        # single match
-        self.assertEqual(
-            skill.voc_match_all("it is hot outside", "condition", lang=lang),
-            ["hot"])
+        # single match, span slices back to the matched text
+        utt = "it is hot outside"
+        matches = skill.voc_match_span(utt, "condition", lang=lang)
+        self.assertEqual(len(matches), 1)
+        entry, start, end = matches[0]
+        self.assertEqual(entry, "hot")
+        self.assertEqual(utt[start:end], "hot")
 
-        # multiple matches, longest-first
-        self.assertEqual(
-            skill.voc_match_all("it is hot and freezing outside",
-                                 "condition", lang=lang),
-            ["freezing", "hot"])
+        # multiple matches, returned in UTTERANCE order (position, not length)
+        utt = "it is hot and freezing outside"
+        matches = skill.voc_match_span(utt, "condition", lang=lang)
+        self.assertEqual([m[0] for m in matches], ["hot", "freezing"])
+        for entry, start, end in matches:
+            self.assertEqual(utt[start:end], entry)
 
-        # exact mode
+        # exact mode -> single span covering the whole utterance
+        utt = "hot"
         self.assertEqual(
-            skill.voc_match_all("hot", "condition", lang=lang, exact=True),
-            ["hot"])
+            skill.voc_match_span(utt, "condition", lang=lang, exact=True),
+            [("hot", 0, len(utt))])
         self.assertEqual(
-            skill.voc_match_all("it is hot outside", "condition", lang=lang,
-                                 exact=True),
+            skill.voc_match_span("it is hot outside", "condition", lang=lang,
+                                  exact=True),
             [])
 
-        # ensure_ascii normalizes accents/punctuation before matching
+        # ensure_ascii normalizes accents/punctuation before matching, but
+        # the returned span still indexes the ORIGINAL utterance, even
+        # though the normalized string is shorter (accent + "!" stripped)
+        utt = "está muito frío!"
+        matches = skill.voc_match_span(utt, "condition_accents", lang=lang,
+                                        ensure_ascii=True)
+        self.assertEqual(len(matches), 1)
+        entry, start, end = matches[0]
+        self.assertEqual(entry, "frio")
+        self.assertEqual(utt[start:end], "frío")
         self.assertEqual(
-            skill.voc_match_all("está muito frío!", "condition_accents",
-                                 lang=lang, ensure_ascii=True),
-            ["frio"])
-        self.assertEqual(
-            skill.voc_match_all("está muito frío!", "condition_accents",
-                                 lang=lang, ensure_ascii=False),
+            skill.voc_match_span(utt, "condition_accents", lang=lang,
+                                  ensure_ascii=False),
             [])
 
-        # duplicate vocab lines are deduplicated, longest-first order kept
-        self.assertEqual(
-            skill.voc_match_all("it is hot and hot outside",
-                                 "condition_dupe", lang=lang),
-            ["hot"])
+        # duplicate vocab lines produce one span per occurrence in the utt
+        utt = "it is hot and hot outside"
+        matches = skill.voc_match_span(utt, "condition_dupe", lang=lang)
+        self.assertEqual([m[0] for m in matches], ["hot", "hot"])
+        starts = [m[1] for m in matches]
+        self.assertEqual(len(set(starts)), 2)
+        for entry, start, end in matches:
+            self.assertEqual(utt[start:end], entry)
+
+        # overlap rule: "new york" and "york" both match "new york", the
+        # longest entry wins and the shorter, overlapping one is dropped
+        utt = "i live in new york"
+        matches = skill.voc_match_span(utt, "place", lang=lang)
+        self.assertEqual(len(matches), 1)
+        entry, start, end = matches[0]
+        self.assertEqual(entry, "new york")
+        self.assertEqual(utt[start:end], "new york")
 
     def test_report_metric(self):
         # TODO
