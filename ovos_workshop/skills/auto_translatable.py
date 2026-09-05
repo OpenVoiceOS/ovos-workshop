@@ -1,12 +1,9 @@
-from abc import ABC
-
 from ovos_config import Configuration
 
 from ovos_bus_client import Message
 from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG
 from ovos_workshop.resource_files import SkillResources
-from ovos_workshop.skills.common_query_skill import CommonQuerySkill
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -74,6 +71,8 @@ class UniversalSkill(OVOSSkill):
         if lang not in self._lang_resources:
             self._lang_resources[lang] = SkillResources(root_directory, lang,
                                                         skill_id=self.skill_id)
+            # see OVOSSkill.load_lang - same auto entity-file discovery
+            self._auto_register_entity_files(lang)
         return self._lang_resources[lang]
 
     def detect_language(self, utterance: str):
@@ -371,93 +370,3 @@ class UniversalFallback(UniversalSkill, FallbackSkill):
         """
         handler = self.create_universal_fallback_handler(handler)
         FallbackSkill.register_fallback(self, handler, priority)
-
-
-class UniversalCommonQuerySkill(UniversalSkill, CommonQuerySkill, ABC):
-    """
-    CommonQuerySkill that auto translates input/output from any language.
-
-    `CQS_match_query_phrase` and `CQS_action` are ensured to receive phrases in
-    `self.internal_language`.
-
-    `CQS_match_query_phrase` is assumed to return a response in `self.internal_language`,
-    and it will be translated back before speaking.
-
-    `self.speak` will always translate utterances from
-    `self.internal_lang` to `self.lang`.
-
-    NOTE: `self.lang` reflects the original query language,
-          but received utterances are always in `self.internal_language`.
-    """
-
-    def __handle_query_action(self, message: Message):
-        """
-        Handle the common query action, translating the message if needed.
-
-        Parameters:
-        - message (Message): The message containing the query action.
-
-        This method translates the query phrase to the internal language if the
-        output language (`self.lang` / Session.lang) is different or autodetection is enabled.
-        Then it invokes the parent method `__handle_query_action`.
-
-        This method is internal and should not be called directly.
-        """
-        if message.data["skill_id"] != self.skill_id:
-            # Not for this skill!
-            return
-        if self.lang != self.internal_language or self.autodetect:
-            message.data["phrase"] = self.translate_utterance(message.data["phrase"],
-                                                              sauce_lang=self.lang,
-                                                              target_lang=self.internal_language)
-
-        super().__handle_query_action(message)
-
-    def __get_cq(self, search_phrase: str):
-        """
-         Get a common query result for the given search phrase.
-
-         Parameters:
-         - search_phrase (str): The search phrase.
-
-         Returns:
-         - tuple or None: A tuple representing the common query result, or None if not found.
-
-         This method converts the input into the internal language if needed, gets
-         the common query result, and converts the response back into the source language.
-
-         This method is internal and should not be called directly.
-         """
-        if self.lang == self.internal_language and not self.autodetect:
-            return super().__get_cq(search_phrase)
-
-        # convert input into internal lang
-        search_phrase = self.translate_utterance(search_phrase, self.internal_language, self.lang)
-        result = super().__get_cq(search_phrase)
-        if not result:
-            return None
-        answer = result[2]
-        # convert response back into source lang
-        answer = self.translate_utterance(answer, self.lang, self.internal_language)
-        if len(result) > 3:
-            # optional callback_data
-            result = (result[0], result[1], answer, result[3])
-        else:
-            result = (result[0], result[1], answer)
-        return result
-
-    def remove_noise(self, phrase: str, lang: str = None):
-        """
-        Remove noise to produce the essence of the question.
-
-        Parameters:
-        - phrase (str): The input phrase.
-        - lang (str, optional): ignored, just for api compat
-
-        Returns:
-        - str: The cleaned phrase.
-
-        This method removes noise from the input phrase to extract the essence of the question.
-        The method uses the `self.internal_language` as the default language.
-        """
-        return super().remove_noise(phrase, self.internal_language)

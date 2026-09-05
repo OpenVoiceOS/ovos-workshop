@@ -1,4 +1,18 @@
+# Copyright 2026 OpenVoiceOS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
+import warnings
 from inspect import signature
 from threading import Event
 from typing import List, Callable, Optional, Dict
@@ -6,12 +20,19 @@ from typing import List, Callable, Optional, Dict
 from ovos_bus_client import Message
 from ovos_config.locations import get_xdg_cache_save_path
 from ovos_utils import camel_case_split
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, log_deprecation
 from ovos_workshop.skills.ovos import OVOSSkill
+from ovos_workshop.version import VERSION_MAJOR
+
+# ocp_voc_match predates `voc_match_span`; deprecated shims are removed in
+# the next MAJOR release.
+_OCP_VOC_MATCH_REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 try:
     from ahocorasick_ner import AhocorasickNER
 except ImportError:
     AhocorasickNER = None  # optional dependency
+
+_ner_missing_warned = False
 
 # backwards compat imports, do not delete, skills import from here
 from ovos_workshop.decorators.ocp import ocp_play, ocp_next, ocp_pause, ocp_resume, ocp_search, \
@@ -198,16 +219,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def ocp_voc_match(self, utterance, lang=None):
         """
         Match registered OCP keywords in an utterance using the Aho–Corasick algorithm.
-        
+
         Efficiently identifies and returns the longest matching keyword for each registered label in the given utterance, based on OCP keyword registration for the specified language.
-        
+
         Parameters:
             utterance (str): The input text to search for OCP keyword matches.
             lang (str, optional): The language code to use for matching. Defaults to the skill's current language.
-        
+
         Returns:
             dict: A mapping of entity labels to the longest matched keyword found in the utterance.
+
+        .. deprecated:: use `voc_match_span` instead
         """
+        msg = ("ocp_voc_match is deprecated, use voc_match_span instead")
+        log_deprecation(msg, _OCP_VOC_MATCH_REMOVAL_VERSION)
+        warnings.warn(msg, DeprecationWarning, stacklevel=2)
         lang = lang or self.lang
         if lang not in self.ocp_matchers:
             return {}
@@ -226,12 +252,22 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
             samples (List[str]): A list of phrases or keywords to register for the label.
             lang (str, optional): The language code for registration. If not specified, registers for all native languages.
         """
-        if AhocorasickNER is None:
-            raise ImportError("can not register ocp keywords, AhocorasickNER is not installed, 'pip install ahocorasick_ner'")
-
         if label not in self._ocp_ents:
             self._ocp_ents[label] = []
         self._ocp_ents[label] += samples
+
+        global _ner_missing_warned
+        if AhocorasickNER is None:
+            # local matching is an optional optimization, the bus registration
+            # (the actual contract with OCP) still needs to happen
+            if not _ner_missing_warned:
+                LOG.warning("ahocorasick_ner is not installed, OCP keyword "
+                             "matching will not run locally, 'pip install "
+                             "ahocorasick_ner' to enable it. keywords are "
+                             "still registered with OCP over the bus")
+                _ner_missing_warned = True
+            return
+
         langs = [lang] if lang else self.native_langs
         for lang in langs:
             if lang not in self.ocp_matchers:
@@ -312,22 +348,21 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         #      prefer to search netflix instead of spotify
 
         # NB: we send a file path, bus messages with thousands of entities dont work well
+        payload = {"skill_id": self.skill_id,
+                   "label": label,  # if in OCP_ENTITIES it influences classifier
+                   "media_type": media_type}
         if len(samples) >= 20:
             csv = f"{self.ocp_cache_dir}/{self.skill_id}_{label}.csv"
-            self.export_ocp_keywords_csv(csv, label=label)
-            self.bus.emit(
-                Message('ovos.common_play.register_keyword',
-                        {"skill_id": self.skill_id,
-                         "label": label,  # if in OCP_ENTITIES it influences classifier
-                         "csv": csv,
-                         "media_type": media_type}))
+            try:
+                self.export_ocp_keywords_csv(csv, label=label)
+                payload["csv"] = csv
+            except Exception as e:
+                LOG.debug(f"could not export OCP keywords csv, sending "
+                          f"samples directly instead: {e}")
+                payload["samples"] = samples
         else:
-            self.bus.emit(
-                Message('ovos.common_play.register_keyword',
-                        {"skill_id": self.skill_id,
-                         "label": label,  # if in OCP_ENTITIES it influences classifier
-                         "samples": samples,
-                         "media_type": media_type}))
+            payload["samples"] = samples
+        self.bus.emit(Message('ovos.common_play.register_keyword', payload))
 
     def deregister_ocp_keyword(self, media_type: MediaType, label: str,
                                langs: List[str] = None):
@@ -463,7 +498,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         """
         self._paused.set()
         if self.__pause_handler:
-            params = signature(self.__playback_handler).parameters
+            params = signature(self.__pause_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             if self.__pause_handler(**kwargs):
                 self.bus.emit(Message("ovos.common_play.player.state",
@@ -478,7 +513,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         """
         self._paused.clear()
         if self.__resume_handler:
-            params = signature(self.__playback_handler).parameters
+            params = signature(self.__resume_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             if self.__resume_handler(**kwargs):
                 self.bus.emit(Message("ovos.common_play.player.state",
@@ -489,7 +524,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def __handle_ocp_next(self, message):
         if self.__next_handler:
-            params = signature(self.__playback_handler).parameters
+            params = signature(self.__next_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             self.__next_handler(**kwargs)
         else:
@@ -498,11 +533,11 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
 
     def __handle_ocp_prev(self, message):
         if self.__prev_handler:
-            params = signature(self.__playback_handler).parameters
+            params = signature(self.__prev_handler).parameters
             kwargs = {"message": message} if "message" in params else {}
             self.__prev_handler(**kwargs)
         else:
-            LOG.error(f"Play Next requested but {self.skill_id} handler not "
+            LOG.error(f"Play Prev requested but {self.skill_id} handler not "
                       "implemented")
 
     def __handle_ocp_stop(self, message):

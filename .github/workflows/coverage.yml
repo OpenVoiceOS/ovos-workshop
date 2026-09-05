@@ -11,11 +11,11 @@ jobs:
     env:
       PYTHON: '3.9'
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v6
     - name: Setup Python
-      uses: actions/setup-python@master
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.9
+        python-version: 3.14
     - name: Install System Dependencies
       run: |
         sudo apt-get update
@@ -28,10 +28,9 @@ jobs:
       run: |
         sudo apt install libssl-dev libfann-dev portaudio19-dev libpulse-dev
         pip install -r requirements/test.txt
-        pip install ./test/end2end/session/skill-ovos-hello-world
-        pip install ./test/end2end/session/skill-ovos-fallback-unknown
-        pip install ./test/end2end/session/skill-ovos-fallback-unknownv1
-        pip install ./test/end2end/session/skill-converse_test
+        # test/end2end/session/ and its four local test skills were removed
+        # long ago; the current end2end tree (intent4/keyword-casing) uses
+        # in-place injected skills that need no install.
     - name: Generate coverage report
       run: |
         pytest --cov=./ovos_workshop --cov-report xml test/unittests

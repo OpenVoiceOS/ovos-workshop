@@ -24,7 +24,7 @@ def whitelist_skill(skill, config=None):
     skills_config = config.get("skills", {})
     blacklisted_skills = skills_config.get("blacklisted_skills", [])
     if skill in blacklisted_skills:
-        blacklisted_skills.pop(skill)
+        blacklisted_skills.remove(skill)
         conf = {
             "skills": {
                 "blacklisted_skills": blacklisted_skills

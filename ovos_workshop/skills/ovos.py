@@ -1,68 +1,91 @@
+# Copyright 2026 OpenVoiceOS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import binascii
 import datetime
-import json
 import os
 import re
 import shutil
+import string
 import sys
 import time
 import traceback
+import unicodedata
 from copy import copy
-from hashlib import md5
 from inspect import signature
 from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
-from threading import Event, RLock
-from typing import Dict, Callable, List, Optional, Union
+from pathlib import Path
+from queue import Queue
+from threading import Event, RLock, Thread
+from typing import Dict, Callable, List, Optional, Set, Tuple, Union
 
 from json_database import JsonStorage
-from ovos_config.config import Configuration
-from ovos_config.locations import get_xdg_cache_save_path
-from ovos_config.locations import get_xdg_config_save_path
-from ovos_number_parser import pronounce_number, extract_number
-from ovos_yes_no_solver import YesNoSolver
-
 from ovos_bus_client import MessageBusClient
-from ovos_bus_client.apis.enclosure import EnclosureAPI
+from ovos_gui_api_client import EnclosureAPI
+from ovos_bus_client.apis.events import EventSchedulerInterface
+try:
+    from ovos_bus_client.apis.scheduler import SchedulerClient
+except ImportError:  # pre-SCHEDULER-1 ovos-bus-client
+    SchedulerClient = None
+
+#: put on a skill's scheduler queue to stop its sending thread
+_STOP_SENDING = object()
+
+#: how long an unloading skill waits for its queued scheduler requests to go
+#: out: twice a request's own timeout, so one request already in flight and
+#: one behind it can both finish, and a silent scheduler cannot hang a
+#: shutdown
+SCHEDULER_SHUTDOWN_TIMEOUT = 6.0
 from ovos_bus_client.apis.gui import GUIInterface
 from ovos_bus_client.apis.ocp import OCPInterface
+from ovos_bus_client.handler import HandlerLifecycle
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_bus_client.session import SessionManager, Session
 from ovos_bus_client.util import get_message_lang
+from ovos_spec_tools import (SpecMessage, canonical_intent_topic,
+                             standardize_lang)
+from ovos_spec_tools.resources import read_resource_file
+from ovos_config.config import Configuration
+from ovos_config.locale import get_config_tz
+from ovos_config.locations import get_xdg_cache_save_path
+from ovos_config.locations import get_xdg_config_save_path
+from ovos_number_parser import pronounce_number
+from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
+from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
+from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
 from ovos_utils import camel_case_split, classproperty
 from ovos_utils.dialog import MustacheDialogRenderer
-from ovos_bus_client.apis.events import EventSchedulerInterface
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
+from ovos_utils.time import now_local
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
-from ovos_utils.lang import standardize_lang_tag
-from ovos_utils.log import LOG
-from ovos_utils.parse import match_one
+from ovos_utils.log import LOG, log_deprecation
 from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
+from ovos_yes_no import HeuristicYesNoEngine
+
+from ovos_workshop.decorators import ContextGate
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
-from ovos_workshop.intents import IntentBuilder, Intent, munge_regex, munge_intent_parser, IntentServiceInterface
-from ovos_workshop.resource_files import ResourceFile, CoreResources, find_resource, SkillResources
+from ovos_workshop.intents import IntentBuilder, Intent, IntentServiceInterface
+from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
 from ovos_workshop.settings import PrivateSettings
-
-
-def simple_trace(stack_trace: List[str]) -> str:
-    """
-    Generate a simplified traceback.
-    @param stack_trace: Formatted stack trace (each string ends with \n)
-    @return: Stack trace with any empty lines removed and last line removed
-    """
-    stack_trace = stack_trace[:-1]
-    tb = 'Traceback:\n'
-    for line in stack_trace:
-        if line.strip():
-            tb += line
-    return tb
+from ovos_workshop.skills.util import join_word_list, simple_trace
 
 
 class OVOSSkill:
@@ -123,6 +146,8 @@ class OVOSSkill:
         self._initial_settings = settings or dict()
         self._settings_watchdog = None
         self._settings_lock = RLock()
+        self._shutdown_lock = RLock()
+        self._shutdown_done = False
 
         # Override to register a callback method that will be called every time
         # the skill's settings are updated. The referenced method should
@@ -139,8 +164,33 @@ class OVOSSkill:
         # Cached voc file contents
         self._voc_cache = {}
 
+        # remembers the handler bound to each intent name so that
+        # enable_intent() can rebind it after disable_intent() detaches it
+        self._intent_handlers: Dict[str, callable] = {}
+
         # loaded lang file resources
         self._lang_resources = {}
+
+        # OVOS-INTENT-3 §auto-entity: tracks which languages already had
+        # their locale .entity files auto-discovered and registered, so a
+        # repeated load_lang() for the same lang (reload/retrain) never
+        # double-emits the same entity registrations.
+        self._auto_registered_entity_langs = set()
+        # OVOS-INTENT-3 §auto-entity: tracks (lang -> {entity_file, ...})
+        # already sent to the intent service, keyed by the bare entity file
+        # name (no extension). Shared by auto-discovery AND the explicit
+        # register_entity_file() API so calling both for the same file (a
+        # skill author who still calls register_entity_file() explicitly
+        # for a file that was already auto-registered) replaces rather than
+        # stacks a duplicate bus registration.
+        self._registered_entity_files: Dict[str, Set[str]] = {}
+
+        # names of the repeating schedules this skill made through
+        # SCHEDULER-1, so that cancelling them all does not depend on
+        # bookkeeping that belongs to the older interface
+        self._repeating_schedules: Set[str] = set()
+        self._scheduler_requests = Queue()
+        self._scheduler_sender = None
 
         # Delegator classes
         self.event_scheduler = EventSchedulerInterface()
@@ -494,14 +544,14 @@ class OVOSSkill:
         message = dig_for_message()
         if message:
             lang = get_message_lang(message)
-        return standardize_lang_tag(lang)
+        return standardize_lang(lang)
 
     @property
     def core_lang(self) -> str:
         """
         Get the configured default language as a BCP-47 language code.
         """
-        return standardize_lang_tag(self.config_core.get("lang", "en-US"))
+        return standardize_lang(self.config_core.get("lang", "en-US"))
 
     @property
     def secondary_langs(self) -> List[str]:
@@ -511,7 +561,7 @@ class OVOSSkill:
         to `core_lang`. A skill may override this method to specify which
         languages intents are registered in.
         """
-        return [standardize_lang_tag(lang) for lang in self.config_core.get('secondary_langs', [])
+        return [standardize_lang(lang) for lang in self.config_core.get('secondary_langs', [])
                 if lang != self.core_lang]
 
     @property
@@ -521,7 +571,7 @@ class OVOSSkill:
         and explicitly supported). This is equivalent to normalized
         secondary_langs + core_lang.
         """
-        valid = set([standardize_lang_tag(lang) for lang in self.secondary_langs
+        valid = set([standardize_lang(lang) for lang in self.secondary_langs
                      if lang != self.core_lang] + [self.core_lang])
         return list(valid)
 
@@ -543,11 +593,19 @@ class OVOSSkill:
         @param lang: language to get resources for (default self.lang)
         @return: SkillResources object
         """
-        lang = standardize_lang_tag(lang or self.lang)
+        lang = standardize_lang(lang or self.lang)
         root_directory = root_directory or self.res_dir
         if lang not in self._lang_resources:
             self._lang_resources[lang] = SkillResources(root_directory, lang,
                                                         skill_id=self.skill_id)
+            # OVOS-INTENT-3 §auto-entity: register every shipped .entity file
+            # for this lang the first time its resources are loaded, so it
+            # reaches the matcher in the same batch as (and strictly before)
+            # any .intent template that references it. register_intent_file
+            # calls load_lang() before building/emitting its own template,
+            # so hooking the cache-miss path here guarantees ordering without
+            # requiring skill authors to call register_entity_file() at all.
+            self._auto_register_entity_files(lang)
         return self._lang_resources[lang]
 
     def load_dialog_files(self, root_directory: Optional[str] = None):
@@ -592,10 +650,10 @@ class OVOSSkill:
                     for line in skill_vocabulary[vocab_type]:
                         entity = line[0]
                         aliases = line[1:]
-                        self.intent_service.register_adapt_keyword(
+                        self.intent_service.register_keyword(
                             vocab_type, entity, aliases, lang)
 
-    def load_regex_files(self, root_directory=None):
+    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
         """ Load regex files found under the skill directory."""
         root_directory = root_directory or self.res_dir
         for lang in self.native_langs:
@@ -606,7 +664,7 @@ class OVOSSkill:
                     self.intent_service.register_adapt_regex(regex, lang)
 
     def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None):
+                      lang: Optional[str] = None) -> Optional[str]:
         """
         Find a resource file.
 
@@ -631,7 +689,7 @@ class OVOSSkill:
         Returns:
             string: The full path to the resource file or None if not found
         """
-        lang = standardize_lang_tag(lang or self.lang)
+        lang = standardize_lang(lang or self.lang)
         x = find_resource(res_name, self.res_dir, res_dirname, lang)
         if x:
             return str(x)
@@ -639,7 +697,7 @@ class OVOSSkill:
                        f"'{lang}' not found in skill")
 
     # skill object setup
-    def _handle_first_run(self):
+    def _handle_first_run(self) -> None:
         """
         The very first time a skill is run, speak a provided intro_message.
         """
@@ -650,7 +708,7 @@ class OVOSSkill:
             # it is backwards compatible
             self.speak_dialog(intro)
 
-    def _check_for_first_run(self):
+    def _check_for_first_run(self) -> None:
         """
         Determine if this is the very first time a skill is run by looking for
         `__mycroft_skill_firstrun` in skill settings.
@@ -662,19 +720,19 @@ class OVOSSkill:
             self.settings["__mycroft_skill_firstrun"] = False
             self.settings.store()
 
-    def on_ready_status(self):
+    def on_ready_status(self) -> None:
         LOG.info(f'{self.skill_id} is ready.')
 
-    def on_error_status(self, e='Unknown'):
-        LOG.exception(f'{self.skill_id} initialization failed')
+    def on_error_status(self, e: str = 'Unknown') -> None:
+        LOG.exception(f'{self.skill_id} initialization failed: {e}')
 
-    def on_stopping_status(self):
+    def on_stopping_status(self) -> None:
         LOG.info(f'{self.skill_id} is shutting down...')
 
-    def on_alive_status(self):
+    def on_alive_status(self) -> None:
         LOG.debug(f'{self.skill_id} is alive.')
 
-    def on_started_status(self):
+    def on_started_status(self) -> None:
         LOG.debug(f'{self.skill_id} started.')
 
     def _startup(self, bus: MessageBusClient, skill_id: str = ""):
@@ -807,7 +865,7 @@ class OVOSSkill:
         # account for isolated setups where skills might not share a filesystem with core
         return self.settings.get("monitor_own_settings", False)
 
-    def _handle_settings_changed(self, message):
+    def _handle_settings_changed(self, message: Message) -> None:
         """external signal to reload skill settings"""
         skill_id = message.data.get("skill_id", "")
         if skill_id == self.skill_id:
@@ -904,11 +962,19 @@ class OVOSSkill:
             if hasattr(method, 'intents'):
                 for intent in getattr(method, 'intents'):
                     voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
-                    self.register_intent(intent, method, voc_blacklist=voc_blacklist)
+                    requires_context = method.requires_context if hasattr(method, 'requires_context') else []
+                    excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
+                    self.register_intent(intent, method, voc_blacklist=voc_blacklist,
+                                         requires_context=requires_context,
+                                         excludes_context=excludes_context)
 
             if hasattr(method, 'intent_files'):
+                requires_context = method.requires_context if hasattr(method, 'requires_context') else []
+                excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
                 for intent_file in getattr(method, 'intent_files'):
-                    self.register_intent_file(intent_file, method)
+                    self.register_intent_file(intent_file, method,
+                                              requires_context=requires_context,
+                                              excludes_context=excludes_context)
 
             if hasattr(method, 'intent_layers'):
                 for layer_name, intent_files in \
@@ -942,8 +1008,15 @@ class OVOSSkill:
     def __handle_common_query_ping(self, message):
         if self._cq_handler:
             # announce skill to common query pipeline
+            # ARCHITECTURE common-query.md §6.2: pong carries `utterance` and
+            # `can_answer` alongside the pre-spec `skill_id`/`is_classic_cq`
+            # keys; the consumer (ovos-common-query-pipeline-plugin) only
+            # reads the latter today, so both are kept for one stable cycle.
             self.bus.emit(message.reply("ovos.common_query.pong",
-                                        {"skill_id": self.skill_id, "is_classic_cq": False},
+                                        {"utterance": message.data.get("utterance", ""),
+                                         "skill_id": self.skill_id,
+                                         "can_answer": True,
+                                         "is_classic_cq": False},
                                         {"skill_id": self.skill_id}))
 
     def __handle_query_action(self, message: Message):
@@ -1004,7 +1077,7 @@ class OVOSSkill:
         try:
             answer, confidence = self._cq_handler(search_phrase, lang) or (None, 0)
             LOG.debug(f"Common QA {self.skill_id} result: {answer}")
-        except:
+        except Exception:
             LOG.exception(f"Failed to get answer from {self._cq_handler}")
 
         if answer and confidence >= 0.5:
@@ -1070,7 +1143,16 @@ class OVOSSkill:
         Register default messagebus event handlers
         """
         self.add_event('mycroft.stop', self._handle_session_stop, speak_errors=False)
-        self.add_event(f"{self.skill_id}.stop", self._handle_session_stop, speak_errors=False)
+        # STOP-1 §4.3: the targeted `<skill_id>:stop` dispatch is a handler
+        # dispatch like any other and MUST go through the same
+        # mycroft.skill.handler.{start,complete,error} done-signal as every
+        # other dispatched handler, so ovos-core's dispatcher can resolve its
+        # in-flight entry instead of falling back to the PIPELINE-1 §8.3
+        # timeout. `mycroft.stop` above is the broadcast fallback, not a
+        # dispatch topic, and keeps no lifecycle signal.
+        self.add_event(f"{self.skill_id}.stop", self._handle_session_stop,
+                       handler_info='mycroft.skill.handler', is_intent=True,
+                       intent_name='stop', speak_errors=False)
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
 
@@ -1180,10 +1262,25 @@ class OVOSSkill:
         2) Store skill settings and remove file watchers
         3) Shutdown skill GUI to clear any active pages
         4) Shutdown the event_scheduler and remove any pending events
-        5) Call skill.shutdown() to allow skill to do any other shutdown tasks
-        6) Emit `detach_skill` Message to notify skill is shut down
+        5) Emit `detach_skill` Message to notify skill is shut down
+
+        NOTE: this method does NOT call `skill.shutdown()`. The skill-specific
+        `shutdown()` hook is invoked separately by the caller (eg.
+        `SkillManager.unload_skill()` or `__del__`), before/around this method.
+
+        This method is re-entrant: `SkillManager.unload_skill()` may call it
+        explicitly on the main thread while `__del__` calls it again from
+        whichever thread drops the last reference to the skill instance and
+        triggers garbage collection. The second call is a no-op.
         """
-        self.status.set_stopping()
+        with self._shutdown_lock:
+            if self._shutdown_done:
+                self.log.debug(f"default_shutdown already ran for "
+                               f"{self.skill_id}, skipping")
+                return
+            self._shutdown_done = True
+        if hasattr(self, 'status'):
+            self.status.set_stopping()
         try:
             # Allow skill to handle `stop` actions before shutting things down
             self.stop()
@@ -1204,7 +1301,7 @@ class OVOSSkill:
 
         try:
             # Clear skill from gui
-            if self.gui:
+            if self.gui is not None:
                 self.gui.shutdown()
         except Exception as e:
             self.log.error(f"Failed to shutdown gui for {self.skill_id}: {e}")
@@ -1212,6 +1309,9 @@ class OVOSSkill:
         try:
             # removing events
             if self.event_scheduler:
+                if not self.repeating_schedules_outlive_the_skill:
+                    self.cancel_all_repeating_events()
+                self._stop_sending_to_scheduler()
                 self.event_scheduler.shutdown()
                 self.events.clear()
         except Exception as e:
@@ -1222,6 +1322,13 @@ class OVOSSkill:
                     {'skill_id': self.skill_id}))
 
     def __del__(self):
+        # GC can drop the last reference after an explicit unload already
+        # tore the skill down. Read the flag, never set it: on the ordinary
+        # path nothing unloaded the skill and the full teardown runs here.
+        if hasattr(self, '_shutdown_lock'):
+            with self._shutdown_lock:
+                if self._shutdown_done:
+                    return
         try:
             self.shutdown()
         except Exception as e:
@@ -1237,7 +1344,7 @@ class OVOSSkill:
         """
         for (name, _) in self.intent_service:
             name = f'{self.skill_id}:{name}'
-            self.intent_service.detach_intent(name)
+            self.intent_service.remove_intent(name)
 
     # intents / resource files management
     def register_intent_layer(self, layer_name: str,
@@ -1249,22 +1356,24 @@ class OVOSSkill:
         """
         for intent_file in intent_list:
             if isinstance(intent_file, str):
-                name = f'{self.skill_id}:{intent_file}'
+                name = canonical_intent_topic(f'{self.skill_id}:{intent_file}')
             else:
                 if hasattr(intent_file, "build"):
                     try:
                         intent_file = intent_file.build()
-                    except:
-                        pass
+                    except Exception as e:
+                        LOG.warning(f"Failed to build intent {intent_file}: {e}")
                 try:
                     name = intent_file.name
-                except:
+                except AttributeError:
                     name = f'{self.skill_id}:{intent_file}'
 
             self.intent_layers.update_layer(layer_name, [name])
 
     def register_intent(self, intent_parser: Union[IntentBuilder, Intent, str],
-                        handler: callable, voc_blacklist: Optional[List[str]] = None):
+                        handler: callable, voc_blacklist: Optional[List[str]] = None,
+                        requires_context: Optional[List[ContextGate]] = None,
+                        excludes_context: Optional[List[ContextGate]] = None):
         """
         Register an Intent with the intent service.
 
@@ -1272,15 +1381,33 @@ class OVOSSkill:
             intent_parser: Intent, IntentBuilder object or padatious intent
                            file to parse utterance for the handler.
             handler (func): function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration - each
+                              entry a bare key string or a
+                              {"key":..., "scope":...} mapping. Carried on
+                              both file-intent and adapt-intent
+                              registration payloads; adapt has no
+                              OVOS-CONTEXT-1-aware matcher of its own, but
+                              per §6 "an engine that does not implement
+                              OVOS-CONTEXT-1 ignores them and matches as
+                              if absent"
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              entry shape and carry-through as
+                              requires_context
         """
         if isinstance(intent_parser, str):
             if not intent_parser.endswith('.intent'):
                 raise ValueError
-            return self.register_intent_file(intent_parser, handler, voc_blacklist)
-        return self._register_adapt_intent(intent_parser, handler)
+            return self.register_intent_file(intent_parser, handler, voc_blacklist,
+                                             requires_context=requires_context,
+                                             excludes_context=excludes_context)
+        return self._register_adapt_intent(intent_parser, handler,
+                                           requires_context=requires_context,
+                                           excludes_context=excludes_context)
 
     def register_intent_file(self, intent_file: str, handler: callable,
-                             voc_blacklist: Optional[List[str]] = None):
+                             voc_blacklist: Optional[List[str]] = None,
+                             requires_context: Optional[List[ContextGate]] = None,
+                             excludes_context: Optional[List[ContextGate]] = None):
         """Register an Intent file with the intent service.
 
         For example:
@@ -1304,8 +1431,17 @@ class OVOSSkill:
                          that should activate the intent.  Must end with
                          '.intent'
             handler:     function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration - each
+                              entry a bare key string or a
+                              {"key":..., "scope":...} mapping
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              entry shape as requires_context
         """
-        name = f'{self.skill_id}:{intent_file}'
+        # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
+        # The intent NAME is the author's label for the intent, not the name of
+        # the file the samples came from, so the `.intent` authoring extension
+        # never reaches the wire.
+        name = canonical_intent_topic(f'{self.skill_id}:{intent_file}')
         for lang in self.native_langs:
             resources = self.load_lang(self.res_dir, lang)
             resource_file = ResourceFile(resources.types.intent, intent_file)
@@ -1314,12 +1450,59 @@ class OVOSSkill:
                 continue
             filename = str(resource_file.file_path)
 
+            samples = read_resource_file(Path(filename))
+
             disallowed_strings = []
             for enty in voc_blacklist or []:
                 disallowed_strings += self.voc_list(enty, lang=lang)
 
-            self.intent_service.register_padatious_intent(name, filename, lang, string_blacklist=disallowed_strings)
+            # OVOS-INTENT-2 §4.3: a sibling "<intent>.blacklist" locale file
+            # lists slot-free phrases that should suppress this intent from
+            # matching
+            blacklist_name = intent_file.rsplit(".", 1)[0]
+            disallowed_strings += resources.load_blacklist_file(blacklist_name)
+
+            # OVOS-INTENT-2 §4.3: for each "{slot}" the template declares, a
+            # sibling "<slot>.blacklist" locale file lists slot-value
+            # exclusions — values that MUST NOT bind to that slot (the
+            # canonical use is keeping anaphoric pronouns out of a referential
+            # slot). Keyed by slot name so consuming engines can drop them.
+            slot_blacklist = {}
+            with open(filename) as f:
+                slots = set(re.findall(r"{(.+?)}", f.read()))
+            for slot in slots:
+                phrases = resources.load_blacklist_file(slot)
+                if phrases:
+                    slot_blacklist[slot] = phrases
+
+            # OVOS-INTENT-1 §3.7: supply the sibling vocabularies so an inline
+            # <name> reference in the .intent is baked into the samples before
+            # they are sent to the engine over the bus
+            self.intent_service.register_template(
+                name, samples, lang,
+                blacklisted_words=disallowed_strings,
+                slot_blacklist=slot_blacklist,
+                vocabs=resources.vocabularies(),
+                requires_context=requires_context,
+                excludes_context=excludes_context)
         if handler:
+            # keyed canonically (bare, no "<skill_id>:" prefix, no ".intent"
+            # suffix) so enable_intent()/disable_intent() can look the
+            # handler up by the SAME spelling the registry itself uses
+            # (registered_intents/detached_intents), regardless of whether
+            # the caller re-supplies the author-facing ".intent"-suffixed
+            # name or the canonical one.
+            self._intent_handlers[name.split(':', 1)[1]] = handler
+            # canonical topic only. A skill container running an old workshop
+            # still listens on the `.intent`-suffixed twin; that compat is the
+            # bus layer's job (`ovos_spec_tools.intent_topics`), not the
+            # skill's. IMPORTANT: this makes `websocket.modernize` /
+            # OVOS_BUS_MODERNIZE load-bearing, not a namespace convenience --
+            # a suffixed dispatch from an old core/pipeline only reaches this
+            # canonical-only binding if bus-client's receive-side
+            # modernization (2.8.0a1+) translates it first. Disabling
+            # modernize on a skill container running this workshop version
+            # silently drops that dispatch (see PR #500 "Deployment note").
             self.add_event(name, handler, 'mycroft.skill.handler',
                            activation=True, is_intent=True)
 
@@ -1335,6 +1518,13 @@ class OVOSSkill:
                 Saturday
                 Sunday
 
+        NOTE: every ``.entity`` file shipped in a skill's locale resources is
+        now registered automatically (see `_auto_register_entity_files`) the
+        first time that language's resources are loaded - calling this
+        method explicitly is no longer required for the entity to reach the
+        matcher. It remains useful to register an entity from a non-standard
+        location/name, or to force (re-)registration explicitly.
+
         Args:
             entity_file (string): name of file that contains examples of an
                                   entity.
@@ -1343,14 +1533,149 @@ class OVOSSkill:
             entity_file = entity_file.replace('.entity', '')
         for lang in self.native_langs:
             resources = self.load_lang(self.res_dir, lang)
+            self._register_entity_file_for_lang(entity_file, lang, resources)
+
+    def _register_entity_file_for_lang(self, entity_file: str, lang: str,
+                                       resources: SkillResources,
+                                       resolved_path: Optional[Path] = None):
+        """
+        Register a single Entity file with the intent service for a single
+        language. Shared by the explicit `register_entity_file` API and the
+        automatic per-lang discovery in `_auto_register_entity_files`.
+
+        @param entity_file: name of file that contains examples of an
+                            entity, without the ".entity" extension.
+        @param lang: language code the `resources` object was loaded for.
+        @param resources: SkillResources for `lang`, as returned by
+                          `load_lang`.
+        @param resolved_path: when the caller already holds the resolved
+                              file path (auto-discovery via `Path.rglob`),
+                              pass it directly instead of re-deriving it.
+                              `ResourceFile._locate()` (resource_files.py)
+                              matches by BASENAME against `os.walk` results,
+                              so re-searching by a subfolder-qualified name
+                              like "sub/pet" (from a discovered
+                              "sub/pet.entity") never matches anything and
+                              silently fails to register. Auto-discovery
+                              already resolved the real path while walking
+                              the entity directory, so skip the lookup.
+        """
+        if resolved_path is not None:
+            filename = str(resolved_path)
+        else:
             entity = ResourceFile(resources.types.entity, entity_file)
             if entity.file_path is None:
                 self.log.error(f'Unable to find "{entity_file}"')
-                continue
+                return
             filename = str(entity.file_path)
-            name = f"{self.skill_id}:{basename(entity_file)}_" \
-                   f"{md5(entity_file.encode('utf-8')).hexdigest()}"
-            self.intent_service.register_padatious_entity(name, filename, lang)
+        # IDEMPOTENCY: keyed by the resolved file path (not the caller's
+        # spelling of `entity_file`) so auto-discovery and an explicit
+        # register_entity_file() call for the same file - or two auto
+        # passes that both resolve to the same file - register it once.
+        # Mirrors register_template()'s own "replace, don't stack" contract.
+        already = self._registered_entity_files.setdefault(lang, set())
+        if filename in already:
+            return
+        already.add(filename)
+        # The entity name IS the wire contract: consumers resolve a
+        # "{slot}" in a template by the raw slot token, so the name must
+        # stay "<skill_id>:<entity>". A former "_<md5(entity_file)>"
+        # suffix here made every file-registered entity unresolvable
+        # (padatious fell back to an unconstrained wildcard slot). The
+        # hash disambiguated nothing either - "<skill_id>:" already
+        # namespaces the entity and the hash was taken over the file name
+        # that is already part of the key.
+        name = f"{self.skill_id}:{basename(entity_file)}"
+        samples = read_resource_file(Path(filename))
+        # A bare '#' line is a mycroft-core-era convention some authors used
+        # to mean "any digit sequence goes here" (see e.g. old date-time
+        # skill forks). `read_resource_file` treats any line starting with
+        # '#' as a COMMENT and drops it before `samples` is built (verified:
+        # `read_resource_file(Path(".../offset.entity"))` on a file
+        # containing only "#" returns `[]`) - so it is never registered as a
+        # wildcard *or* a literal; it silently vanishes, and the slot it was
+        # meant to fill gets whatever samples (if any) survive from other
+        # lines. Detect it from the raw file (samples already dropped it) and
+        # flag it - a skill relying on it is shipping a dead entity file.
+        try:
+            raw_lines = Path(filename).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            raw_lines = []
+        if any(line.strip() == '#' for line in raw_lines):
+            log_deprecation(
+                f'{self.skill_id}: entity file "{entity_file}.entity" '
+                f'({lang}) contains a bare "#" placeholder line. '
+                f'read_resource_file() treats it as a COMMENT and drops it - '
+                f'it is NOT registered as a digit wildcard (or anything '
+                f'else). Replace it with real example values.',
+                "0.1.0")
+        # OVOS-INTENT-2 §4.3: a sibling "<entity>.blacklist" locale file
+        # lists slot-free phrases that MUST NOT fill the {slot} this entity
+        # supplies (e.g. a "person.blacklist" of pronouns keeps "he" out of
+        # the {person} slot)
+        blacklist = resources.load_blacklist_file(entity_file)
+        self.intent_service.register_entity(name, samples, lang,
+                                            blacklisted_words=blacklist)
+
+    def _auto_register_entity_files(self, lang: str):
+        """
+        Auto-discover and register every ".entity" file shipped in this
+        skill's locale resources for `lang`.
+
+        Historically `register_entity_file` was opt-in: a skill author had
+        to call it explicitly for each entity, and it was easy to ship a
+        ".entity" file that a ".intent" template referenced by slot name but
+        that was never actually registered, silently degrading matching.
+        There is no good reason to leave a shipped entity file unregistered,
+        so every discovered file is registered unconditionally - no
+        filtering by declared slot names.
+
+        Ordering: this is called from `load_lang` on first (cache-miss)
+        load for `lang`, and `register_intent_file` always calls
+        `load_lang` before it builds/emits its own template for that lang.
+        That means every auto-registered entity for a lang reaches the bus
+        strictly before (never after) the first intent template for that
+        same lang - the same batch/ordering guarantee `register_intent_file`
+        already relies on for manually-registered entities.
+
+        Idempotency: guarded twice - `load_lang` only calls this on a
+        cache-miss (one call per lang per skill instance in normal use),
+        and `_auto_registered_entity_langs` guards direct/repeated calls
+        (e.g. tests, or a future reload path) from double-emitting.
+
+        Can be disabled entirely via the "skills" section of mycroft.conf:
+            {"skills": {"auto_register_entity_files": false}}
+        """
+        if lang in self._auto_registered_entity_langs:
+            return
+        self._auto_registered_entity_langs.add(lang)
+
+        if not self.config_core.get("skills", {}).get(
+                "auto_register_entity_files", True):
+            return
+
+        resources = self._lang_resources.get(lang)
+        if resources is None:
+            return
+        entity_dir = resources.types.entity.base_directory
+        if not entity_dir or not Path(entity_dir).is_dir():
+            return
+
+        entity_paths = sorted(Path(entity_dir).rglob(f"*{resources.types.entity.file_extension}"))
+        for path in entity_paths:
+            # name relative to the entity base directory, extension
+            # stripped, so entities in subfolders keep a stable/readable
+            # name (e.g. "sub/foo" for "<entity_dir>/sub/foo.entity")
+            rel = path.relative_to(entity_dir)
+            entity_file = str(rel.with_suffix(''))
+            try:
+                self._register_entity_file_for_lang(entity_file, lang,
+                                                     resources,
+                                                     resolved_path=path)
+            except Exception as e:
+                self.log.exception(
+                    f'{self.skill_id}: failed to auto-register entity file '
+                    f'"{path}" ({lang}): {e}')
 
     def register_vocabulary(self, entity: str, entity_type: str,
                             lang: Optional[str] = None):
@@ -1361,9 +1686,9 @@ class OVOSSkill:
         @param lang: language of `entity` (default self.lang)
         """
         keyword_type = self.alphanumeric_skill_id + entity_type
-        lang = standardize_lang_tag(lang or self.lang)
-        self.intent_service.register_adapt_keyword(keyword_type, entity,
-                                                   lang=lang)
+        lang = standardize_lang(lang or self.lang)
+        self.intent_service.register_keyword(keyword_type, entity,
+                                             lang=lang)
 
     def register_regex(self, regex_str: str, lang: Optional[str] = None):
         """
@@ -1372,9 +1697,9 @@ class OVOSSkill:
         @param lang: language of regex_str (default self.lang)
         """
         self.log.debug('registering regex string: ' + regex_str)
-        regex = munge_regex(regex_str, self.skill_id)
-        re.compile(regex)  # validate regex
-        self.intent_service.register_adapt_regex(regex, lang=standardize_lang_tag(lang or self.lang))
+        re.compile(regex_str)  # validate regex
+        self.intent_service.register_adapt_regex(
+            regex_str, lang=standardize_lang(lang or self.lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -1388,8 +1713,14 @@ class OVOSSkill:
         @param message: `mycroft.skill.enable_intent` Message
         """
         intent_name = message.data['intent_name']
+        # registered_intents/detached_intents are keyed by the bare canonical
+        # name; the bus payload may still carry the author-facing
+        # ".intent"-suffixed spelling, so canonicalize before comparing --
+        # otherwise the suffixed form never matches and this silently no-ops.
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
         for (name, _) in self.intent_service.detached_intents:
-            if name == intent_name:
+            if name == canonical:
                 return self.enable_intent(intent_name)
 
     def handle_disable_intent(self, message: Message):
@@ -1398,8 +1729,10 @@ class OVOSSkill:
         @param message: `mycroft.skill.disable_intent` Message
         """
         intent_name = message.data['intent_name']
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
         for (name, _) in self.intent_service.registered_intents:
-            if name == intent_name:
+            if name == canonical:
                 return self.disable_intent(intent_name)
 
     def handle_set_cross_context(self, message: Message):
@@ -1426,15 +1759,36 @@ class OVOSSkill:
         """
         Indicate that the skill handler is starting.
 
+        Emits ``mycroft.skill.handler.start`` (when ``handler_info`` is set).
+
+        .. note::
+           ``mycroft.skill.handler.{start,complete,error}`` are an **internal
+           ovos-workshop → ovos-core synchronization signal** — workshop's way
+           of reporting "I started / ended / errored" running a handler. They
+           are **explicitly NOT part of any OVOS specification**; they are an
+           implementation detail that exists only because skills (ovos-workshop)
+           run in a **separate process** from the orchestrator (ovos-core). If
+           core manipulated skill objects directly, in-process, this bus
+           round-trip would not be needed.
+
+           ovos-core consumes these as a private *done-signal* to emit the
+           authoritative PIPELINE-1 §8 handler-lifecycle trio
+           (``ovos.intent.handler.{start,complete,error}``). The legacy
+           ``mycroft.skill.handler.*`` names are permanently ovos-workshop
+           event-wrapper signals and do **not** bridge to the spec namespace
+           (ovos-spec-tools MIGRATION_MAP deliberately excludes the trio).
+
         activation  (bool, optional): activate skill if True,
                                       deactivate if False,
                                       do nothing if None
         """
         if handler_info:
-            # Indicate that the skill handler is starting if requested
-            msg_type = handler_info + '.start'
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            # internal workshop->core done-signal (see docstring); NOT a spec
+            # topic -> emits mycroft.skill.handler.start. Delegated to the
+            # shared ovos-bus-client HandlerLifecycle util (DRY; same topic,
+            # payload and context["skill_id"] as before).
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).start()
 
     def _on_event_end(self, message: Message, handler_info: str,
                       skill_data: dict, is_intent: bool = False):
@@ -1443,11 +1797,12 @@ class OVOSSkill:
         completed.
         """
         if handler_info:
-            msg_type = handler_info + '.complete'
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
-        if is_intent:
-            self.bus.emit(message.forward("ovos.utterance.handled", skill_data))
+            # internal workshop->core done-signal (see _on_event_start); NOT a
+            # spec topic -> emits mycroft.skill.handler.complete. Delegated to
+            # the shared HandlerLifecycle util (same topic/payload/context).
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).complete()
+        # PIPELINE-1 §9.5: the orchestrator owns the end marker; skills never emit it.
 
         try:
             if self.settings != self._initial_settings:
@@ -1462,34 +1817,47 @@ class OVOSSkill:
         # Convert "MyFancySkill" to "My Fancy Skill" for speaking
         handler_name = camel_case_split(self.name)
         msg_data = {'skill': handler_name}
-        speech = _get_dialog('skill.error', self.lang, msg_data)
+        lines = self.resources.load_dialog_file('skill.error', data=msg_data)
+        speech = lines[0] if lines else 'skill.error'
         if speak_errors:
             self.speak(speech)
         self.log.exception(error)
-        # append exception information in message
-        skill_data['exception'] = repr(error)
         if handler_info:
-            # Indicate that the skill handler errored
-            msg_type = handler_info + '.error'
+            # internal workshop->core done-signal (see _on_event_start); NOT a
+            # spec topic -> emits mycroft.skill.handler.error. Delegated to the
+            # shared HandlerLifecycle util, which merges {"exception": repr(...)}
+            # into the payload (same topic/payload/context as before). The util
+            # deliberately does NOT speak; the spoken-error UX above stays here.
             message = message or Message("")
-            message.context["skill_id"] = self.skill_id
-            self.bus.emit(message.forward(msg_type, skill_data))
+            HandlerLifecycle(self.bus, message, skill_id=self.skill_id,
+                             data=skill_data, handler_info=handler_info).error(error)
 
     def _register_adapt_intent(self,
                                intent_parser: Union[IntentBuilder, Intent, str],
-                               handler: callable):
+                               handler: callable,
+                               requires_context: Optional[List[ContextGate]] = None,
+                               excludes_context: Optional[List[ContextGate]] = None):
         """
         Register an adapt intent.
 
         Args:
             intent_parser: Intent object to parse utterance for the handler.
             handler (func): function to register with intent
+            requires_context: OVOS-CONTEXT-1 §6 gating declaration. Adapt
+                              does not itself gate on it (it has no
+                              OVOS-CONTEXT-1-aware matcher), but the
+                              declaration still rides the registration
+                              payload per CONTEXT-1 §6: "an engine that
+                              does not implement OVOS-CONTEXT-1 ignores
+                              them and matches as if absent."
+            excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
+                              carry-through as requires_context
         """
         if hasattr(intent_parser, "build"):
             try:
                 intent_parser = intent_parser.build()
-            except:
-                pass
+            except Exception as e:
+                LOG.warning(f"Failed to build intent parser {intent_parser}: {e}")
 
         # Default to the handler's function name if none given
         is_anonymous = not intent_parser.name
@@ -1505,9 +1873,14 @@ class OVOSSkill:
                 not self.intent_service.intent_is_detached(name):
             raise ValueError(f'The intent name {name} is already taken')
 
-        munge_intent_parser(intent_parser, name, self.skill_id)
-        self.intent_service.register_adapt_intent(name, intent_parser)
+        # internal path: bypass the deprecated register_adapt_intent shim's warning
+        self.intent_service._adapt.munge_intent_parser(intent_parser, name,
+                                                        self.intent_service.skill_id)
+        self.intent_service.register_intent(name, intent_parser,
+                                            requires_context=requires_context,
+                                            excludes_context=excludes_context)
         if handler:
+            self._intent_handlers[name] = handler
             self.add_event(intent_parser.name, handler,
                            'mycroft.skill.handler',
                            activation=True, is_intent=True)
@@ -1538,8 +1911,8 @@ class OVOSSkill:
 
         # grab message that triggered speech so we can keep context
         message = dig_for_message()
-        m = message.forward("speak", data) if message \
-            else Message("speak", data)
+        m = message.forward(SpecMessage.SPEAK, data) if message \
+            else Message(SpecMessage.SPEAK, data)
         m.context["skill_id"] = self.skill_id
 
         # update any auto-translation metadata in message.context
@@ -1609,7 +1982,7 @@ class OVOSSkill:
         @param filename: File to play
         @param instant: if True audio will be played instantly instead of queued with TTS
         @param wait: set to True to block while the audio
-                                 is being played for 15 seconds. Alternatively, set
+                                 is being played for 30 seconds. Alternatively, set
                                  to an integer to specify a timeout in seconds.
         """
         message = dig_for_message() or Message("")
@@ -1639,7 +2012,7 @@ class OVOSSkill:
             sess.is_speaking = True
             SessionManager.wait_while_speaking(timeout, sess)
 
-    def __handle_get_response(self, message):
+    def __handle_get_response(self, message: Message) -> None:
         """
         Handle the response message to a previous get_response / speak call
         sent from the intent service
@@ -1802,12 +2175,33 @@ class OVOSSkill:
         self._real_wait_response(is_cancel, validator, on_fail, num_retries, message)
 
         # wait for answer from killable thread
+        # NOTE: this loop has no Event to wait on (see TODO below), so it
+        # needs its own hard deadline. Without one, a killable thread that
+        # never finishes (eg. the bus/TTS handshake it is waiting on in
+        # __get_response never completes) blocks the caller forever - see
+        # OpenVoiceOS/ovos-skill-alerts#138 for a captured py-spy stack of
+        # exactly this hang via ask_yesno -> get_response -> _wait_response.
+        # The deadline mirrors the thread's own per-attempt budget: each
+        # retry may speak a reprompt (bounded by the 15s
+        # wait_while_speaking() ceiling used elsewhere in this file) and
+        # then wait up to `get_response_timeout` for a transcription.
+        per_attempt_budget = self.config_core.get("skills", {}).get(
+            "get_response_timeout", 20) + 15
+        max_attempts = (num_retries + 1) if num_retries >= 0 else 2
+        deadline = time.time() + per_attempt_budget * max_attempts
+
         ans = []
         while not ans:
             # TODO: Refactor to Event
             time.sleep(0.1)
             ans = self.__validated_responses.get(session.session_id)
             if ans or ans is None:  # canceled response
+                break
+            if time.time() > deadline:
+                LOG.warning(f"get_response timed out waiting for a result "
+                            f"from the background thread (session: "
+                            f"{session.session_id}); giving up")
+                ans = None
                 break
 
         if session.session_id in self.__validated_responses:
@@ -1847,7 +2241,7 @@ class OVOSSkill:
 
         return reprompt_speak
 
-    def _handle_killed_wait_response(self):
+    def _handle_killed_wait_response(self) -> None:
         """
         Handle "stop" request when getting a response.
         """
@@ -1926,6 +2320,44 @@ class OVOSSkill:
                                                             'snd/acknowledge.mp3')
         self.play_audio(audio_file, instant=True)
 
+    def _get_yesno_engine(self) -> YesNoEngine:
+        """Load the configured YesNoEngine plugin, with per-skill override support.
+
+        Checks settings.json first, then mycroft.conf skills.ask_yesno_plugin.
+        Returns None if no plugin is configured, preserving built-in fallback behavior.
+        """
+        plugin_name = (self.settings.get("ask_yesno_plugin") or
+                       self.config_core.get("skills", {}).get("ask_yesno_plugin") or
+                       "ovos-solver-yes-no-plugin")
+        cache_key = f"__yesno_engine_{plugin_name}"
+        if not hasattr(self, cache_key):
+            try:
+                cls = load_yesno_plugin(plugin_name)
+                setattr(self, cache_key, cls())
+            except Exception as e:
+                LOG.error(f"Failed to load YesNo plugin '{plugin_name}': {e}")
+                setattr(self, cache_key, None)
+        return getattr(self, cache_key) or HeuristicYesNoEngine()
+
+    def _get_selection_engine(self) -> OptionMatcherEngine:
+        """Load the configured OptionMatcherEngine plugin, with per-skill override support.
+
+        Checks settings.json first, then mycroft.conf skills.ask_selection_plugin,
+        defaulting to ovos-option-matcher-fuzzy-plugin when neither is set.
+        """
+        plugin_name = (self.settings.get("ask_selection_plugin") or
+                       self.config_core.get("skills", {}).get("ask_selection_plugin") or
+                       "ovos-option-matcher-fuzzy-plugin")
+        cache_key = f"__selection_engine_{plugin_name}"
+        if not hasattr(self, cache_key):
+            try:
+                cls = load_option_matcher_plugin(plugin_name)
+                setattr(self, cache_key, cls())
+            except Exception as e:
+                LOG.error(f"Failed to load selection plugin '{plugin_name}': {e}")
+                setattr(self, cache_key, None)
+        return getattr(self, cache_key) or FuzzyOptionMatcherPlugin()
+
     def ask_yesno(self, prompt: str,
                   data: Optional[dict] = None) -> Optional[str]:
         """
@@ -1937,7 +2369,8 @@ class OVOSSkill:
             'no', including a response of None.
         """
         resp = self.get_response(dialog=prompt, data=data)
-        answer = YesNoSolver().match_yes_or_no(resp, lang=self.lang) if resp else resp
+        engine = self._get_yesno_engine()
+        answer = engine.yes_or_no(question=prompt, response=resp, lang=self.lang) if resp else None
         if answer is True:
             return "yes"
         elif answer is False:
@@ -1988,17 +2421,13 @@ class OVOSSkill:
         resp = self.get_response(dialog=dialog, data=data, num_retries=num_retries)
 
         if resp:
-            match, score = match_one(resp, options)
-            if score < min_conf:
-                if self.voc_match(resp, 'last'):
-                    resp = options[-1]
-                else:
-                    num = extract_number(resp, ordinals=True, lang=self.lang)
-                    resp = None
-                    if num and num <= len(options):
-                        resp = options[num - 1]
-            else:
-                resp = match
+            engine = self._get_selection_engine()
+            engine.config["min_conf"] = min_conf
+            try:
+                resp = engine.match_option(utterance=resp, options=options, lang=self.lang)
+            except Exception as e:
+                LOG.error(f"OptionMatcher plugin failed: {e}")
+                resp = None
         return resp
 
     def voc_list(self, voc_filename: str,
@@ -2010,12 +2439,11 @@ class OVOSSkill:
         @param lang: language to get vocab for (default self.lang)
         @return: list of string vocab options
         """
-        lang = standardize_lang_tag(lang or self.lang)
+        lang = standardize_lang(lang or self.lang)
         cache_key = lang + voc_filename
 
         if cache_key not in self._voc_cache:
-            vocab = self.resources.load_vocabulary_file(voc_filename) or \
-                    CoreResources(lang).load_vocabulary_file(voc_filename)
+            vocab = self.resources.load_vocabulary_file(voc_filename)
             if vocab:
                 self._voc_cache[cache_key] = list(chain(*vocab))
 
@@ -2071,6 +2499,132 @@ class OVOSSkill:
 
         return match
 
+    @staticmethod
+    def _normalize_with_offsets(utt: str) -> Tuple[str, List[int]]:
+        """
+        Apply the same accent/punctuation stripping as
+        `remove_accents_and_punct`, but keep a per-character map back to the
+        original string so match spans found in the normalized text can be
+        translated back to offsets into `utt`.
+
+        Returns:
+            Tuple[str, List[int]]: the normalized string, and a list where
+                                   `idx_map[j]` is the index in the original
+                                   `utt` that produced normalized char `j`.
+        """
+        rm_chars = set(c for c in string.punctuation if c not in ("{", "}"))
+        out_chars = []
+        idx_map = []
+        for i, ch in enumerate(utt):
+            for c in unicodedata.normalize('NFD', ch):
+                if unicodedata.category(c) == 'Mn' or c in rm_chars:
+                    continue
+                out_chars.append(c)
+                idx_map.append(i)
+        return ''.join(out_chars), idx_map
+
+    def voc_match_span(self, utt: str, voc_filename: str,
+                        lang: Optional[str] = None,
+                        exact: bool = False,
+                        ensure_ascii: bool = True) -> List[Tuple[str, int, int]]:
+        """
+        Determine which vocabulary entries the given utterance matches, and
+        where in the utterance each match occurs.
+
+        This is the span-reporting counterpart to `voc_match`, returning
+        every matched vocab entry together with its `(start, end)` offset
+        into `utt`, enabling in-handler recovery of the exact text that
+        matched (e.g. for `<voc>`-inline intents where the matched keyword
+        needs to be sliced back out of the original utterance).
+
+        Results are returned in UTTERANCE ORDER, i.e. sorted by `start`
+        offset (not longest-first: a later, shorter match is intentionally
+        listed after an earlier, longer one). Each occurrence of a matched
+        entry gets its own span, so a repeated keyword produces multiple
+        entries. `matched_entry` is always the canonical spelling as written
+        in the `.voc` file, never a normalized form.
+
+        Overlap rule: spans never overlap. When two candidate matches
+        overlap (e.g. vocab entries "new york" and "york" both matching the
+        utterance "new york"), the LONGEST candidate wins that stretch of
+        text and the shorter, overlapping candidate is dropped entirely.
+
+        Offset reference: `ensure_ascii=True` matches leniently by stripping
+        accents/punctuation before comparing, but the returned `start`/`end`
+        always index into the ORIGINAL `utt` as passed in, so
+        `utt[start:end]` reproduces the actually-matched substring
+        regardless of `ensure_ascii`.
+
+        Args:
+            utt (str): Utterance to be tested
+            voc_filename (str): Name of vocabulary file (e.g. 'cancel' for
+                                'locale/en-us/cancel.voc')
+            lang (str): Language code, defaults to self.lang
+            exact (bool): Whether the vocab must exactly match the utterance.
+                         When True, a match yields a single span covering
+                         the whole utterance: `(0, len(utt))`.
+            ensure_ascii (bool): Whether to ignore accents and punctuation
+
+        Returns:
+            List[Tuple[str, int, int]]: `(matched_entry, start, end)` for
+                       every match, in utterance order. Empty list if there
+                       is no match. Callers that only want the entries can
+                       use `[m[0] for m in voc_match_span(...)]`; callers
+                       that only want the first/best-positioned match can
+                       use `voc_match_span(...)[0]`.
+        """
+        lang = lang or self.lang
+        try:
+            _vocs = self.voc_list(voc_filename, lang)
+        except FileNotFoundError:
+            LOG.warning(
+                f"{self.skill_id} failed to find voc file '{voc_filename}' for lang '{lang}' in `{self.res_dir}'")
+            return []
+
+        matches: List[Tuple[str, int, int]] = []
+        if not utt or not _vocs:
+            return matches
+
+        orig_vocs = _vocs
+        if ensure_ascii:
+            search_utt, idx_map = self._normalize_with_offsets(utt)
+            _vocs = [remove_accents_and_punct(v) for v in _vocs]
+        else:
+            search_utt, idx_map = utt, list(range(len(utt)))
+
+        if exact:
+            for orig, i in zip(orig_vocs, _vocs):
+                if i.strip().lower() == search_utt.lower():
+                    matches.append((orig, 0, len(utt)))
+                    break
+        else:
+            # collect every candidate span first, so overlaps across
+            # different vocab entries can be resolved (longest wins)
+            candidates = []  # (start_n, end_n, orig)
+            for orig, i in zip(orig_vocs, _vocs):
+                pattern = r'\b' + re.escape(i) + r'\b'
+                for m in re.finditer(pattern, search_utt, re.IGNORECASE):
+                    start_n, end_n = m.span()
+                    if start_n == end_n:
+                        continue
+                    candidates.append((start_n, end_n, orig))
+
+            # longest first (ties: leftmost first), greedily accept
+            # non-overlapping candidates so the longest entry always wins
+            # a contested stretch of text
+            occupied: List[Tuple[int, int]] = []
+            for start_n, end_n, orig in sorted(
+                    candidates, key=lambda c: (-(c[1] - c[0]), c[0])):
+                if any(start_n < e and s < end_n for s, e in occupied):
+                    continue
+                occupied.append((start_n, end_n))
+                start = idx_map[start_n] if idx_map else start_n
+                end = idx_map[end_n - 1] + 1 if idx_map else end_n
+                matches.append((orig, start, end))
+
+        matches.sort(key=lambda t: t[1])
+        return matches
+
     def remove_voc(self, utt: str, voc_filename: str,
                    lang: Optional[str] = None) -> str:
         """
@@ -2093,7 +2647,7 @@ class OVOSSkill:
     def add_event(self, name: str, handler: callable,
                   handler_info: Optional[str] = None, once: bool = False,
                   speak_errors: bool = True, activation: Optional[bool] = None,
-                  is_intent: bool = False):
+                  is_intent: bool = False, intent_name: Optional[str] = None):
         """
         Create event handler for executing intent or other event.
 
@@ -2108,8 +2662,19 @@ class OVOSSkill:
                                            spoken to inform the user whenever
                                            an exception happens inside the handler
             activation  (bool, optional): activate skill if True, deactivate if False, do nothing if None
+            intent_name (string, optional): rides in the framework done-signal
+                                   payload's ``intent_name`` field. ovos-core's
+                                   dispatcher (``_resolve_entry``) reads it to
+                                   disambiguate which in-flight dispatch for
+                                   this ``skill_id`` a done-signal concludes,
+                                   needed whenever more than one dispatch to
+                                   the same skill can be in flight at once
+                                   (eg. a targeted `<skill_id>:stop` racing an
+                                   already-running intent handler).
         """
         skill_data = {'name': get_handler_name(handler)}
+        if intent_name:
+            skill_data['intent_name'] = intent_name
 
         def on_error(error, message):
             if isinstance(error, AbortEvent):
@@ -2144,6 +2709,154 @@ class OVOSSkill:
         """
         return self.events.remove(name)
 
+    # scheduled events
+    # These methods are the skill-facing scheduling API. They speak SCHEDULER-1
+    # through the scheduler client when one is installed and a scheduler is
+    # answering on the bus, and the pre-specification mycroft.scheduler.*
+    # protocol when either is missing. Whichever they speak, they behave the
+    # way a skill has always been able to rely on: they do not block the
+    # caller and a scheduler that refuses or never answers reaches the log,
+    # not the skill.
+
+    #: A repeating schedule made through SCHEDULER-1 belongs to the skill id
+    #: rather than to the process, so it is left running when the skill stops
+    #: and is still there when the skill comes back. Set this false to cancel
+    #: repeats on shutdown, as the pre-specification protocol did.
+    repeating_schedules_outlive_the_skill = True
+
+    @property
+    def _use_spec_scheduler(self) -> bool:
+        """
+        Whether to schedule through SCHEDULER-1 rather than the old topics.
+
+        Having the client is not the same as having something to talk to: the
+        scheduler runs in another process on its own release cycle, so its
+        presence is asked for once and remembered. Every call that goes out
+        on the sending thread asks it there; get_scheduled_event_status waits
+        for its answer anyway and asks on the caller's thread.
+        """
+        if SchedulerClient is None or \
+                not isinstance(self.event_scheduler, SchedulerClient):
+            return False
+        return self.event_scheduler.is_available()
+
+    def _send_to_scheduler(self, description: str, request: Callable):
+        """
+        Send one scheduler request without holding the caller up.
+
+        Scheduling has never blocked a skill or raised at it when the
+        scheduler was unhappy, and that is the contract whichever protocol
+        carries it. Requests go out on one thread in the order they were
+        made, and only failures reach the log.
+        """
+        self._scheduler_requests.put((description, request))
+        if self._scheduler_sender is None:
+            self._scheduler_sender = Thread(
+                target=self._send_scheduler_requests, daemon=True,
+                name=f"{self.skill_id}-scheduler")
+            self._scheduler_sender.start()
+
+    def _send_scheduler_requests(self):
+        while True:
+            description, request = self._scheduler_requests.get()
+            try:
+                if request is _STOP_SENDING:
+                    return
+                request()
+            except Exception as failure:
+                LOG.error(f"{description} failed: {failure}")
+            finally:
+                self._scheduler_requests.task_done()
+
+    def _scheduler_requests_sent(self):
+        """
+        Wait for the requests already made to reach the scheduler.
+        """
+        self._scheduler_requests.join()
+
+    def _stop_sending_to_scheduler(self,
+                                   timeout: float = SCHEDULER_SHUTDOWN_TIMEOUT):
+        """
+        Let the queued requests go out, then stop the sending thread.
+
+        An unloaded skill's process may exit immediately afterwards, so a
+        cancellation still sitting on the queue would simply never happen and
+        the shutdown policy would come down to luck. The wait is bounded: a
+        scheduler that has stopped answering must not be able to hang a
+        shutdown, and the thread is a daemon that dies with the process
+        either way.
+        """
+        if self._scheduler_sender is None:
+            return
+        self._scheduler_requests.put(("stopping", _STOP_SENDING))
+        self._scheduler_sender.join(timeout)
+        if self._scheduler_sender.is_alive():
+            LOG.warning(f"scheduler requests from {self.skill_id} were still "
+                        f"going out after {timeout}s and were abandoned")
+        self._scheduler_sender = None
+
+    def _spec_schedule_name(self, name: Optional[str],
+                            handler: Callable) -> str:
+        """
+        The name a SCHEDULER-1 schedule is known by, and cancelled by.
+
+        Without one the handler's name is used. The older interface derives
+        its own default differently and keeps it: a schedule an older release
+        persisted is stored under that name, and reaching it later is the
+        only way to cancel it. Renaming the handler orphans the schedule on
+        either path.
+        """
+        return name or handler.__name__
+
+    def _schedule_context(self, context: Optional[dict]) -> dict:
+        """
+        The message context a scheduled handler is called with: the one the
+        caller gave, else the context of the message being handled.
+
+        The scheduler stores it and fires the occurrence with it, so it is
+        settled here, once, while the message that would supply it is still
+        in flight.
+        """
+        message = dig_for_message()
+        context = dict(context or (message.context if message else {}))
+        context["skill_id"] = self.skill_id
+        return context
+
+    def _schedule_instant(self, when: datetime.datetime) -> datetime.datetime:
+        """
+        A scheduling time as a point on the time line. A naive datetime is
+        read in the configured timezone, never the platform's.
+        """
+        if when.tzinfo is None:
+            return when.replace(tzinfo=get_config_tz())
+        return when
+
+    def _one_shot_timing(self, when: Union[int, float, datetime.datetime]) -> dict:
+        """
+        A single-shot `when` as the one timing a schedule record carries.
+        """
+        if isinstance(when, (int, float)):
+            if when < 0:
+                raise ValueError(f"Expected datetime or positive int/float. "
+                                 f"got: {when}")
+            return {"in_seconds": when}
+        if not isinstance(when, datetime.datetime):
+            raise TypeError(f"Expected datetime, int, or float but got: {when}")
+        return {"at": self._schedule_instant(when)}
+
+    def _first_occurrence(self, when: Optional[Union[int, float, datetime.datetime]],
+                          frequency: Union[int, float]) -> datetime.datetime:
+        """
+        When a repeating schedule fires for the first time: the time asked
+        for, or one period from now.
+        """
+        if when is None:
+            return now_local() + datetime.timedelta(seconds=frequency)
+        timing = self._one_shot_timing(when)
+        if "in_seconds" in timing:
+            return now_local() + datetime.timedelta(seconds=timing["in_seconds"])
+        return timing["at"]
+
     def schedule_event(self, handler: callable,
                        when: Union[int, float, datetime.datetime],
                        data: Optional[dict] = None, name: Optional[str] = None,
@@ -2157,19 +2870,30 @@ class OVOSSkill:
                                    number of seconds in the future when the
                                    handler should be called
             data (dict, optional): data to send when the handler is called
-            name (str, optional):  reference name
-                                   NOTE: This will not warn or replace a
-                                   previously scheduled event of the same
-                                   name.
+            name (str, optional):  reference name. Against a SCHEDULER-1
+                                   scheduler the same name is one schedule
+                                   and using it again replaces the pending
+                                   event; against the older scheduler it adds
+                                   a second one. Without a name each derives
+                                   one from the handler in its own way, so
+                                   name a schedule you mean to cancel.
             context (dict, optional): context (dict, optional): message
                                       context to send when the handler
                                       is called
         """
-        message = dig_for_message()
-        context = context or message.context if message else {}
-        context["skill_id"] = self.skill_id
-        return self.event_scheduler.schedule_event(handler, when, data, name,
-                                                   context=context)
+        context = self._schedule_context(context)
+        timing = self._one_shot_timing(when)
+
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.schedule_event(handler, when, data, name,
+                                                    context=context)
+                return
+            self.event_scheduler.schedule(
+                self._spec_schedule_name(name, handler), handler,
+                data=data, context=context, **timing)
+
+        self._send_to_scheduler(f"scheduling {name or handler.__name__}", send)
 
     def schedule_repeating_event(self, handler: Callable,
                                  when: Optional[Union[int, float, datetime.datetime]],
@@ -2188,27 +2912,54 @@ class OVOSSkill:
                                         from now
             frequency (float/int):      time in seconds between calls
             data (dict, optional):      data to send when the handler is called
-            name (str, optional):       reference name, must be unique
+            name (str, optional):       reference name. Scheduling a name
+                                        that is already repeating is ignored;
+                                        cancel it first to replace it. Name a
+                                        schedule you mean to cancel: without
+                                        one, each protocol derives a name
+                                        from the handler in its own way.
             context (dict, optional):   context (dict, optional): message
                                         context to send when the handler
                                         is called
         """
-        message = dig_for_message()
-        context = context or message.context if message else {}
-        context["skill_id"] = self.skill_id
-        self.event_scheduler.schedule_repeating_event(handler, when, frequency,
-                                                      data, name,
-                                                      context=context)
+        context = self._schedule_context(context)
+        first = self._first_occurrence(when, frequency)
+
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.schedule_repeating_event(
+                    handler, when, frequency, data, name, context=context)
+                return
+            repeating = self._spec_schedule_name(name, handler)
+            if repeating in self._repeating_schedules:
+                LOG.debug('The event is already scheduled, cancel previous '
+                          'event if this scheduling should replace the last.')
+                return
+            self._repeating_schedules.add(repeating)
+            self.event_scheduler.schedule(
+                repeating, handler, data=data, context=context,
+                every={"seconds": frequency, "start": first.isoformat()})
+
+        self._send_to_scheduler(f"scheduling {name or handler.__name__}", send)
 
     def update_scheduled_event(self, name: str, data: Optional[dict] = None):
         """
         Change data of event.
 
+        The time the event fires is not touched, whether it was scheduled for
+        an instant, after a delay, or on a recurrence.
+
         Args:
             name (str): reference name of event (from original scheduling)
             data (dict): event data
         """
-        self.event_scheduler.update_scheduled_event(name, data)
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.update_scheduled_event(name, data)
+                return
+            self.event_scheduler.reschedule(name, data=data or {})
+
+        self._send_to_scheduler(f"updating {name}", send)
 
     def cancel_scheduled_event(self, name: str):
         """
@@ -2218,27 +2969,63 @@ class OVOSSkill:
         Args:
             name (str): reference name of event (from original scheduling)
         """
-        self.event_scheduler.cancel_scheduled_event(name)
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.cancel_scheduled_event(name)
+                return
+            self._repeating_schedules.discard(name)
+            self.event_scheduler.cancel(name)
 
-    def get_scheduled_event_status(self, name: str) -> int:
+        self._send_to_scheduler(f"cancelling {name}", send)
+
+    def get_scheduled_event_status(self, name: str) -> Optional[int]:
         """Get scheduled event data and return the amount of time left
+
+        This is the one scheduling call that waits, because it has an answer
+        to bring back. "Nothing by that name is scheduled" is one of the
+        answers: it comes back as None, so that
+        `if self.get_scheduled_event_status(name):` reads as "is this still
+        coming". Only a scheduler that says nothing at all raises.
 
         Args:
             name (str): reference name of event (from original scheduling)
 
         Returns:
-            int: the time left in seconds
+            int: seconds until the event fires, or None when nothing by that
+                 name is scheduled any more. An event due this second
+                 answers 0, which is falsy for the same reason it is small.
 
         Raises:
-            Exception: Raised if event is not found
+            Exception: Raised if the scheduler does not answer
         """
-        return self.event_scheduler.get_scheduled_event_status(name)
+        self._scheduler_requests_sent()
+        if not self._use_spec_scheduler:
+            # the older scheduler answers "not scheduled" with an empty
+            # payload, which its own client reads off the end of
+            try:
+                return self.event_scheduler.get_scheduled_event_status(name)
+            except (KeyError, IndexError):
+                return None
+        schedule = self.event_scheduler.get(name)
+        upcoming = schedule["state"]["next"] if schedule else None
+        if upcoming is None:
+            return None
+        due = datetime.datetime.fromisoformat(upcoming)
+        return int(due.timestamp()) - int(time.time())
 
     def cancel_all_repeating_events(self):
         """
         Cancel any repeating events started by the skill.
         """
-        self.event_scheduler.cancel_all_repeating_events()
+        def send():
+            if not self._use_spec_scheduler:
+                self.event_scheduler.cancel_all_repeating_events()
+                return
+            for name in sorted(self._repeating_schedules):
+                self._repeating_schedules.discard(name)
+                self.event_scheduler.cancel(name)
+
+        self._send_to_scheduler("cancelling every repeating event", send)
 
     # intent/context skill dev facing utils
     def disable_intent(self, intent_name: str) -> bool:
@@ -2251,15 +3038,18 @@ class OVOSSkill:
         Returns:
                 bool: True if disabled, False if it wasn't registered
         """
-        if intent_name in self.intent_service:
+        # a skill author names the intent as authored ("time.intent"); the
+        # registry and the bus both key it by its canonical name ("time")
+        name = canonical_intent_topic(f'{self.skill_id}:{intent_name}')
+        if name.split(':', 1)[1] in self.intent_service:
             self.log.info('Disabling intent ' + intent_name)
-            name = f'{self.skill_id}:{intent_name}'
-            self.intent_service.detach_intent(name)
+            self.intent_service.remove_intent(name)
+            self.remove_event(name)
 
             langs = [self.core_lang] + self.secondary_langs
             for lang in langs:
                 lang_intent_name = f'{name}_{lang}'
-                self.intent_service.detach_intent(lang_intent_name)
+                self.intent_service.remove_intent(lang_intent_name)
             return True
         else:
             self.log.error(f'Could not disable {intent_name}, it hasn\'t been registered.')
@@ -2275,22 +3065,87 @@ class OVOSSkill:
         Returns:
             bool: True if enabled, False if it wasn't registered
         """
-        intent = self.intent_service.get_intent(intent_name)
+        # the registry keys intents by their canonical name; the author may
+        # still refer to the intent by its authoring file name
+        canonical = canonical_intent_topic(
+            f'{self.skill_id}:{intent_name}').split(':', 1)[1]
+        intent = self.intent_service.get_intent(canonical)
         if intent:
-            if ".intent" in intent_name:
-                self.register_intent_file(intent_name, None)
+            # _intent_handlers is keyed canonically (see register_intent_file/
+            # _register_adapt_intent), so look it up by the same canonical
+            # spelling regardless of which spelling the caller used.
+            handler = self._intent_handlers.get(canonical)
+            if not handler:
+                self.log.error(f'Could not enable {intent_name}, no handler '
+                               f'is on record for it (was it ever registered '
+                               f'with a handler by this skill instance?).')
+                return False
+            # padatious intents are stored as the register_template() data
+            # dict; adapt intents as the IntentBuilder/Intent object. Branch
+            # on what's actually in the registry, not on the caller's
+            # spelling -- a caller may legitimately ask for the canonical
+            # name of a padatious (".intent"-authored) intent.
+            if isinstance(intent, dict):
+                self.register_intent_file(f'{canonical}.intent', handler)
             else:
                 intent.name = intent_name
-                self.register_intent(intent, None)
+                self.register_intent(intent, handler)
             self.log.debug(f'Enabling intent {intent_name}')
             return True
         else:
             self.log.error(f'Could not enable {intent_name}, it hasn\'t been registered.')
             return False
 
+    def skill_will_match(self, utterance: str, lang: Optional[str] = None,
+                         timeout: float = 0.8,
+                         exclude_pipeline: Optional[List[str]] = None,
+                         session: Optional[Session] = None) -> bool:
+        """Ask the intent service whether one of THIS skill's intents would match
+        the utterance under a given session's context.
+
+        Uses the read-only `intent.service.intent.get` probe (it never executes a
+        handler, so it has no side effects). The probe runs under `session`'s
+        intent context, so context-gated intents (e.g. layer-gated game intents)
+        are accounted for per-session — essential when several sessions are active
+        at once.
+
+        @param utterance: utterance to probe
+        @param lang: language tag (defaults to skill lang)
+        @param timeout: seconds to wait for the intent-service reply
+        @param exclude_pipeline: pipeline stages to skip for this probe (substring
+            match). A skill that is currently conversing should pass
+            `["converse"]` to avoid re-entering its own converse stage.
+        @param session: the Session whose intent context to probe under; defaults
+            to the current/default session.
+        @return: True if the matched intent belongs to this skill
+        """
+        lang = standardize_lang(lang or self.lang)
+        session = session or SessionManager.get()
+        data = {"utterance": utterance, "lang": lang}
+        if exclude_pipeline:
+            data["exclude_pipeline"] = list(exclude_pipeline)
+        response = self.bus.wait_for_response(
+            Message("intent.service.intent.get", data,
+                    {"session": session.serialize(), "lang": lang}),
+            "intent.service.intent.reply", timeout=timeout)
+        if not response:
+            return False
+        intent = response.data.get("intent")
+        if not intent:
+            return False
+        return intent.get("skill_id") == self.skill_id
+
     def set_context(self, context: str, word: str = '', origin: str = ''):
         """
-        Add context to intent service
+        Add context to intent service.
+
+        CONTEXT-1 §5.0: writes directly into the session bound to the
+        current dispatch message (`Session.intent_context`, private scope
+        owned by this skill) via `IntentServiceInterface`/`_AdaptIntentApi`,
+        so the mutation rides forward on whatever Message this handler
+        emits next (§5.3). The legacy `add_context` bus message - a
+        different mechanism, the adapt-engine `session.context` field - is
+        also emitted, for pre-spec orchestrators only.
 
         Args:
             context:    Keyword
@@ -2302,17 +3157,24 @@ class OVOSSkill:
         if not isinstance(word, str):
             raise ValueError('Word should be a string')
 
+        original_context = context
         context = self.alphanumeric_skill_id + context
-        self.intent_service.set_adapt_context(context, word, origin)
+        self.intent_service._set_context(context, word, origin,
+                                          original_key=original_context)
 
     def remove_context(self, context: str):
         """
         Remove a keyword from the context manager.
+
+        CONTEXT-1 §5.0: same session-delegation + legacy compat emit
+        as `set_context` above.
         """
         if not isinstance(context, str):
             raise ValueError('context should be a string')
+        original_context = context
         context = self.alphanumeric_skill_id + context
-        self.intent_service.remove_adapt_context(context)
+        self.intent_service._remove_context(context,
+                                             original_key=original_context)
 
     def set_cross_skill_context(self, context: str, word: str = ''):
         """
@@ -2388,7 +3250,10 @@ class OVOSSkill:
 class SkillGUI(GUIInterface):
     def __init__(self, skill: OVOSSkill):
         """
-        Wraps `GUIInterface` for use with a skill.
+        Initialize a SkillGUI that connects a skill to the GUI framework.
+        
+        Parameters:
+        	skill (OVOSSkill): The skill instance whose GUI should be managed. The constructor initializes the underlying GUIInterface using the skill's id, message bus, GUI configuration, and UI directories.
         """
         self._skill = skill
         skill_id = skill.skill_id
@@ -2399,155 +3264,5 @@ class SkillGUI(GUIInterface):
                               ui_directories=ui_directories)
 
 
-def _get_dialog(phrase: str, lang: str, context: Optional[dict] = None) -> str:
-    """
-    Looks up a resource file for the given phrase in the specified language.
-
-    Meant only for resources bundled with ovos-workshop and shared across skills
-
-    Args:
-        phrase (str): resource phrase to retrieve/translate
-        lang (str): the language to use
-        context (dict): values to be inserted into the string
-
-    Returns:
-        str: a randomized and/or translated version of the phrase
-    """
-    lang = standardize_lang_tag(lang).split('-')[0]
-    filename = f"{dirname(dirname(__file__))}/locale/{lang}/{phrase}.dialog"
-
-    if not isfile(filename):
-        LOG.debug(f'Resource file not found: {filename}')
-        return phrase
-
-    stache = MustacheDialogRenderer()
-    stache.load_template_file('template', filename)
-    if not context:
-        context = {}
-    return stache.render('template', context)
-
-
-def _get_word(lang, connector):
-    """ Helper to get word translations
-
-    Args:
-        lang (str, optional): an optional BCP-47 language code, if omitted
-                              the default language will be used.
-
-    Returns:
-        str: translated version of resource name
-    """
-    lang = standardize_lang_tag(lang).split("-")[0]
-    res_file = f"{dirname(dirname(__file__))}/locale/{lang}" \
-               f"/word_connectors.json"
-    if not os.path.isfile(res_file):
-        LOG.warning(f"untranslated file: {res_file}")
-        return ", "
-    with open(res_file) as f:
-        w = json.load(f)[connector]
-    return w
-
-
-def join_word_list(items: List[str], connector: str, sep: str, lang: str) -> str:
-    """ Join a list into a phrase using the given connector word
-
-    Examples:
-        join_word_list([1,2,3], "or") ->  "1, 2 or 3"
-        join_word_list([1,2,3], "and") ->  "1, 2 and 3"
-        join_word_list([1,2,3], "and", ";") ->  "1; 2 and 3"
-
-    Args:
-        items (array): items to be joined
-        connector (str): connecting word (resource name), like "and" or "or"
-        sep (str, optional): separator character, default = ","
-        lang (str, optional): an optional BCP-47 language code, if omitted
-                              the default language will be used.
-    Returns:
-        str: the connected list phrase
-    """
-    if lang.startswith("it"):
-        return _join_word_list_it(items, connector, sep)
-    elif lang.startswith("es"):
-        return _join_word_list_es(items, connector, sep)
-
-    cons = {
-        "and": _get_word(lang, "and"),
-        "or": _get_word(lang, "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-    return (sep.join(str(item) for item in items[:-1]) +
-            " " + cons[connector] +
-            " " + items[-1])
-
-
-def _join_word_list_it(items: List[str], connector: str, sep: str = ",") -> str:
-    cons = {
-        "and": _get_word("it", "and"),
-        "or": _get_word("it", "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-
-    final_connector = cons[connector]
-    if len(items) > 2:
-        joined_string = sep.join(item for item in items[:-1])
-    else:
-        joined_string = items[0]
-
-    # Check for euphonic transformation cases for "e" and "o"
-    if cons[connector] == "e" and items[-1][0].lower() == "e":
-        final_connector = "ed"
-    elif cons[connector] == "o" and items[-1][0].lower() == "o":
-        final_connector = "od"
-    return f"{joined_string} {final_connector} {items[-1]}"
-
-
-def _join_word_list_es(items: List[str], connector: str, sep: str = ",") -> str:
-    cons = {
-        "and": _get_word("es", "and"),
-        "or": _get_word("es", "or")
-    }
-    if not items:
-        return ""
-    if len(items) == 1:
-        return str(items[0])
-
-    if not sep:
-        sep = ", "
-    else:
-        sep += " "
-
-    final_connector = cons[connector]
-    if len(items) > 2:
-        joined_string = sep.join(item for item in items[:-1])
-    else:
-        joined_string = items[0]
-
-    # Check for euphonic transformation cases for "y"
-    w = items[-1].lower().lstrip("h").replace("ó", "o").replace("í", "i").replace("á", "a")
-    if not any([w.startswith("io"), w.startswith("ia"), w.startswith("ie")]):
-        # When following word starts by (H)IA, (H)IE or (H)IO, then usual Y preposition is used
-        if cons[connector] == "y" and w[0] == "i":
-            final_connector = "e"
-        # Check for euphonic transformation cases for "o"
-        if cons[connector] == "o" and w[0] == "o":
-            final_connector = "u"
-
-    return f"{joined_string} {final_connector} {items[-1]}"
 
 

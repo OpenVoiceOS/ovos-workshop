@@ -1,416 +1,442 @@
-import abc
-import itertools
+import re
+import time
 from os.path import exists
+from pathlib import Path
 from threading import RLock
-from typing import List, Tuple, Optional
+from typing import Dict, List, Optional
+import re
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
+from ovos_bus_client.session import SessionManager
 from ovos_bus_client.util import get_mycroft_bus
+from ovos_config import Configuration
 from ovos_utils.log import LOG, log_deprecation
 
+# OVOS-INTENT-4 keyword-intent definition primitives, re-exported from ovos-spec-tools.
+from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
+                             SpecMessage, INTENT_FILE_SUFFIX,
+                             inline_keywords, expand, MalformedTemplate)
+from ovos_spec_tools.resources import read_resource_file
 
-class _IntentMeta(abc.ABCMeta):
-    def __instancecheck__(self, instance):
-        check = super().__instancecheck__(instance)
-        if not check:
-            try:
-                # backwards compat isinstancechecks
-                from adapt.intent import Intent as _I
-                check = isinstance(instance, _I)
-            except ImportError:
-                pass
-        return check
+from ovos_workshop.decorators import ContextGate
+from ovos_workshop.version import VERSION_MAJOR
+
+# Deprecated adapt/padatious shims are removed in the next MAJOR release.
+_DEPRECATION_VERSION = f"{VERSION_MAJOR + 1}.0.0"
+
+# OVOS-INTENT-1 §4.3: bound on inline <name> vocabulary size.
+_MAX_INLINE_VOCAB_VALUES = 100
 
 
-class Intent(metaclass=_IntentMeta):
-    def __init__(self, name="", requires=None, at_least_one=None, optional=None, excludes=None):
-        """Create Intent object
+def _drop_malformed_samples(samples: List[str], name: str, lang: str,
+                            skill_id: str) -> List[str]:
+    """Skip-and-warn sample lines that are not valid OVOS-INTENT-1 templates,
+    so one broken locale line cannot abort the whole registration.
 
-        Args:
-            name(str): Name for Intent
-            requires(list): Entities that are required
-            at_least_one(list): One of these Entities are required
-            optional(list): Optional Entities used by the intent
-        """
-        self.name = name
-        self.requires = requires or []
-        self.at_least_one = at_least_one or []
-        self.optional = optional or []
-        self.excludes = excludes or []
+    ``<name>`` vocabulary references resolve downstream at match time; they
+    are replaced by a literal placeholder for validation only, and the
+    returned samples keep the original lines.
+    """
+    valid = []
+    for sample in samples:
+        try:
+            expand(re.sub(r"<\s*([a-z0-9_]+)\s*>", "placeholder", sample))
+            valid.append(sample)
+        except MalformedTemplate as err:
+            LOG.warning(f"Skipping malformed template line in '{name}' "
+                        f"(skill_id={skill_id}, lang={lang}): "
+                        f"{sample!r} ({err})")
+    return valid
 
-    def validate(self, tags, confidence):
-        """Using this method removes tags from the result of validate_with_tags
 
-        Returns:
-            intent(intent): Results from validate_with_tags
-        """
-        intent, tags = self.validate_with_tags(tags, confidence)
-        return intent
+def _legacy_warn(msg, version=_DEPRECATION_VERSION):
+    """Standard deprecation warning for legacy engine-API methods."""
+    log_deprecation(msg, version)
+    warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
-    def validate_with_tags(self, tags, confidence):
-        """Validate whether tags has required entites for this intent to fire
 
-        Args:
-            tags(list): Tags and Entities used for validation
-            confidence(float): The weight associate to the parse result,
-                as indicated by the parser. This is influenced by a parser
-                that uses edit distance or context.
+_add_context_legacy_warned = False
 
-        Returns:
-            intent, tags: Returns intent and tags used by the intent on
-                failure to meat required entities then returns intent with
-                confidence
-                of 0.0 and an empty list for tags.
-        """
-        result = {'intent_type': self.name}
-        intent_confidence = 0.0
-        local_tags = tags[:]
-        used_tags = []
 
-        # Check excludes first
-        for exclude_type in self.excludes:
-            exclude_tag, _canonical_form, _tag_confidence = \
-                self._find_first_tag(local_tags, exclude_type)
-            if exclude_tag:
-                result['confidence'] = 0.0
-                return result, []
+def _legacy_warn_add_context_once():
+    """`_legacy_warn` for the `add_context`/`remove_context` compat emit.
 
-        for require_type, attribute_name in self.requires:
-            required_tag, canonical_form, tag_confidence = \
-                self._find_first_tag(local_tags, require_type)
-            if not required_tag:
-                result['confidence'] = 0.0
-                return result, []
+    Every other legacy path in this module is one explicit call a skill
+    author opts into; this one fires on every `set_context`/`remove_context`
+    call, including from inside hot intent-handling loops, so a per-call
+    `warnings.warn` would be noise rather than signal. Warn once per
+    process instead - still `_legacy_warn`, so the removal-version message
+    and log_deprecation bookkeeping are identical to every other shim here.
+    """
+    global _add_context_legacy_warned
+    if _add_context_legacy_warned:
+        return
+    _add_context_legacy_warned = True
+    _legacy_warn("add_context/remove_context (the adapt-engine "
+                 "session.context field) is a pre-OVOS-CONTEXT-1 compat "
+                 "path kept for orchestrators that still consume it")
 
-            result[attribute_name] = canonical_form
-            if required_tag in local_tags:
-                local_tags.remove(required_tag)
-            used_tags.append(required_tag)
-            intent_confidence += tag_confidence
 
-        if len(self.at_least_one) > 0:
-            best_resolution = self._resolve_one_of(local_tags, self.at_least_one)
-            if not best_resolution:
-                result['confidence'] = 0.0
-                return result, []
-            else:
-                for key in best_resolution:
-                    # TODO: at least one should support aliases
-                    result[key] = best_resolution[key][0].get('key')
-                    intent_confidence += 1.0 * best_resolution[key][0]['entities'][0].get('confidence', 1.0)
-                used_tags.append(best_resolution[key][0])
-                if best_resolution in local_tags:
-                    local_tags.remove(best_resolution[key][0])
+class _AdaptIntentApi:
+    """Adapt engine protocol — delete when Adapt support is dropped."""
 
-        for optional_type, attribute_name in self.optional:
-            optional_tag, canonical_form, tag_confidence = \
-                self._find_first_tag(local_tags, optional_type)
-            if not optional_tag or attribute_name in result:
-                continue
-            result[attribute_name] = canonical_form
-            if optional_tag in local_tags:
-                local_tags.remove(optional_tag)
-            used_tags.append(optional_tag)
-            intent_confidence += tag_confidence
+    def __init__(self, iface: "IntentServiceInterface"):
+        self._iface = iface
 
-        total_confidence = (intent_confidence / len(tags) * confidence) \
-            if tags else 0.0
+    @property
+    def bus(self):
+        return self._iface.bus
 
-        CLIENT_ENTITY_NAME = 'Client'  # TODO - ??? what is this magic string
+    @property
+    def skill_id(self) -> str:
+        return self._iface.skill_id
 
-        target_client, canonical_form, confidence = \
-            self._find_first_tag(local_tags, CLIENT_ENTITY_NAME)
-
-        result['target'] = target_client.get('key') if target_client else None
-        result['confidence'] = total_confidence
-
-        return result, used_tags
-
-    @classmethod
-    def _resolve_one_of(cls, tags, at_least_one):
-        """Search through all combinations of at_least_one rules to find a
-        combination that is covered by tags
-
-        Args:
-            tags(list): List of tags with Entities to search for Entities
-            at_least_one(list): List of Entities to find in tags
-
-        Returns:
-            object:
-            returns None if no match is found but returns any match as an object
-        """
-        for possible_resolution in itertools.product(*at_least_one):
-            resolution = {}
-            pr = possible_resolution[:]
-            for entity_type in pr:
-                last_end_index = -1
-                if entity_type in resolution:
-                    last_end_index = resolution[entity_type][-1].get('end_token')
-                tag, value, c = cls._find_first_tag(tags, entity_type,
-                                                    after_index=last_end_index)
-                if not tag:
-                    break
-                else:
-                    if entity_type not in resolution:
-                        resolution[entity_type] = []
-                    resolution[entity_type].append(tag)
-            # Check if this is a valid resolution (all one_of rules matched)
-            if len(resolution) == len(possible_resolution):
-                return resolution
-
-        return None
+    # ------------------------------------------------------------------
+    #  munging — adapt-era namespace hacks
+    # ------------------------------------------------------------------
 
     @staticmethod
-    def _find_first_tag(tags, entity_type, after_index=-1):
-        """Searches tags for entity type after given index
+    def to_alnum(skill_id: str) -> str:
+        return ''.join(c if c.isalnum() else '_' for c in str(skill_id))
 
-        Args:
-            tags(list): a list of tags with entity types to be compared to
-             entity_type
-            entity_type(str): This is he entity type to be looking for in tags
-            after_index(int): the start token must be greater than this.
+    @staticmethod
+    def munge_regex(regex: str, skill_id: str) -> str:
+        base = '(?P<' + _AdaptIntentApi.to_alnum(skill_id)
+        return base.join(regex.split('(?P<'))
 
-        Returns:
-            ( tag, v, confidence ):
-                tag(str): is the tag that matched
-                v(str): ? the word that matched?
-                confidence(float): is a measure of accuracy.  1 is full confidence
-                    and 0 is none.
-        """
-        for tag in tags:
-            for entity in tag.get('entities'):
-                for v, t in entity.get('data'):
-                    if t.lower() == entity_type.lower() and \
-                            (tag.get('start_token', 0) > after_index or \
-                             tag.get('from_context', False)):
-                        return tag, v, entity.get('confidence')
-
-        return None, None, None
-
-
-class _IntentBuilderMeta(abc.ABCMeta):
-    def __instancecheck__(self, instance):
-        check = super().__instancecheck__(instance)
-        if not check:
-            try:
-                # backwards compat isinstancechecks
-                from adapt.intent import IntentBuilder as _IB
-                check = isinstance(instance, _IB)
-            except ImportError:
-                pass
-        return check
-
-
-class IntentBuilder(metaclass=_IntentBuilderMeta):
-    """
-    IntentBuilder, used to construct intent parsers.
-
-    Attributes:
-        at_least_one(list): A list of Entities where one is required.
-            These are separated into lists so you can have one of (A or B) and
-            then require one of (D or F).
-        requires(list): A list of Required Entities
-        optional(list): A list of optional Entities
-        excludes(list): A list of forbidden Entities
-        name(str): Name of intent
-
-    Notes:
-        This is designed to allow construction of intents in one line.
-
-    Example:
-        IntentBuilder("Intent")\
-            .requires("A")\
-            .one_of("C","D")\
-            .optional("G").build()
-    """
-
-    def __init__(self, intent_name):
-        """
-        Constructor
-
-        Args:
-            intent_name(str): the name of the intents that this parser
-            parses/validates
-        """
-        self.at_least_one = []
-        self.requires = []
-        self.excludes = []
-        self.optional = []
-        self.name = intent_name
-
-    def one_of(self, *args):
-        """
-        The intent parser should require one of the provided entity types to
-        validate this clause.
-
-        Args:
-            args(args): *args notation list of entity names
-
-        Returns:
-            self: to continue modifications.
-        """
-        self.at_least_one.append(args)
-        return self
-
-    def require(self, entity_type, attribute_name=None):
-        """
-        The intent parser should require an entity of the provided type.
-
-        Args:
-            entity_type(str): an entity type
-            attribute_name(str): the name of the attribute on the parsed intent.
-            Defaults to match entity_type.
-
-        Returns:
-            self: to continue modifications.
-        """
-        if not attribute_name:
-            attribute_name = entity_type
-        self.requires += [(entity_type, attribute_name)]
-        return self
-
-    def exclude(self, entity_type):
-        """
-        The intent parser must not contain an entity of the provided type.
-
-        Args:
-            entity_type(str): an entity type
-
-        Returns:
-            self: to continue modifications.
-        """
-        self.excludes.append(entity_type)
-        return self
-
-    def optionally(self, entity_type, attribute_name=None):
-        """
-        Parsed intents from this parser can optionally include an entity of the
-         provided type.
-
-        Args:
-            entity_type(str): an entity type
-            attribute_name(str): the name of the attribute on the parsed intent.
-            Defaults to match entity_type.
-
-        Returns:
-            self: to continue modifications.
-        """
-        if not attribute_name:
-            attribute_name = entity_type
-        self.optional += [(entity_type, attribute_name)]
-        return self
-
-    def build(self):
-        """
-        Constructs an intent from the builder's specifications.
-
-        :return: an Intent instance.
-        """
-        return Intent(self.name, self.requires,
-                      self.at_least_one, self.optional,
-                      self.excludes)
-
-
-def to_alnum(skill_id: str) -> str:
-    """
-    Convert a skill id to only alphanumeric characters
-     Non-alphanumeric characters are converted to "_"
-
-    Args:
-        skill_id (str): identifier to be converted
-    Returns:
-        (str) String of letters
-    """
-    return ''.join(c if c.isalnum() else '_' for c in str(skill_id))
-
-
-def munge_regex(regex: str, skill_id: str) -> str:
-    """
-    Insert skill id as letters into match groups.
-
-    Args:
-        regex (str): regex string
-        skill_id (str): skill identifier
-    Returns:
-        (str) munged regex
-    """
-    base = '(?P<' + to_alnum(skill_id)
-    return base.join(regex.split('(?P<'))
-
-
-def munge_intent_parser(intent_parser, name, skill_id):
-    """
-    Rename intent keywords to make them skill exclusive
-    This gives the intent parser an exclusive name in the
-    format <skill_id>:<name>.  The keywords are given unique
-    names in the format <Skill id as letters><Intent name>.
-
-    The function will not munge instances that's already been
-    munged
-
-    Args:
-        intent_parser: (IntentParser) object to update
-        name: (str) Skill name
-        skill_id: (int) skill identifier
-    """
-    # Munge parser name
-    if not name.startswith(str(skill_id) + ':'):
-        intent_parser.name = str(skill_id) + ':' + name
-    else:
-        intent_parser.name = name
-
-    # Munge keywords
-    skill_id = to_alnum(skill_id)
-    # Munge required keyword
-    reqs = []
-    for i in intent_parser.requires:
-        if not i[0].startswith(skill_id):
-            kw = (skill_id + i[0], skill_id + i[0])
-            reqs.append(kw)
+    @staticmethod
+    def munge_intent_parser(intent_parser, name, skill_id):
+        if not name.startswith(str(skill_id) + ':'):
+            intent_parser.name = str(skill_id) + ':' + name
         else:
-            reqs.append(i)
-    intent_parser.requires = reqs
+            intent_parser.name = name
+        sid = _AdaptIntentApi.to_alnum(skill_id)
+        reqs = []
+        for i in intent_parser.requires:
+            if not i[0].startswith(sid):
+                reqs.append((sid + i[0], sid + i[0]))
+            else:
+                reqs.append(i)
+        intent_parser.requires = reqs
+        opts = []
+        for i in intent_parser.optional:
+            if not i[0].startswith(sid):
+                opts.append((sid + i[0], sid + i[0]))
+            else:
+                opts.append(i)
+        intent_parser.optional = opts
+        at_least_one = []
+        for i in intent_parser.at_least_one:
+            element = [sid + e.replace(sid, '') for e in i]
+            at_least_one.append(tuple(element))
+        intent_parser.at_least_one = at_least_one
+        excludes = []
+        for e in intent_parser.excludes:
+            if not e.startswith(sid):
+                excludes.append(sid + e)
+            else:
+                excludes.append(e)
+        intent_parser.excludes = excludes
 
-    # Munge optional keywords
-    opts = []
-    for i in intent_parser.optional:
-        if not i[0].startswith(skill_id):
-            kw = (skill_id + i[0], skill_id + i[0])
-            opts.append(kw)
-        else:
-            opts.append(i)
-    intent_parser.optional = opts
+    # ------------------------------------------------------------------
+    #  legacy bus emits — called by the spec-compliant producer for
+    #  dual-emit (see IntentServiceInterface.register_keyword/register_intent)
+    # ------------------------------------------------------------------
 
-    # Munge at_least_one keywords
-    at_least_one = []
-    for i in intent_parser.at_least_one:
-        element = [skill_id + e.replace(skill_id, '') for e in i]
-        at_least_one.append(tuple(element))
-    intent_parser.at_least_one = at_least_one
+    def emit_legacy_register_vocab(self, vocab_type: str, entity: str,
+                                   aliases: Optional[List[str]] = None,
+                                   lang: str = None):
+        """Emit the legacy adapt ``register_vocab`` topic (entity + aliases).
+
+        TODO: drop once the adapt pipeline consumes ovos.intent.register.keyword (INTENT-4 §5) directly.
+        """
+        aliases = aliases or []
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        entity_data = {'entity_value': entity,
+                       'entity_type': vocab_type,
+                       'lang': lang}
+        compatibility_data = {'start': entity, 'end': vocab_type}
+        self.bus.emit(msg.forward("register_vocab",
+                                  {**entity_data, **compatibility_data}))
+        for alias in aliases:
+            alias_data = {
+                'entity_value': alias,
+                'entity_type': vocab_type,
+                'alias_of': entity,
+                'lang': lang}
+            compatibility_data = {'start': alias, 'end': vocab_type}
+            self.bus.emit(msg.forward("register_vocab",
+                                      {**alias_data, **compatibility_data}))
+
+    def emit_legacy_register_intent(self, msg: Message, intent_parser: object,
+                                    requires_context: Optional[List[ContextGate]] = None,
+                                    excludes_context: Optional[List[ContextGate]] = None):
+        """Emit the legacy adapt ``register_intent`` topic.
+
+        TODO: drop once the adapt pipeline consumes ovos.intent.register.keyword (INTENT-4 §5) directly.
+        """
+        data = dict(intent_parser.__dict__)
+        # OVOS-CONTEXT-1 §6/§6.1 gating declarations, riding as unknown-field
+        # extensions per INTENT-4 §5.3. Merged onto a copy of the parser's
+        # __dict__ rather than set on the parser itself, so the builder
+        # object handed back to the caller is not mutated as a side effect
+        # of emitting.
+        data['requires_context'] = requires_context or []
+        data['excludes_context'] = excludes_context or []
+        self.bus.emit(msg.forward("register_intent", data))
+
+    # ------------------------------------------------------------------
+    #  adapt bus protocol
+    # ------------------------------------------------------------------
+
+    def register_adapt_keyword(self, vocab_type: str, entity: str,
+                               aliases: Optional[List[str]] = None,
+                               lang: str = None):
+        _legacy_warn("register_adapt_keyword is deprecated, "
+                     "migrate to spec-compliant keyword registration")
+        self._iface.register_keyword(vocab_type, entity, aliases, lang)
+
+    def register_adapt_regex(self, regex: str, lang: str = None):
+        """Register a regex intent (adapt-engine only)."""
+        _legacy_warn("register_adapt_regex is deprecated; regex intents are "
+                     "adapt-engine only and will be removed with the adapt "
+                     f"engine in {_DEPRECATION_VERSION}")
+        regex = self.munge_regex(regex, self.skill_id)
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        self.bus.emit(msg.forward("register_vocab",
+                                  {'regex': regex, 'lang': lang}))
+
+    def register_adapt_intent(self, name: str, intent_parser: object):
+        _legacy_warn("register_adapt_intent is deprecated, "
+                     "use register_intent")
+        self.munge_intent_parser(intent_parser, name, self.skill_id)
+        self._iface.register_intent(name, intent_parser)
+
+    def set_context(self, context: str, word: str, origin: str,
+                     original_key: Optional[str] = None):
+        """Add adapt-engine context (adapt-engine only).
+
+        `context` is the munged (alphanumeric_skill_id + context) legacy
+        ADAPT key. `original_key`, when provided, is the unmunged context
+        name as passed by the caller.
+
+        CONTEXT-1 §5.0: the session is the only context write path. When
+        `original_key` is available this writes directly into the
+        `session` bound to `msg` (`SessionManager.get(msg)`, ovos-spec-tools
+        >=1.10.3a1) via `Session.set_intent_context` - `forward`/`reply`
+        derived from `msg` stamp from that same bound object (CONTEXT-1
+        §5.3), so the write rides out on whatever this call emits next. The
+        legacy `add_context` message below is a *different* mechanism (the
+        adapt-engine `session.context` field, not `intent_context`) kept for
+        cores that still consume it, and warns once per process via
+        `_legacy_warn_add_context_once` (see that helper).
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        if original_key is not None:
+            session = SessionManager.get(msg)
+            # OVOS-CONTEXT-1: mirror ovos-core's decay policy
+            # (`context.timeout`, minutes, default 2) so a skill-side write
+            # folds into the registry with the SAME `expires_at` a core-side
+            # write would carry - an omitted `expires_at` here produced
+            # immortal entries that stripped core's decay stamp for that
+            # key. One decay policy on both write paths.
+            context_cfg = Configuration().get('context', {})
+            timeout_s = context_cfg.get('timeout', 2) * 60
+            expires_at = time.time() + timeout_s if timeout_s > 0 else None
+            session.set_intent_context(original_key, word,
+                                        scope="private",
+                                        owner_id=self.skill_id,
+                                        expires_at=expires_at)
+        # `add_context` mutates the adapt-engine `session.context` field, a
+        # different mechanism than `intent_context` above, kept for
+        # orchestrators that predate OVOS-CONTEXT-1 and still consume it.
+        _legacy_warn_add_context_once()
+        data = {'context': context, 'word': word, 'origin': origin}
+        if original_key is not None:
+            data['key'] = original_key
+            # The mirror's owner must be the calling skill, never the
+            # ambient dug message's skill_id - always stamp a forward,
+            # never mutate the dug message.
+            out = msg.forward('add_context', data)
+            out.context["skill_id"] = self.skill_id
+            self.bus.emit(out)
+            return
+        self.bus.emit(msg.forward('add_context', data))
+
+    def remove_context(self, context: str, original_key: Optional[str] = None):
+        """Remove adapt-engine context (adapt-only; see set_context).
+
+        CONTEXT-1 §5.0: same session-delegation + legacy compat emit
+        as `set_context` above.
+        """
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        if original_key is not None:
+            session = SessionManager.get(msg)
+            session.remove_intent_context(original_key,
+                                           scope="private",
+                                           owner_id=self.skill_id)
+        _legacy_warn_add_context_once()
+        data = {'context': context}
+        if original_key is not None:
+            data['key'] = original_key
+            # See set_context - the mirror's owner must be the calling
+            # skill, never the ambient dug message's skill_id - always
+            # stamp a forward, never mutate the dug message.
+            out = msg.forward('remove_context', data)
+            out.context["skill_id"] = self.skill_id
+            self.bus.emit(out)
+            return
+        self.bus.emit(msg.forward('remove_context', data))
+
+    def set_adapt_context(self, context: str, word: str, origin: str):
+        _legacy_warn("set_adapt_context is deprecated")
+        # `context` here IS the unmunged key; pass it as original_key so
+        # the CONTEXT-1 gate is reachable for legacy callers.
+        self.set_context(context, word, origin, original_key=context)
+
+    def remove_adapt_context(self, context: str):
+        _legacy_warn("remove_adapt_context is deprecated")
+        # symmetric with set_adapt_context
+        self.remove_context(context, original_key=context)
+
+    # ------------------------------------------------------------------
+    #  deprecated lifecycle helpers
+    # ------------------------------------------------------------------
+
+    def detach_intent(self, intent_name: str):
+        _legacy_warn("detach_intent is deprecated, use remove_intent")
+        name = intent_name.split(':')[1]
+        self._iface.remove_intent(name)
+
+    def get_intent_names(self):
+        _legacy_warn("get_intent_names is deprecated, use intent_names property")
+        return self._iface.intent_names
+
+
+class _PadatiousIntentApi:
+    """Padatious engine protocol — delete when Padatious support is dropped."""
+
+    def __init__(self, iface: "IntentServiceInterface"):
+        self._iface = iface
+
+    @property
+    def bus(self):
+        return self._iface.bus
+
+    @property
+    def skill_id(self) -> str:
+        return self._iface.skill_id
+
+    # ------------------------------------------------------------------
+    #  legacy bus emits — called by the spec-compliant producer for
+    #  dual-emit (see IntentServiceInterface.register_entity/register_template)
+    # ------------------------------------------------------------------
+
+    def emit_legacy_register_entity(self, msg: Message, entity_name: str,
+                                     samples: List[str], lang: str,
+                                     file_name: str = '',
+                                     blacklist: Optional[List[str]] = None):
+        """Emit the legacy ``padatious:register_entity`` topic.
+
+        TODO: drop once the padatious pipeline consumes ovos.entity.register (INTENT-4 §7) directly.
+        """
+        self.bus.emit(msg.forward("padatious:register_entity",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': entity_name,
+                                   'lang': lang,
+                                   'blacklist': blacklist or []}))
+
+    def emit_legacy_register_template(self, msg: Message, intent_name: str,
+                                       samples: List[str], lang: str,
+                                       blacklisted_words: Optional[List[str]] = None,
+                                       file_name: str = '',
+                                       slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                                       requires_context: Optional[List[ContextGate]] = None,
+                                       excludes_context: Optional[List[ContextGate]] = None):
+        """Emit the legacy ``padatious:register_intent`` topic.
+
+        TODO: drop once the padatious pipeline consumes ovos.intent.register.template (INTENT-4 §6) directly.
+        """
+        self.bus.emit(msg.forward("padatious:register_intent",
+                                  {'file_name': file_name,
+                                   "samples": samples,
+                                   'name': intent_name,
+                                   'lang': lang,
+                                   'blacklisted_words': blacklisted_words,
+                                   'slot_blacklist': slot_blacklist or {},
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating
+                                   # declarations, riding as unknown-field
+                                   # extensions per INTENT-4 §5.3
+                                   'requires_context': requires_context or [],
+                                   'excludes_context': excludes_context or []}))
+
+    # ------------------------------------------------------------------
+    #  padatious bus protocol
+    # ------------------------------------------------------------------
+
+    def register_padatious_intent(self, intent_name: str, filename: str,
+                                  lang: str,
+                                  string_blacklist: Optional[List[str]] = None,
+                                  slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                                  vocabs: Optional[Dict[str, List[str]]] = None):
+        _legacy_warn("register_padatious_intent is deprecated, "
+                     "migrate to spec-compliant template registration")
+        if not isinstance(filename, str):
+            raise ValueError('Filename path must be a string')
+        if not exists(filename):
+            raise FileNotFoundError(f'Unable to find "{filename}"')
+        samples = read_resource_file(Path(filename))
+        self._iface.register_template(intent_name, samples, lang, string_blacklist,
+                                      file_name=filename,
+                                      slot_blacklist=slot_blacklist,
+                                      vocabs=vocabs)
+
+    def register_padatious_entity(self, entity_name: str, filename: str,
+                                  lang: str,
+                                  blacklist: Optional[List[str]] = None):
+        _legacy_warn("register_padatious_entity is deprecated, "
+                     "migrate to spec-compliant entity registration")
+        if not isinstance(filename, str):
+            raise ValueError('Filename path must be a string')
+        if not exists(filename):
+            raise FileNotFoundError('Unable to find "{}"'.format(filename))
+        samples = read_resource_file(Path(filename))
+        self._iface.register_entity(entity_name, samples, lang,
+                                    blacklisted_words=blacklist,
+                                    file_name=filename)
 
 
 class IntentServiceInterface:
-    """
-    Interface to communicate with the Mycroft intent service.
+    """OVOS-INTENT-4 / OVOS-CONTEXT-1 producer — spec registration and
+    session intent-context topics (INTENT-4 §§5-8, CONTEXT-1 §5.3).
 
-    This class wraps the messagebus interface of the intent service allowing
-    for easier interaction with the service. It wraps both the Adapt and
-    Padatious parts of the intent services.
+    Adapt/Padatious engine protocols live on the composed ``self._adapt`` /
+    ``self._padatious`` objects; delete them when those engines are dropped.
     """
 
     def __init__(self, bus=None):
         self._bus = bus
         self.skill_id = self.__class__.__name__
-        # TODO: Consider using properties with setters to prevent duplicates
-        self.registered_intents: List[Tuple[str, object]] = []
-        self.detached_intents: List[Tuple[str, object]] = []
+        self.registered_intents: List[tuple] = []
+        self.detached_intents: List[tuple] = []
         self._iterator_lock = RLock()
+        self._adapt_keyword_samples: dict = {}
+        self._adapt = _AdaptIntentApi(self)
+        self._padatious = _PadatiousIntentApi(self)
+
+    # -- bus plumbing ---------------------------------------------------
 
     @property
     def intent_names(self) -> List[str]:
-        """
-        Get a list of intent names (both registered and disabled).
-        """
         return [a[0] for a in self.registered_intents + self.detached_intents]
 
     @property
@@ -430,258 +456,427 @@ class IntentServiceInterface:
     def set_id(self, skill_id: str):
         self.skill_id = skill_id
 
-    def register_adapt_keyword(self, vocab_type: str, entity: str,
-                               aliases: Optional[List[str]] = None,
-                               lang: str = None):
-        """
-        Send a message to the intent service to add an Adapt keyword.
-        @param vocab_type: Keyword reference (file basename)
-        @param entity: Primary keyword value
-        @param aliases: List of alternative keyword values
-        @param lang: BCP-47 language code of entity and aliases
-        """
+    # -- spec-compliant registration -----------------------------------
+
+    def register_keyword(self, vocab_type: str, entity: str,
+                         aliases: Optional[List[str]] = None,
+                         lang: str = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-
-        # TODO 22.02: Remove compatibility data
         aliases = aliases or []
-        entity_data = {'entity_value': entity,
-                       'entity_type': vocab_type,
-                       'lang': lang}
-        compatibility_data = {'start': entity, 'end': vocab_type}
 
-        self.bus.emit(msg.forward("register_vocab",
-                                  {**entity_data, **compatibility_data}))
-        for alias in aliases:
-            alias_data = {
-                'entity_value': alias,
-                'entity_type': vocab_type,
-                'alias_of': entity,
-                'lang': lang}
-            compatibility_data = {'start': alias, 'end': vocab_type}
-            self.bus.emit(msg.forward("register_vocab",
-                                      {**alias_data, **compatibility_data}))
+        samples = self._adapt_keyword_samples.setdefault((vocab_type, lang), [])
+        for value in [entity, *aliases]:
+            if value and value not in samples:
+                samples.append(value)
 
-    def register_adapt_regex(self, regex: str, lang: str = None):
-        """
-        Register a regex string with the intent service.
-        @param regex: Regex to be registered; Adapt extracts keyword references
-            from named match group.
-        @param lang: BCP-47 language code of regex
-        """
+        # TODO: drop once _AdaptIntentApi.emit_legacy_register_vocab is removed.
+        self._adapt.emit_legacy_register_vocab(vocab_type, entity, aliases, lang)
+
+    def _unmunge_vocab_name(self, vocab_type: str) -> str:
+        prefix = _AdaptIntentApi.to_alnum(self.skill_id)
+        if prefix and vocab_type.startswith(prefix):
+            return vocab_type[len(prefix):]
+        return vocab_type
+
+    def _get_keyword_samples(self, vocab_type: str, lang: str
+                             ) -> Optional[List[str]]:
+        """Look up cached samples for a (possibly munged) vocab type."""
+        samples = self._adapt_keyword_samples.get((vocab_type, lang))
+        if samples is None:
+            samples = self._adapt_keyword_samples.get(
+                (self._unmunge_vocab_name(vocab_type), lang))
+        return samples
+
+    def _spec_keyword_descriptors(self, vocab_types: List[str], lang: str
+                                  ) -> List[dict]:
+        descriptors = []
+        for vocab_type in vocab_types:
+            samples = self._get_keyword_samples(vocab_type, lang)
+            if not samples:
+                continue
+            descriptors.append({"name": self._unmunge_vocab_name(vocab_type),
+                                "samples": list(samples)})
+        return descriptors
+
+    def _emit_spec_keyword_intent(self, msg: Message, name: str,
+                                  intent_parser: object,
+                                  requires_context: Optional[List[ContextGate]] = None,
+                                  excludes_context: Optional[List[ContextGate]] = None):
+        required_names = [r[0] for r in intent_parser.requires]
+        optional_names = [o[0] for o in intent_parser.optional]
+        one_of_groups = [list(g) for g in intent_parser.at_least_one]
+        excluded_names = list(intent_parser.excludes)
+
+        referenced = set(required_names) | set(optional_names) | \
+                     set(excluded_names)
+        for group in one_of_groups:
+            referenced |= set(group)
+        langs = {l for vt in referenced
+                 for l in {l for (cvt, l) in self._adapt_keyword_samples
+                          if cvt == vt or cvt == self._unmunge_vocab_name(vt)}}
+        if not langs:
+            LOG.debug(f"no cached adapt vocab samples for intent {name}; "
+                      f"skipping {SpecMessage.INTENT_REGISTER_KEYWORD} emit")
+            return
+
+        intent_name = name.split(":")[-1] if name else name
+        for lang in langs:
+            # A vocabulary with no cached samples cannot be described in the
+            # INTENT-4 payload. Dropping it from `required` / `optional` /
+            # `one_of` / `excluded` would register a *weaker* intent than the
+            # skill declared -- notably an adapt `.require()` or
+            # `.optionally()` naming a context keyword (OVOS-CONTEXT-1),
+            # whose vocabulary is never registered. The consumer would then
+            # match the intent with the gate (or slot) removed, so skip the
+            # emit entirely and let the legacy registration (which carries
+            # the full definition) stand.
+            missing = self._unsampled_vocab(
+                required_names + optional_names + excluded_names +
+                [n for group in one_of_groups for n in group], lang)
+            if missing:
+                LOG.warning(
+                    f"not emitting {SpecMessage.INTENT_REGISTER_KEYWORD} for "
+                    f"intent {name} (lang={lang}): no vocabulary samples for "
+                    f"{sorted(missing)}; emitting would register the intent "
+                    f"without those constraints")
+                continue
+            payload = {
+                "skill_id": self.skill_id,
+                "intent_name": intent_name,
+                "lang": lang,
+                "required": self._spec_keyword_descriptors(required_names, lang),
+                "optional": self._spec_keyword_descriptors(optional_names, lang),
+                "one_of": [self._spec_keyword_descriptors(group, lang)
+                           for group in one_of_groups],
+                "excluded": self._spec_keyword_descriptors(excluded_names, lang),
+                # OVOS-CONTEXT-1 §6/§6.1 gating declarations, riding as
+                # unknown-field extensions per INTENT-4 §5.3. Not
+                # vocab-bound, so unlike required/optional/excluded they
+                # are not subject to the missing-sample skip above.
+                "requires_context": requires_context or [],
+                "excludes_context": excludes_context or [],
+            }
+            payload["one_of"] = [g for g in payload["one_of"] if g]
+            self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_KEYWORD,
+                                      payload))
+
+    def _unsampled_vocab(self, vocab_types: List[str], lang: str) -> List[str]:
+        """Names among ``vocab_types`` with no registered samples for ``lang``."""
+        return [vt for vt in vocab_types
+                if not self._get_keyword_samples(vt, lang)]
+
+    def register_intent(self, name: str, intent_parser: object,
+                        requires_context: Optional[List[ContextGate]] = None,
+                        excludes_context: Optional[List[ContextGate]] = None):
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_vocab",
-                                  {'regex': regex, 'lang': lang}))
-
-    def register_adapt_intent(self, name: str, intent_parser: object):
-        """
-        Register an Adapt intent parser object. Serializes the intent_parser
-        and sends it over the messagebus to registered.
-        @param name: string intent name (without skill_id prefix)
-        @param intent_parser: Adapt Intent object
-        """
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("register_intent", intent_parser.__dict__))
-        self.registered_intents.append((name, intent_parser))
+        # INTENT-4 §8.1: replace any prior registration under this name.
+        slot = None
+        for i, (registered_name, _) in enumerate(self.registered_intents):
+            if registered_name == name:
+                slot = i
+                break
+        if slot is not None and self.registered_intents[slot] == (name, intent_parser):
+            return
+        self._adapt.emit_legacy_register_intent(msg, intent_parser,
+                                                 requires_context=requires_context,
+                                                 excludes_context=excludes_context)
+        self._emit_spec_keyword_intent(msg, name, intent_parser,
+                                       requires_context=requires_context,
+                                       excludes_context=excludes_context)
+        if slot is None:
+            self.registered_intents.append((name, intent_parser))
+        else:
+            self.registered_intents[slot] = (name, intent_parser)
         self.detached_intents = [detached for detached in self.detached_intents
                                  if detached[0] != name]
 
-    def detach_intent(self, intent_name: str):
-        """
-        DEPRECATED: Use `remove_intent` instead, all other methods from this
-        class expect intent_name; this was the weird one expecting the internal
-        munged intent_name with skill_id.
-        """
-        name = intent_name.split(':')[1]
-        log_deprecation(f"Update to `self.remove_intent({name})",
-                        "0.1.0")
-        warnings.warn(
-            "use `self.remove_intent' instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.remove_intent(name)
+    @staticmethod
+    def _clean_padatious_name(name: str) -> str:
+        """Strip the ``<skill_id>:`` prefix, a trailing ``.intent`` suffix
+        and a trailing ``_<md5>`` hash munge (``register_entity_file``
+        internal naming).
 
-    def remove_intent(self, intent_name: str):
-        """
-        Remove an intent from the intent service. The intent is saved in the
-        list of detached intents for use when re-enabling an intent. A
-        `detach_intent` Message is emitted for the intent service to handle.
-        @param intent_name: Registered intent to remove/detach (no skill_id)
-        """
+        Current ``register_intent_file`` already passes a canonical name, so
+        the suffix strip only fires for a caller that still uses the legacy
+        spelling (the deprecated ``register_padatious_intent`` API)."""
+        name = name.split(':')[-1]
+        if name.endswith(INTENT_FILE_SUFFIX):
+            name = name[:-len(INTENT_FILE_SUFFIX)]
+        name = re.sub(r'_[0-9a-f]{32}$', '', name)
+        return name
+
+    def register_entity(self, entity_name: str, samples: List[str],
+                        lang: str,
+                        blacklisted_words: Optional[List[str]] = None,
+                        file_name: str = ''):
+        # INTENT-4 §7.2: skip empty/non-string/malformed entries, don't abort.
+        samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
+        samples = _drop_malformed_samples(samples, entity_name, lang,
+                                          self.skill_id)
+        if not samples:
+            LOG.warning(f"{self.skill_id}: not registering entity "
+                        f"'{entity_name}' ({lang}), it has no valid samples")
+            return
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
-        if intent_name in self.intent_names:
-            # TODO: This will create duplicates of already detached intents
-            LOG.info(f"Detaching intent: {intent_name}")
-            self.detached_intents.append((intent_name,
-                                          self.get_intent(intent_name)))
+        # TODO: drop once _PadatiousIntentApi.emit_legacy_register_entity is removed.
+        self._padatious.emit_legacy_register_entity(msg, entity_name, samples,
+                                                     lang, file_name,
+                                                     blacklist=blacklisted_words)
+        self.bus.emit(msg.forward(SpecMessage.ENTITY_REGISTER,
+                                  {"skill_id": self.skill_id,
+                                   "entity_name": self._clean_padatious_name(entity_name),
+                                   "lang": lang,
+                                   "samples": samples}))
+
+    def register_template(self, intent_name: str, samples: List[str],
+                          lang: str,
+                          blacklisted_words: Optional[List[str]] = None,
+                          file_name: str = '',
+                          slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                          vocabs: Optional[Dict[str, List[str]]] = None,
+                          requires_context: Optional[List[ContextGate]] = None,
+                          excludes_context: Optional[List[ContextGate]] = None):
+        # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
+        samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
+        if not samples:
+            LOG.warning(f"{self.skill_id}: not registering template "
+                        f"'{intent_name}' ({lang}), it has no valid samples")
+            return
+        # OVOS-INTENT-1 §3.6/§3.7: validate with <name> refs held by a placeholder.
+        samples = _drop_malformed_samples(samples, intent_name, lang,
+                                          self.skill_id)
+        if vocabs:
+            # OVOS-INTENT-1 §3.7/§4.3/§6.3: inline <name> refs, dropping oversized/cyclic ones.
+            inlined = []
+            for sample in samples:
+                try:
+                    inlined.append(inline_keywords(
+                        sample, vocabs,
+                        max_values=_MAX_INLINE_VOCAB_VALUES))
+                except MalformedTemplate as err:
+                    LOG.warning(f"Skipping template line in '{intent_name}' "
+                                f"(skill_id={self.skill_id}, lang={lang}): "
+                                f"{sample!r} ({err})")
+            samples = inlined
+        if not samples:
+            LOG.warning(f"{self.skill_id}: not registering template "
+                        f"'{intent_name}' ({lang}), it has no valid samples")
+            return
+        name = intent_name.split(':')[-1]
+        data = {'file_name': file_name,
+                "samples": samples,
+                'name': intent_name,
+                'lang': lang,
+                'blacklisted_words': blacklisted_words}
+        # INTENT-4 §8.1: replace any prior registration of this (intent_name, lang).
+        slot = None
+        for i, (registered_name, registered_data) in enumerate(self.registered_intents):
+            if (registered_name == name and isinstance(registered_data, dict)
+                    and registered_data.get('lang') == lang):
+                slot = i
+                break
+        if slot is not None and self.registered_intents[slot][1] == data:
+            return
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        # TODO: drop once _PadatiousIntentApi.emit_legacy_register_template is removed.
+        self._padatious.emit_legacy_register_template(msg, intent_name, samples,
+                                                       lang, blacklisted_words,
+                                                       file_name,
+                                                       slot_blacklist=slot_blacklist,
+                                                       requires_context=requires_context,
+                                                       excludes_context=excludes_context)
+        self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
+                                  {"skill_id": self.skill_id,
+                                   "intent_name": self._clean_padatious_name(intent_name),
+                                   "lang": lang,
+                                   "samples": samples,
+                                   "blacklist": blacklisted_words or [],
+                                   "slot_blacklist": slot_blacklist or {},
+                                   # OVOS-CONTEXT-1 §6/§6.1 gating
+                                   # declarations, riding as unknown-field
+                                   # extensions per INTENT-4 §5.3
+                                   "requires_context": requires_context or [],
+                                   "excludes_context": excludes_context or []}))
+        if slot is None:
+            self.registered_intents.append((name, data))
+        else:
+            self.registered_intents[slot] = (name, data)
+        # mirror register_intent: a template that had been detach()ed (e.g.
+        # via disable_intent) must be dropped from detached_intents once it
+        # is re-registered, otherwise enable_intent()/intent_is_detached()
+        # keep reporting it as detached forever.
+        self.detached_intents = [detached for detached in self.detached_intents
+                                 if detached[0] != name]
+
+    # -- lifecycle ------------------------------------------------------
+
+    def remove_intent(self, intent_name: str):
+        msg = dig_for_message() or Message("")
+        if "skill_id" not in msg.context:
+            msg.context["skill_id"] = self.skill_id
+        # registered_intents/detached_intents are keyed by the bare canonical
+        # name (register_intent/register_template strip any "<skill_id>:"
+        # prefix before storing, see register_intent/register_template
+        # above). Callers (e.g. OVOSSkill.disable_intent) may pass the bare
+        # name, the "<skill_id>:"-prefixed one, or the author-facing
+        # ".intent"-suffixed spelling, so normalize with the same helper
+        # register_template uses for padatious names -- otherwise a
+        # differently-spelled form never matches the bare key and the intent
+        # is never actually detached.
+        key = self._clean_padatious_name(intent_name)
+        if key in self.intent_names:
+            LOG.info(f"Detaching intent: {key}")
+            self.detached_intents.append((key, self.get_intent(key)))
             self.registered_intents = [pair for pair in self.registered_intents
-                                       if pair[0] != intent_name]
-        self.bus.emit(msg.forward("detach_intent",
-                                  {"intent_name":
-                                       f"{self.skill_id}:{intent_name}"}))
+                                       if pair[0] != key]
+        self.bus.emit(msg.forward(SpecMessage.INTENT_DEREGISTER,
+                                  {"skill_id": self.skill_id,
+                                   "intent_name": intent_name}))
 
     def intent_is_detached(self, intent_name: str) -> bool:
-        """
-        Determine if an intent is detached.
-        @param intent_name: String intent reference to check (without skill_id)
-        @return: True if intent is in detached_intents, else False.
-        """
+        # normalize the same way remove_intent() does when it stores the
+        # detached entry -- callers may pass the bare, "<skill_id>:"-prefixed
+        # or ".intent"-suffixed spelling of the name.
+        key = self._clean_padatious_name(intent_name)
         is_detached = False
         with self._iterator_lock:
             for (name, _) in self.detached_intents:
-                if name == intent_name:
+                if name == key:
                     is_detached = True
                     break
         return is_detached
 
-    def set_adapt_context(self, context: str, word: str, origin: str):
-        """
-        Set an Adapt context.
-        @param context: context keyword name to add/update
-        @param word: word to register (context keyword value)
-        @param origin: original origin of the context (for cross context)
-        """
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('add_context',
-                                  {'context': context, 'word': word,
-                                   'origin': origin}))
-
-    def remove_adapt_context(self, context: str):
-        """
-        Remove an Adapt context.
-        @param context: context keyword name to remove
-        """
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('remove_context', {'context': context}))
-
-    def register_padatious_intent(self, intent_name: str, filename: str,
-                                  lang: str, string_blacklist: Optional[List[str]] = None):
-        """
-        Register a Padatious intent file with the intent service.
-        @param intent_name: Unique intent identifier
-            (usually `skill_id`:`filename`)
-        @param filename: Absolute file path to entity file
-        @param lang: BCP-47 language code of registered intent
-        """
-        if not isinstance(filename, str):
-            raise ValueError('Filename path must be a string')
-        if not exists(filename):
-            raise FileNotFoundError(f'Unable to find "{filename}"')
-        with open(filename) as f:
-            samples = [_ for _ in f.read().split("\n") if _
-                       and not _.startswith("#")]
-        data = {'file_name': filename,
-                "samples": samples,
-                'name': intent_name,
-                'lang': lang,
-                'blacklisted_words': string_blacklist}
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward("padatious:register_intent", data))
-        self.registered_intents.append((intent_name.split(':')[-1], data))
-
-    def register_padatious_entity(self, entity_name: str, filename: str,
-                                  lang: str):
-        """
-        Register a Padatious entity file with the intent service.
-        @param entity_name: Unique entity identifier
-            (usually `skill_id`:`filename`)
-        @param filename: Absolute file path to entity file
-        @param lang: BCP-47 language code of registered intent
-        """
-        if not isinstance(filename, str):
-            raise ValueError('Filename path must be a string')
-        if not exists(filename):
-            raise FileNotFoundError('Unable to find "{}"'.format(filename))
-        with open(filename) as f:
-            samples = [_ for _ in f.read().split("\n") if _
-                       and not _.startswith("#")]
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
-        self.bus.emit(msg.forward('padatious:register_entity',
-                                  {'file_name': filename,
-                                   "samples": samples,
-                                   'name': entity_name,
-                                   'lang': lang}))
-
-    def get_intent_names(self):
-        log_deprecation("Reference `intent_names` directly", "0.1.0")
-        warnings.warn(
-            "use `self.intent_names' property instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.intent_names
-
     def detach_all(self):
-        """
-        Detach all intents associated with this interface and remove all
-        internal references to intents and handlers.
-        """
         for name in self.intent_names:
             self.remove_intent(name)
         if self.registered_intents:
             LOG.error(f"Expected an empty list; got: {self.registered_intents}")
             self.registered_intents = []
-        self.detached_intents = []  # Explicitly remove all intent references
+        self.detached_intents = []
 
     def get_intent(self, intent_name: str) -> Optional[object]:
-        """
-        Get an intent object by name. This will find both enabled and disabled
-        intents.
-        @param intent_name: name of intent to find (without skill_id)
-        @return: intent object if found, else None
-        """
+        # same normalization as remove_intent()/intent_is_detached() --
+        # registered_intents/detached_intents are keyed by the bare
+        # canonical name.
+        key = self._clean_padatious_name(intent_name)
         to_return = None
         with self._iterator_lock:
             for name, intent in self.registered_intents:
-                if name == intent_name:
+                if name == key:
                     to_return = intent
                     break
         if to_return is None:
             with self._iterator_lock:
                 for name, intent in self.detached_intents:
-                    if name == intent_name:
+                    if name == key:
                         to_return = intent
                         break
         return to_return
 
     def __iter__(self):
-        """Iterator over the registered intents.
-
-        Returns an iterator returning name-handler pairs of the registered
-        intent handlers.
-        """
         return iter(self.registered_intents)
 
     def __contains__(self, val):
-        """
-        Checks if an intent name has been registered.
-        """
         return val in [i[0] for i in self.registered_intents]
 
+    # -- backward-compat facade: thin delegates to self._adapt/self._padatious --
 
-def open_intent_envelope(message):
-    """
-    Convert dictionary received over messagebus to Intent.
-    """
-    intent_dict = message.data
-    return Intent(intent_dict.get('name'),
-                  intent_dict.get('requires'),
-                  intent_dict.get('at_least_one'),
-                  intent_dict.get('optional'),
-                  intent_dict.get('excludes'))
+    def register_adapt_keyword(self, vocab_type: str, entity: str,
+                               aliases: Optional[List[str]] = None,
+                               lang: str = None):
+        _legacy_warn("IntentServiceInterface.register_adapt_keyword is "
+                     "deprecated; migrate to spec-compliant keyword "
+                     "registration (register_keyword)")
+        return self._adapt.register_adapt_keyword(vocab_type, entity, aliases, lang)
+
+    def register_adapt_regex(self, regex: str, lang: str = None):
+        _legacy_warn("IntentServiceInterface.register_adapt_regex is "
+                     "deprecated; regex intents are adapt-engine only and "
+                     f"will be removed with the adapt engine in {_DEPRECATION_VERSION}")
+        return self._adapt.register_adapt_regex(regex, lang)
+
+    def register_adapt_intent(self, name: str, intent_parser: object):
+        _legacy_warn("IntentServiceInterface.register_adapt_intent is "
+                     "deprecated; migrate to spec-compliant intent "
+                     "registration (register_intent)")
+        return self._adapt.register_adapt_intent(name, intent_parser)
+
+    def _set_context(self, context: str, word: str, origin: str,
+                      original_key: Optional[str] = None):
+        """Non-warning implementation shared by the deprecated public facade
+        (`set_context`) and OVOSSkill's own supported `set_context`/
+        `remove_context` API (ovos_workshop/skills/ovos.py), which delegates
+        here so the SUPPORTED base-class path does not itself trigger the
+        facade's external-caller deprecation warning."""
+        return self._adapt.set_context(context, word, origin,
+                                        original_key=original_key)
+
+    def set_context(self, context: str, word: str, origin: str,
+                     original_key: Optional[str] = None):
+        _legacy_warn("IntentServiceInterface.set_context is deprecated; "
+                     "adapt-engine context is engine-specific")
+        return self._set_context(context, word, origin,
+                                  original_key=original_key)
+
+    def _remove_context(self, context: str, original_key: Optional[str] = None):
+        """Non-warning implementation shared by the deprecated public facade
+        (`remove_context`) and OVOSSkill's own supported `remove_context`."""
+        return self._adapt.remove_context(context, original_key=original_key)
+
+    def remove_context(self, context: str, original_key: Optional[str] = None):
+        _legacy_warn("IntentServiceInterface.remove_context is deprecated; "
+                     "adapt-engine context is engine-specific")
+        return self._remove_context(context, original_key=original_key)
+
+    def set_adapt_context(self, context: str, word: str, origin: str):
+        _legacy_warn("IntentServiceInterface.set_adapt_context is "
+                     "deprecated; adapt-engine context is engine-specific")
+        return self._adapt.set_adapt_context(context, word, origin)
+
+    def remove_adapt_context(self, context: str):
+        _legacy_warn("IntentServiceInterface.remove_adapt_context is "
+                     "deprecated; adapt-engine context is engine-specific")
+        return self._adapt.remove_adapt_context(context)
+
+    def detach_intent(self, intent_name: str):
+        _legacy_warn("IntentServiceInterface.detach_intent is deprecated; "
+                     "migrate to spec-compliant deregistration")
+        return self._adapt.detach_intent(intent_name)
+
+    def get_intent_names(self):
+        _legacy_warn("IntentServiceInterface.get_intent_names is deprecated")
+        return self._adapt.get_intent_names()
+
+    def register_padatious_intent(self, intent_name: str, filename: str,
+                                  lang: str,
+                                  string_blacklist: Optional[List[str]] = None,
+                                  slot_blacklist: Optional[Dict[str, List[str]]] = None,
+                                  vocabs: Optional[Dict[str, List[str]]] = None):
+        _legacy_warn("IntentServiceInterface.register_padatious_intent is "
+                     "deprecated; migrate to spec-compliant template "
+                     "registration (register_template)")
+        return self._padatious.register_padatious_intent(
+            intent_name, filename, lang, string_blacklist, slot_blacklist,
+            vocabs=vocabs)
+
+    def register_padatious_entity(self, entity_name: str, filename: str,
+                                  lang: str,
+                                  blacklist: Optional[List[str]] = None):
+        _legacy_warn("IntentServiceInterface.register_padatious_entity is "
+                     "deprecated; migrate to spec-compliant entity registration")
+        return self._padatious.register_padatious_entity(entity_name, filename,
+                                                         lang, blacklist)
+
+
+# -- backward-compat module-level aliases --
+to_alnum = _AdaptIntentApi.to_alnum
+munge_regex = _AdaptIntentApi.munge_regex
+munge_intent_parser = _AdaptIntentApi.munge_intent_parser

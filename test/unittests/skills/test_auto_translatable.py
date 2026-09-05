@@ -1,6 +1,5 @@
 import unittest
 
-from ovos_workshop.skills.common_query_skill import CommonQuerySkill
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -18,28 +17,19 @@ class TestUniversalSkill(unittest.TestCase):
 
 class TestUniversalFallbackSkill(unittest.TestCase):
     from ovos_workshop.skills.auto_translatable import UniversalFallback
-    test_skill = UniversalFallback()
+
+    class _Concrete(UniversalFallback):
+        """UniversalFallback inherits the abstract can_answer from
+        FallbackSkill and does not implement it, so it stays abstract."""
+
+        def can_answer(self, message):
+            return False
+
+    test_skill = _Concrete()
 
     def test_00_init(self):
         self.assertIsInstance(self.test_skill, self.UniversalFallback)
         self.assertIsInstance(self.test_skill, OVOSSkill)
         self.assertIsInstance(self.test_skill, FallbackSkill)
-
-    # TODO: Test other class methods
-
-
-class TestUniversalCommonQuerySkill(unittest.TestCase):
-    from ovos_workshop.skills.auto_translatable import UniversalCommonQuerySkill
-
-    class UniveralCommonQueryExample(UniversalCommonQuerySkill):
-        def CQS_match_query_phrase(self, phrase):
-            pass
-
-    test_skill = UniveralCommonQueryExample()
-
-    def test_00_init(self):
-        self.assertIsInstance(self.test_skill, self.UniversalCommonQuerySkill)
-        self.assertIsInstance(self.test_skill, OVOSSkill)
-        self.assertIsInstance(self.test_skill, CommonQuerySkill)
 
     # TODO: Test other class methods

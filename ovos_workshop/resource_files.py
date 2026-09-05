@@ -1,4 +1,4 @@
-# Copyright 2018 Mycroft AI Inc.
+# Copyright 2026 OpenVoiceOS
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ from os.path import dirname
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
-from langcodes import tag_distance
 from ovos_config.locations import get_xdg_data_save_path
 from ovos_utils import flatten_list
-from ovos_utils.bracket_expansion import expand_template
+from ovos_spec_tools import (expand, inline_keywords, MalformedTemplate,
+                             lang_distance, lang_matches)
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
 from ovos_utils.log import LOG
 
@@ -41,6 +41,7 @@ SkillResourceTypes = namedtuple(
         "template",
         "vocabulary",
         "word",
+        "blacklist",
         "qml",
         "json"
     ]
@@ -79,21 +80,27 @@ def locate_lang_directories(lang: str, skill_directory: str,
     base_dirs = [Path(skill_directory, "locale")]
     if resource_subdirectory:
         base_dirs.append(Path(skill_directory, resource_subdirectory))
+    return match_lang_directories(lang, base_dirs)
+
+
+def match_lang_directories(lang: str, base_dirs: List[Path]) -> List[Path]:
+    """
+    Return the subdirectories of base_dirs whose names are usable matches for
+    lang, nearest first
+    @param lang: BCP-47 language code to get resources for
+    @param base_dirs: directories whose subdirectories are named by language
+    @return: list of existing resource directories for the given lang
+    """
     candidates = []
     for directory in base_dirs:
         if directory.exists():
             for folder in directory.iterdir():
                 if folder.is_dir():
-                    try:
-                        score = tag_distance(lang, folder.name)
-                    except:  # not a valid language code
-                        continue
-                    # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-                    # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-                    # 1- 3 -> These codes indicate a minor regional difference.
-                    # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-                    if score < 10:
-                        candidates.append((folder, score))
+                    # ovos_spec_tools owns the language-distance policy and
+                    # its threshold; a directory whose name is not a usable
+                    # match for `lang` scores beyond it and is skipped.
+                    if lang_matches(lang, folder.name):
+                        candidates.append((folder, lang_distance(lang, folder.name)))
     # sort by distance to target lang code
     candidates = sorted(candidates, key=lambda k: k[1])
     return [c[0] for c in candidates]
@@ -258,6 +265,7 @@ class ResourceType:
             template="dialog",
             vocab="vocab",
             word="dialog",
+            blacklist="vocab",
             qml="gui"
         )
 
@@ -276,7 +284,17 @@ class ResourceFile:
     def __init__(self, resource_type: ResourceType, resource_name: str):
         self.resource_type = resource_type
         self.resource_name = resource_name
+        # set by SkillResources so per-line warnings can identify the skill
+        self.skill_id = None
         self.file_path = self._locate()
+
+    def _warn_malformed_line(self, line: str, error: Exception):
+        """Log a malformed template line that is skipped so the rest of the
+        resource can still load."""
+        LOG.warning(
+            f"Skipping malformed template line in {self.file_path} "
+            f"(skill_id={self.skill_id}, resource={self.resource_name}, "
+            f"lang={self.resource_type.language}): {line!r} ({error})")
 
     def _locate(self) -> Optional[str]:
         """Locates a resource file in the skill's locale directory.
@@ -395,7 +413,11 @@ class DialogFile(ResourceFile):
             for line in self._read():
                 line = line.replace("{{", "{").replace("}}", "}")
                 if self.data is not None:
-                    line = line.format(**self.data)
+                    try:
+                        line = line.format(**self.data)
+                    except (KeyError, IndexError, ValueError) as err:
+                        self._warn_malformed_line(line, err)
+                        continue
                 dialogs.append(line)
 
         return dialogs
@@ -430,7 +452,10 @@ class VocabularyFile(ResourceFile):
         vocabulary = []
         if self.file_path is not None:
             for line in self._read():
-                vocabulary.append(expand_template(line.lower()))
+                try:
+                    vocabulary.append(expand(line.lower()))
+                except MalformedTemplate as err:
+                    self._warn_malformed_line(line, err)
         return vocabulary
 
 
@@ -440,6 +465,9 @@ class IntentFile(ResourceFile):
     def __init__(self, resource_type, resource_name):
         super().__init__(resource_type, resource_name)
         self.data = None
+        # {name: members} of the sibling .voc files, so an inline <name>
+        # reference (OVOS-INTENT-1 §3.7) resolves in place at load time.
+        self.vocabularies = None
 
     def load(self, entities: bool = True) -> List[str]:
         """Load file containing intents.
@@ -452,12 +480,26 @@ class IntentFile(ResourceFile):
         intents = []
         if self.file_path is not None:
             for line in self._read():
-                line = line.replace("{{", "{").replace("}}", "}")
-                intents.extend(flatten_list(expand_template(line.lower())))
+                line = line.replace("{{", "{").replace("}}", "}").lower()
+                try:
+                    if self.vocabularies and "<" in line:
+                        # OVOS-INTENT-1 §3.7: inline every <name> reference
+                        # from the sibling vocabulary as an (a|b|c) group
+                        # before expanding.
+                        line = inline_keywords(line, self.vocabularies)
+                    intents.extend(flatten_list(expand(line)))
+                except MalformedTemplate as err:
+                    self._warn_malformed_line(line, err)
             if not entities:
                 intents = [re.sub(r'{.*?}\s?', '', intent).strip() for intent in intents]
             elif self.data:
-                intents = [intent.format(**self.data) for intent in intents]
+                formatted = []
+                for intent in intents:
+                    try:
+                        formatted.append(intent.format(**self.data))
+                    except (KeyError, IndexError, ValueError) as err:
+                        self._warn_malformed_line(intent, err)
+                intents = formatted
         return intents
 
     def render(self, dialog_renderer):
@@ -549,6 +591,55 @@ class WordFile(ResourceFile):
         return word
 
 
+class BlacklistFile(ResourceFile):
+    """Defines a blacklist file, a slot-free list of phrases that should
+    prevent the sibling intent (same base name) from matching."""
+
+    def __init__(self, resource_type, resource_name):
+        super().__init__(resource_type, resource_name)
+        # {name: members} of the sibling .voc files, so an inline <name>
+        # reference (OVOS-INTENT-1 §3.7) resolves in place at load time.
+        self.vocabularies = None
+
+    def load(self) -> List[str]:
+        """Load the phrases contained in a blacklist file.
+
+        Returns:
+            A list of phrases, one per line.
+        """
+        phrases = []
+        if self.file_path is not None:
+            for line in self._read():
+                line = line.lower()
+                if self.vocabularies and "<" in line:
+                    # OVOS-INTENT-1 §3.7: inline every <name> reference from the
+                    # sibling vocabulary and enumerate the resulting phrases.
+                    try:
+                        line = inline_keywords(line, self.vocabularies)
+                        phrases.extend(flatten_list(expand(line)))
+                    except MalformedTemplate as err:
+                        self._warn_malformed_line(line, err)
+                elif any(c in line for c in "(|["):
+                    # bare template syntax - an alternation like
+                    # (it|this|that) or an optional [the] - is valid
+                    # intent-file syntax and must enumerate here too: stored
+                    # verbatim it can never match anything and the blacklist
+                    # is silently inert
+                    try:
+                        phrases.extend(flatten_list(expand(line)))
+                    except MalformedTemplate as err:
+                        self._warn_malformed_line(line, err)
+                else:
+                    phrases.append(line)
+        for phrase in phrases:
+            if any(c in phrase for c in "(|[<"):
+                LOG.warning(
+                    f"blacklist entry {phrase!r} still carries unexpanded "
+                    f"template syntax and will never match; fix the source "
+                    f"line in {self.file_path}")
+        return phrases
+
+
 class SkillResources:
     def __init__(self, skill_directory: str,
                  language: str,
@@ -581,9 +672,24 @@ class SkillResources:
         """
         Initialize a MustacheDialogRenderer object for these resources
         """
-        base_dirs = locate_lang_directories(self.language,
-                                            self.skill_directory,
-                                            "dialog")
+        # TODO: ovos_utils.dialog.load_dialogs/MustacheDialogRenderer are
+        #  deprecated in favor of ovos_spec_tools.LocaleResources +
+        #  DialogRenderer (OVOS-INTENT-2 §4.2), but that API renders a single
+        #  named dialog per call (`DialogRenderer(resources, name).render(lang)`)
+        #  against a LocaleResources-backed corpus, not a directory-wide
+        #  Mustache-style renderer keyed by loaded template name — a behavior
+        #  change, not a mechanical swap. Left unmigrated to avoid altering
+        #  dialog-rendering behavior; migrate deliberately in a follow-up.
+        # A user override wins over the skill's own dialog, the same way it
+        # does for every other resource type. The renderer needs a directory
+        # rather than a single file, so the override directory is searched for
+        # a language subdirectory here instead of going through ResourceFile.
+        user_dir = self.types.dialog.user_directory
+        base_dirs = match_lang_directories(self.language,
+                                           [user_dir] if user_dir else [])
+        base_dirs += locate_lang_directories(self.language,
+                                             self.skill_directory,
+                                             "dialog")
         for directory in base_dirs:
             if directory.exists():
                 dialog_dir = str(directory)
@@ -609,6 +715,7 @@ class SkillResources:
             template=ResourceType("template", ".template", self.language),
             vocabulary=ResourceType("vocab", ".voc", self.language),
             word=ResourceType("word", ".word", self.language),
+            blacklist=ResourceType("blacklist", ".blacklist", self.language),
             qml=ResourceType("qml", ".qml"),
             json=ResourceType("json", ".json", self.language)
         )
@@ -638,6 +745,7 @@ class SkillResources:
             A list of phrases with variables resolved
         """
         dialog_file = DialogFile(self.types.dialog, name)
+        dialog_file.skill_id = self.skill_id
         dialog_file.data = data
         return dialog_file.load()
 
@@ -660,8 +768,61 @@ class SkillResources:
             A list of intent phrases
         """
         intent_file = IntentFile(self.types.intent, name)
+        intent_file.skill_id = self.skill_id
         intent_file.data = data
+        intent_file.vocabularies = self._locale_vocabularies()
         return intent_file.load(entities)
+
+    def _locale_vocabularies(self) -> Dict[str, List[str]]:
+        """Build a ``{name: members}`` map from every ``.voc`` in this
+        language's locale tree.
+
+        Feeds the inline ``<name>`` resolution required by OVOS-INTENT-1 §3.7:
+        a reference in an ``.intent`` or ``.blacklist`` expands from the sibling
+        vocabulary of that name. User overrides take precedence over the skill's
+        own resources, which take precedence over workshop-shipped resources.
+        """
+        vocabularies: Dict[str, List[str]] = {}
+        vocab_type = self.types.vocabulary
+        for base in (vocab_type.user_directory,
+                     vocab_type.base_directory,
+                     vocab_type.workshop_directory):
+            if not base:
+                continue
+            for directory, _, files in walk(str(base)):
+                for file_name in files:
+                    if not file_name.endswith(".voc"):
+                        continue
+                    name = file_name[:-len(".voc")].lower()
+                    if name in vocabularies:
+                        continue
+                    members: List[str] = []
+                    with open(Path(directory, file_name)) as voc_file:
+                        for line in (ln.strip().lower() for ln in voc_file):
+                            if line and not line.startswith("#"):
+                                # a .voc line MAY hold comma/parenthesis
+                                # alternates; every phrasing is a member
+                                members.extend(flatten_list(expand(line)))
+                    if members:
+                        vocabularies[name] = members
+        return vocabularies
+
+    def load_blacklist_file(self, name: str) -> List[str]:
+        """
+        Loads the phrases contained in a blacklist file.
+
+        A blacklist file is a slot-free list of phrases that suppress the
+        sibling intent (the ``.intent`` sharing its base name) from matching.
+
+        Args:
+            name: name of the blacklist file (no extension needed)
+        Returns:
+            A list of blacklisted phrases
+        """
+        blacklist_file = BlacklistFile(self.types.blacklist, name)
+        blacklist_file.skill_id = self.skill_id
+        blacklist_file.vocabularies = self._locale_vocabularies()
+        return blacklist_file.load()
 
     def locate_qml_file(self, name: str) -> str:
         qml_file = QmlFile(self.types.qml, name)
@@ -758,6 +919,7 @@ class SkillResources:
             List representation of the regular expression file.
         """
         vocabulary_file = VocabularyFile(self.types.vocabulary, name)
+        vocabulary_file.skill_id = self.skill_id
         return vocabulary_file.load()
 
     def load_word_file(self, name: str) -> Optional[str]:
@@ -799,12 +961,28 @@ class SkillResources:
                 file_name for file_name in files if file_name.endswith(".voc")
             )
             for file_name in vocabulary_files:
-                vocab_type = alphanumeric_skill_id + file_name[:-4].title()
+                # keep exact filename case: str.title() lowercases
+                # "HelloWorldKeyword" -> "Helloworldkeyword", breaking vocab lookups
+                vocab_type = alphanumeric_skill_id + file_name[:-4]
                 vocabulary = self.load_vocabulary_file(file_name)
                 if vocabulary:
                     skill_vocabulary[vocab_type] = vocabulary
 
         return skill_vocabulary
+
+    def vocabularies(self) -> Dict[str, List[str]]:
+        """Build a ``{name: members}`` map from every ``.voc`` in this
+        language's locale tree.
+
+        Feeds the inline ``<name>`` resolution required by OVOS-INTENT-1 §3.7:
+        a reference in an ``.intent`` (or ``.blacklist``) expands in place from
+        the sibling vocabulary of that name. Padatious and padacioso never read
+        ``.voc`` files at match time, so the reference must be baked into the
+        template before it reaches the engine. User overrides take precedence
+        over the skill's own resources, which take precedence over
+        workshop-shipped resources.
+        """
+        return self._locale_vocabularies()
 
     def load_skill_regex(self, alphanumeric_skill_id: str) -> List[str]:
         """
