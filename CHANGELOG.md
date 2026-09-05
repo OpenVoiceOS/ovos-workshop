@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.7a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a3) (2026-09-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a2...9.6.7a3)
+
+**Merged pull requests:**
+
+- refactor: voc\_match\_span replaces voc\_match\_all; deprecate ocp\_voc\_match [\#593](https://github.com/OpenVoiceOS/ovos-workshop/pull/593) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.6.7a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a2) (2026-09-05)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a1...9.6.7a2)
@@ -360,10 +368,6 @@
 ## [9.2.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.10a1) (2026-07-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.2.9a1...9.2.10a1)
-
-**Merged pull requests:**
-
-- fix: keep .voc filename case in load\_skill\_vocabulary [\#485](https://github.com/OpenVoiceOS/ovos-workshop/pull/485) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.2.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.2.9a1) (2026-07-24)
 
