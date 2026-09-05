@@ -2488,6 +2488,60 @@ class OVOSSkill:
 
         return match
 
+    def voc_match_all(self, utt: str, voc_filename: str,
+                       lang: Optional[str] = None,
+                       exact: bool = False, ensure_ascii=True) -> List[str]:
+        """
+        Determine which vocabulary entries the given utterance matches.
+
+        This is the multi-match counterpart to `voc_match`, returning every
+        matched vocab entry instead of a single boolean, enabling in-handler
+        recovery of the value that was matched (e.g. for `<voc>`-inline
+        intents where the matched keyword needs to be passed downstream).
+        Matches are deduplicated and ordered longest-first (ties keep their
+        relative order), so callers that only want the single best match
+        can use `voc_match_all(...)[0]`.
+
+        Args:
+            utt (str): Utterance to be tested
+            voc_filename (str): Name of vocabulary file (e.g. 'cancel' for
+                                'locale/en-us/cancel.voc')
+            lang (str): Language code, defaults to self.lang
+            exact (bool): Whether the vocab must exactly match the utterance
+            ensure_ascii (bool): Whether to ignore accents and punctuation
+
+        Returns:
+            List[str]: all distinct vocab entries matched in the utterance,
+                       ordered longest-first. Empty list if there is no
+                       match.
+        """
+        lang = lang or self.lang
+        try:
+            _vocs = self.voc_list(voc_filename, lang)
+        except FileNotFoundError:
+            LOG.warning(
+                f"{self.skill_id} failed to find voc file '{voc_filename}' for lang '{lang}' in `{self.res_dir}'")
+            return []
+
+        matches = []
+        if utt and _vocs:
+            orig_vocs = _vocs
+            if ensure_ascii:
+                utt = remove_accents_and_punct(utt)
+                _vocs = [remove_accents_and_punct(v) for v in _vocs]
+
+            if exact:
+                # Check for exact match
+                matches = [orig for orig, i in zip(orig_vocs, _vocs)
+                           if i.strip().lower() == utt.lower()]
+            else:
+                # Check for matches against complete words
+                matches = [orig for orig, i in zip(orig_vocs, _vocs)
+                           if re.match(r'.*\b' + re.escape(i) + r'\b.*', utt, re.IGNORECASE)]
+
+        matches = sorted(matches, key=len, reverse=True)
+        return list(dict.fromkeys(matches))
+
     def remove_voc(self, utt: str, voc_filename: str,
                    lang: Optional[str] = None) -> str:
         """

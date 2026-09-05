@@ -279,8 +279,63 @@ class TestOVOSSkill(unittest.TestCase):
         pass
 
     def test_voc_match(self):
-        # TODO
-        pass
+        skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        lang = "en-US"
+
+        self.assertTrue(skill.voc_match("it is hot outside", "condition",
+                                         lang=lang))
+        self.assertFalse(skill.voc_match("it is nice outside", "condition",
+                                          lang=lang))
+
+    def test_voc_match_all(self):
+        skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
+        skill._lang_resources = dict()
+        skill.res_dir = join(dirname(__file__), "test_locale")
+        lang = "en-US"
+
+        # no match -> empty list
+        self.assertEqual(
+            skill.voc_match_all("it is nice outside", "condition",
+                                 lang=lang),
+            [])
+
+        # single match
+        self.assertEqual(
+            skill.voc_match_all("it is hot outside", "condition", lang=lang),
+            ["hot"])
+
+        # multiple matches, longest-first
+        self.assertEqual(
+            skill.voc_match_all("it is hot and freezing outside",
+                                 "condition", lang=lang),
+            ["freezing", "hot"])
+
+        # exact mode
+        self.assertEqual(
+            skill.voc_match_all("hot", "condition", lang=lang, exact=True),
+            ["hot"])
+        self.assertEqual(
+            skill.voc_match_all("it is hot outside", "condition", lang=lang,
+                                 exact=True),
+            [])
+
+        # ensure_ascii normalizes accents/punctuation before matching
+        self.assertEqual(
+            skill.voc_match_all("está muito frío!", "condition_accents",
+                                 lang=lang, ensure_ascii=True),
+            ["frio"])
+        self.assertEqual(
+            skill.voc_match_all("está muito frío!", "condition_accents",
+                                 lang=lang, ensure_ascii=False),
+            [])
+
+        # duplicate vocab lines are deduplicated, longest-first order kept
+        self.assertEqual(
+            skill.voc_match_all("it is hot and hot outside",
+                                 "condition_dupe", lang=lang),
+            ["hot"])
 
     def test_report_metric(self):
         # TODO
