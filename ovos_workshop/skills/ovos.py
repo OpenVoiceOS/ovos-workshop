@@ -105,6 +105,10 @@ def _is_typed_entry(entry: Any) -> bool:
             and all(isinstance(edge, int) for edge in span))
 
 
+#: Set after the first naive scheduling datetime logs its warning (one per process).
+_NAIVE_WHEN_WARNED = False
+
+
 class OVOSSkill:
     """
     Base class for OpenVoiceOS skills providing common behaviour and parameters
@@ -2954,8 +2958,22 @@ class OVOSSkill:
         """
         A scheduling time as a point on the time line. A naive datetime is
         read in the configured timezone, never the platform's.
+
+        The first naive datetime in a process logs one warning that names
+        this contract, because ``datetime.now()`` is platform time and lands
+        off by the zone difference where the two zones differ.
         """
         if when.tzinfo is None:
+            global _NAIVE_WHEN_WARNED
+            if not _NAIVE_WHEN_WARNED:
+                _NAIVE_WHEN_WARNED = True
+                LOG.warning(
+                    f"{self.skill_id} scheduled a naive datetime ({when}). A "
+                    f"naive `when` is read in the configured timezone "
+                    f"({get_config_tz()}), not the system timezone. Pass an "
+                    f"aware datetime (ovos_utils.time.now_local()) or a "
+                    f"number of seconds. This warning is shown once per "
+                    f"process.")
             return when.replace(tzinfo=get_config_tz())
         return when
 
@@ -2999,9 +3017,12 @@ class OVOSSkill:
 
         Args:
             handler:               method to be called
-            when (datetime/int/float):   datetime (in system timezone) or
-                                   number of seconds in the future when the
-                                   handler should be called
+            when (datetime/int/float):   datetime or number of seconds in
+                                   the future when the handler should be
+                                   called. A naive datetime is read in the
+                                   configured timezone, not the system
+                                   timezone; pass an aware datetime
+                                   (ovos_utils.time.now_local()) or seconds.
             data (dict, optional): data to send when the handler is called
             name (str, optional):  reference name. Against a SCHEDULER-1
                                    scheduler the same name is one schedule
@@ -3039,10 +3060,11 @@ class OVOSSkill:
 
         Args:
             handler (callable):         method to be called
-            when (datetime, optional):  time (in system timezone) for first
-                                        calling the handler, or None to
-                                        initially trigger <frequency> seconds
-                                        from now
+            when (datetime, optional):  time for first calling the handler,
+                                        or None to initially trigger
+                                        <frequency> seconds from now. A naive
+                                        datetime is read in the configured
+                                        timezone, not the system timezone.
             frequency (float/int):      time in seconds between calls
             data (dict, optional):      data to send when the handler is called
             name (str, optional):       reference name. Scheduling a name
