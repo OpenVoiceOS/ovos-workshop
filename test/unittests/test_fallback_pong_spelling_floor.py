@@ -68,9 +68,15 @@ def declared_floor() -> Version:
 
 class TestFallbackPongSpellingFloor(unittest.TestCase):
     def test_canonical_poll_requires_the_mapping_floor(self):
-        canonical = poll_topics() & CANONICAL_POLL
+        topics = poll_topics()
+        canonical = topics & CANONICAL_POLL
         if not canonical:
-            self.skipTest("the fallback poll still uses its legacy spelling")
+            # No canonical spelling yet: the skill must still name the legacy
+            # pair the core counts, or the poll has no answer at all.
+            self.assertTrue(
+                {"ovos.skills.fallback.ping", "ovos.skills.fallback.pong"} <= topics,
+                f"the fallback skill names neither poll spelling: {sorted(topics)}")
+            return
         self.assertGreaterEqual(
             declared_floor(), MAP_FLOOR,
             f"{sorted(canonical)} is used here, so the legacy twin has to be "
