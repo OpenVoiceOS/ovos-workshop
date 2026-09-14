@@ -1067,10 +1067,11 @@ class TestOVOSSkill(unittest.TestCase):
             "skill_id (skill.a) instead of the true caller (skill.b)")
 
     def test_handle_set_cross_context(self):
-        """Round 2 (C1b) regression: each RECEIVING skill's
-        handle_set_cross_context must resolve the mirrored key under ITS
-        OWN skill_id, not the originating broadcaster's - the broadcast
-        message's context.skill_id is stamped by the ORIGINATOR."""
+        """CONTEXT-1 §5.0: a Message that announces a context change must
+        not cause a `session.intent_context` write in the receiver. The
+        listener emits the adapt-engine `add_context` compat message and
+        nothing else, so it carries no resolved `key` and leaves the
+        session's intent_context untouched."""
         bus = FakeBus()
         skill_b = OVOSSkill(bus=bus, skill_id="skill.b")
 
@@ -1083,25 +1084,68 @@ class TestOVOSSkill(unittest.TestCase):
 
         bus.on("add_context", handler)
 
+        session = Session("test_handle_set_cross_context")
         # broadcast as emitted by the originating skill (skill.a)
         broadcast = Message("mycroft.skill.set_cross_context",
                             {"context": "kitchen", "word": "kitchen",
                              "origin": "skill.a"},
-                            {"skill_id": "skill.a"})
+                            {"skill_id": "skill.a",
+                             "session": session.serialize()})
         skill_b.handle_set_cross_context(broadcast)
         self.assertTrue(received.wait(2))
 
         self.assertEqual(len(payloads), 1)
         emitted = payloads[0]
-        self.assertEqual(emitted.data["key"], "kitchen")
-        self.assertEqual(
-            emitted.context.get("skill_id"), "skill.b",
-            "cross-context receiver mirrored the resolved key under the "
-            "ORIGINATING skill's id instead of its own")
+        self.assertEqual(emitted.data["context"], "skill_bkitchen")
+        self.assertNotIn(
+            "key", emitted.data,
+            "the broadcast-driven path asked core to mirror a resolved "
+            "private key, which is a second writer of intent_context")
+        try:
+            live = SessionManager.get(broadcast)
+            self.assertEqual(
+                dict(live.intent_context or {}), {},
+                "the legacy broadcast wrote session.intent_context in the "
+                "receiving skill (CONTEXT-1 §5.0)")
+        finally:
+            SessionManager.sessions.pop(session.session_id, None)
 
     def test_handle_remove_cross_context(self):
-        # TODO
-        pass
+        """The mirror of the above: the removal broadcast touches the
+        adapt-engine field only."""
+        bus = FakeBus()
+        skill_b = OVOSSkill(bus=bus, skill_id="skill.b")
+
+        received = Event()
+        payloads = []
+
+        def handler(message):
+            payloads.append(message)
+            received.set()
+
+        bus.on("remove_context", handler)
+
+        session = Session("test_handle_remove_cross_context")
+        session.intent_context = {"kitchen": {"value": "kitchen"}}
+        broadcast = Message("mycroft.skill.remove_cross_context",
+                            {"context": "kitchen"},
+                            {"skill_id": "skill.a",
+                             "session": session.serialize()})
+        skill_b.handle_remove_cross_context(broadcast)
+        self.assertTrue(received.wait(2))
+
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0].data["context"], "skill_bkitchen")
+        self.assertNotIn("key", payloads[0].data)
+        try:
+            live = SessionManager.get(broadcast)
+            # the shared entry the originator wrote is untouched here: the
+            # originator's own `remove_cross_skill_context` removed it on
+            # the session, and a receiver must not remove it again.
+            self.assertEqual(dict(live.intent_context or {}),
+                             {"kitchen": {"value": "kitchen"}})
+        finally:
+            SessionManager.sessions.pop(session.session_id, None)
 
     def test_set_context_turns_remaining_lands_on_session(self):
         """OVOS-CONTEXT-1 §1.2's one-turn confirmation gate

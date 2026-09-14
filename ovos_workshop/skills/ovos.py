@@ -1801,21 +1801,51 @@ class OVOSSkill:
     def handle_set_cross_context(self, message: Message):
         """
         Add global context to the intent service.
+
+        CONTEXT-1 §5.0: "There is no context-mutation topic: no participant
+        emits a Message whose purpose is to announce a context change to the
+        orchestrator or to another component." So this listener MUST NOT
+        write `session.intent_context`: the shared entry is already on the
+        session that `set_cross_skill_context` wrote, and a second write per
+        receiving skill would make one logical mutation into N+1 session
+        pushes that race each other at handler completion (SESSION-2 §2.6).
+
+        It therefore reaches the `original_key is None` path, which touches
+        only the pre-CONTEXT-1 adapt `session.context` field through the
+        legacy `add_context` topic, and never `Session.set_intent_context`.
+        A skill's own `set_context` call keeps its private session write;
+        only this broadcast-driven path gives it up.
+
         @param message: `mycroft.skill.set_cross_context` Message
         """
         context = message.data.get('context')
         word = message.data.get('word')
         origin = message.data.get('origin')
 
-        self.set_context(context, word, origin)
+        if not isinstance(context, str):
+            raise ValueError('Context should be a string')
+        if not isinstance(word, str):
+            raise ValueError('Word should be a string')
+        # munged exactly as `set_context` munges it, so the adapt-engine key
+        # is unchanged; `original_key` is left unset, which is what keeps
+        # this off the session.
+        self.intent_service._set_context(
+            self.alphanumeric_skill_id + context, word, origin)
 
     def handle_remove_cross_context(self, message: Message):
         """
         Remove global context from the intent service.
+
+        The mirror of :meth:`handle_set_cross_context`: adapt
+        `session.context` only, never `session.intent_context`.
+
         @param message: `mycroft.skill.remove_cross_context` Message
         """
         context = message.data.get('context')
-        self.remove_context(context)
+        if not isinstance(context, str):
+            raise ValueError('context should be a string')
+        self.intent_service._remove_context(
+            self.alphanumeric_skill_id + context)
 
     def _on_event_start(self, message: Message, handler_info: str,
                         skill_data: dict, activation: Optional[bool] = None):
@@ -3278,14 +3308,19 @@ class OVOSSkill:
         current dispatch message (`Session.intent_context`, private scope
         owned by this skill) via `IntentServiceInterface`/`_AdaptIntentApi`,
         so the mutation rides forward on whatever Message this handler
-        emits next (§5.3). The legacy `add_context` bus message - a
-        different mechanism, the adapt-engine `session.context` field - is
-        also emitted, for pre-spec orchestrators only.
+        emits next (§5.3). The legacy `add_context` bus message is also
+        emitted, for pre-spec orchestrators only: it carries the write to
+        the adapt-engine `session.context` field. A core that predates
+        §5.0 reads it there; a modern core folds the same key back into
+        `session.intent_context`, so the topic is a write-through of the
+        session write above and not an independent mutation.
 
         `turns_remaining`/`expires_at` are the CONTEXT-1 §2 decay fields.
-        Passing `turns_remaining=1` is the §1.2 one-turn confirmation-branch
-        gate (`{"value": ..., "turns_remaining": 1}`); left unset, decay
-        stays time-based only, as before this parameter existed.
+        Passing `turns_remaining=1` is the one-turn confirmation-branch
+        gate; the literal `{"value": ..., "turns_remaining": 1}` is §3.2's
+        flag-context worked example, and §1.2 describes the same branch in
+        prose. Left unset, decay stays time-based only, as before this
+        parameter existed.
 
         Args:
             context:    Keyword
@@ -3333,11 +3368,18 @@ class OVOSSkill:
         `session.intent_context`, so writing it directly into the session
         bound to the current dispatch message (§5.3) already makes it
         visible to every other skill's intents reading that same session -
-        no bus round trip is needed for the mutation itself. The legacy
-        `mycroft.skill.set_cross_context` broadcast below is a *different*,
-        pre-CONTEXT-1 mechanism (every skill instance's own private adapt
-        context, mutated by that skill's `handle_set_cross_context`
-        listener) kept for orchestrators that still consume it.
+        no bus round trip is needed for the mutation itself. The session
+        write above is the only `session.intent_context` mutation this call
+        causes, and it is the authoritative one.
+
+        The legacy `mycroft.skill.set_cross_context` broadcast below is kept
+        for orchestrators that still consume it. Its listener in every
+        receiving skill (`handle_set_cross_context`) writes only that
+        skill's adapt `session.context` field and never
+        `session.intent_context`, so the broadcast adds no second writer of
+        the shared entry — §5.0 removes the class of context-mutation topic
+        rather than replacing it, and this emit is a compat surface with a
+        removal version, not a mechanism.
 
         Args:
             context: Keyword
@@ -3346,7 +3388,16 @@ class OVOSSkill:
                               per CONTEXT-1 §2/§4. `None` (default) means no
                               turn-based decay.
             expires_at: absolute unix timestamp this entry decays at. `None`
-                        (default) falls back to `context.timeout` config.
+                        (default) falls back to the `context.timeout`
+                        configuration **of the process making this call**,
+                        which on a satellite is not the orchestrator's
+                        configuration. §5.3 gives a deployer-configurable
+                        default decay to the orchestrator, for entries
+                        written without an explicit `turns_remaining` or
+                        `expires_at`; because this path always stamps one,
+                        that orchestrator-side default never reaches a
+                        shared entry. Pass `expires_at` explicitly when the
+                        window matters.
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
