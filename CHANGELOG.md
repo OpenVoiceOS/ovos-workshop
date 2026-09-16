@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.8.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a2) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a1...9.8.1a2)
+
+**Closed issues:**
+
+- OVOSSkill.voc\_list ignores its lang argument [\#610](https://github.com/OpenVoiceOS/ovos-workshop/issues/610)
+
+**Merged pull requests:**
+
+- ci: coverage installs the pyproject test extra; drop requirements/test.txt [\#631](https://github.com/OpenVoiceOS/ovos-workshop/pull/631) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a1) (2026-09-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.0a1...9.8.1a1)
@@ -11,19 +23,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
-
 ## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
+
+## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
 
 **Merged pull requests:**
 
@@ -344,33 +356,17 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.5a1...9.3.6a1)
 
-**Merged pull requests:**
-
-- fix: killable\_intent/killable\_event thread and bus-listener leak on natural completion [\#513](https://github.com/OpenVoiceOS/ovos-workshop/pull/513) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.3.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.5a1) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.4a2...9.3.5a1)
-
-**Merged pull requests:**
-
-- fix: bound OVOSSkill.\_wait\_response so get\_response can't hang forever [\#514](https://github.com/OpenVoiceOS/ovos-workshop/pull/514) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.3.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.4a2) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.4a1...9.3.4a2)
 
-**Merged pull requests:**
-
-- Revert "fix: do not silently disable fallback skills that predate can\_answer" \(\#515\) [\#517](https://github.com/OpenVoiceOS/ovos-workshop/pull/517) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.3.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.4a1) (2026-08-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.3a1...9.3.4a1)
-
-**Merged pull requests:**
-
-- fix: do not silently disable fallback skills that predate can\_answer [\#515](https://github.com/OpenVoiceOS/ovos-workshop/pull/515) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.3.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.3a1) (2026-08-01)
 
@@ -506,15 +502,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
-
-## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
 
 ## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+
+## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
