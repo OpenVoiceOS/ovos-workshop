@@ -2967,6 +2967,11 @@ class OVOSSkill:
             if when < 0:
                 raise ValueError(f"Expected datetime or positive int/float. "
                                  f"got: {when}")
+            if when == 0:
+                # SCHEDULER-1 §3.4.3: in.seconds is a number > 0. "Now" is an
+                # `at` instant (§3.1), which the scheduler fires on time
+                # within grace_s (§4.3).
+                return {"at": now_local()}
             return {"in_seconds": when}
         if not isinstance(when, datetime.datetime):
             raise TypeError(f"Expected datetime, int, or float but got: {when}")

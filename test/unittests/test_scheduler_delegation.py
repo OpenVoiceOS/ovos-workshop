@@ -207,6 +207,18 @@ class TestSpecificationDelegation(unittest.TestCase):
         expected = naive.replace(tzinfo=configured_zone())
         self.assertEqual(self.record("ring")["at"], expected.isoformat())
 
+    def test_a_zero_delay_becomes_an_instant_that_is_due_now(self):
+        # SCHEDULER-1 §3.4.3: in.seconds is a number > 0, so 0 cannot travel
+        # as a relative delay. "Now" is an `at` instant (§3.1), which §4.3
+        # fires on time within grace_s.
+        before = datetime.now(timezone.utc)
+        self.skill.schedule_event(Mock(), 0, name="ring")
+        record = self.record("ring")
+        self.assertNotIn("in", record)
+        at = datetime.fromisoformat(record["at"])
+        self.assertIsNotNone(at.tzinfo)
+        self.assertLessEqual(abs((at - before).total_seconds()), 5)
+
     def test_a_negative_delay_is_refused_before_it_reaches_the_bus(self):
         with self.assertRaises(ValueError):
             self.skill.schedule_event(Mock(), -1, name="ring")
