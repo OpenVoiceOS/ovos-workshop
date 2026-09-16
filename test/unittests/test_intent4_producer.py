@@ -471,6 +471,53 @@ class InternalAdaptRegistrationPathTest(unittest.TestCase):
         self.assertEqual(data["required"], [{"name": "kw", "samples": ["hello"]}])
 
 
+class LegacyVocabProducerIdentityTest(unittest.TestCase):
+    """The legacy register_vocab names the registering skill as its producer.
+
+    The adapt engine reads the legacy producer from the context, so a skill
+    that registers while handling another component's message must not ship
+    that component as the owner of its vocabulary.
+    """
+
+    def setUp(self):
+        self.bus = CapturingBus()
+        self.iface = IntentServiceInterface(self.bus)
+        self.iface.set_id("test.skill")
+        self.foreign = Message("some.other.event", {},
+                               {"skill_id": "other.component"})
+
+    def test_legacy_vocab_is_attributed_to_the_registering_skill(self):
+        with patch("ovos_workshop.intents.dig_for_message",
+                   return_value=self.foreign):
+            self.iface.register_adapt_keyword("setKW", "set",
+                                              aliases=["change"],
+                                              lang="en-US")
+        legacy = self.bus.of_type("register_vocab")
+        self.assertEqual(len(legacy), 2)  # entity + one alias
+        for _, context in legacy:
+            self.assertEqual(context["skill_id"], "test.skill")
+
+    def test_legacy_and_spec_agree_on_the_producer(self):
+        # The vocabulary and the intent that references it are one
+        # registration; disagreeing between them splits it across two owners.
+        with patch("ovos_workshop.intents.dig_for_message",
+                   return_value=self.foreign):
+            self.iface.register_adapt_keyword("setKW", "set", lang="en-US")
+            parser = IntentBuilder("set_it").require("setKW").build()
+            self.iface.register_adapt_intent("set_it", parser)
+        spec = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)
+        legacy = self.bus.of_type("register_vocab")
+        self.assertTrue(spec and legacy)
+        owners = {c["skill_id"] for _, c in spec + legacy}
+        self.assertEqual(owners, {"test.skill"})
+
+    def test_the_dug_message_is_not_mutated(self):
+        with patch("ovos_workshop.intents.dig_for_message",
+                   return_value=self.foreign):
+            self.iface.register_adapt_keyword("setKW", "set", lang="en-US")
+        self.assertEqual(self.foreign.context["skill_id"], "other.component")
+
+
 class RegexRegistrationTest(unittest.TestCase):
     """Regex intents are adapt-engine only; the surviving registration name
     is register_adapt_regex."""

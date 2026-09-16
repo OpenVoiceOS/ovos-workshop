@@ -145,17 +145,21 @@ class _AdaptIntentApi:
     #  dual-emit (see IntentServiceInterface.register_keyword/register_intent)
     # ------------------------------------------------------------------
 
-    def emit_legacy_register_vocab(self, vocab_type: str, entity: str,
+    def emit_legacy_register_vocab(self, msg: Message, vocab_type: str,
+                                   entity: str,
                                    aliases: Optional[List[str]] = None,
                                    lang: str = None):
         """Emit the legacy adapt ``register_vocab`` topic (entity + aliases).
 
+        `msg` is the caller's stamped copy, carrying this skill as the
+        producer. The adapt engine reads the legacy producer from the
+        context, so digging the ambient message here would attribute the
+        vocabulary to whichever component the skill happens to be handling
+        while the intent it belongs to went out attributed correctly.
+
         TODO: drop once the adapt pipeline consumes ovos.intent.register.keyword (INTENT-4 §5) directly.
         """
         aliases = aliases or []
-        msg = dig_for_message() or Message("")
-        if "skill_id" not in msg.context:
-            msg.context["skill_id"] = self.skill_id
         entity_data = {'entity_value': entity,
                        'entity_type': vocab_type,
                        'lang': lang}
@@ -480,7 +484,8 @@ class IntentServiceInterface:
                 samples.append(value)
 
         # TODO: drop once _AdaptIntentApi.emit_legacy_register_vocab is removed.
-        self._adapt.emit_legacy_register_vocab(vocab_type, entity, aliases, lang)
+        self._adapt.emit_legacy_register_vocab(msg, vocab_type, entity,
+                                               aliases, lang)
 
     def _unmunge_vocab_name(self, vocab_type: str) -> str:
         prefix = _AdaptIntentApi.to_alnum(self.skill_id)
