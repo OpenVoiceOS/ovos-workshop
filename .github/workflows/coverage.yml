@@ -21,13 +21,11 @@ jobs:
         sudo apt-get update
         sudo apt install python3-dev
         python -m pip install build wheel
-    - name: Install repo
-      run: |
-        pip install -e .
-    - name: Install test dependencies
+    - name: Install repo and test dependencies
       run: |
         sudo apt install libssl-dev libfann-dev portaudio19-dev libpulse-dev
-        pip install -r requirements/test.txt
+        # the pyproject test extra is the one test dependency list
+        pip install -e .[test]
         # test/end2end/session/ and its four local test skills were removed
         # long ago; the current end2end tree (intent4/keyword-casing) uses
         # in-place injected skills that need no install.
