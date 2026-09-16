@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.3a1...9.8.4a1)
+
+**Merged pull requests:**
+
+- fix: scheduler delegation test reads skill\_id, not owner [\#608](https://github.com/OpenVoiceOS/ovos-workshop/pull/608) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.8.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.3a1) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.2a2...9.8.3a1)
@@ -47,19 +55,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
-
 ## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
+
+## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
 
 **Merged pull requests:**
 
@@ -239,10 +247,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.4a1...9.5.5a1)
 
-**Merged pull requests:**
-
-- fix: connect SessionManager to the bus in standalone skill containers [\#526](https://github.com/OpenVoiceOS/ovos-workshop/pull/526) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.5.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.4a1) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.3a1...9.5.4a1)
@@ -347,10 +351,6 @@
 ## [9.3.11a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.11a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.10a1...9.3.11a1)
-
-**Merged pull requests:**
-
-- fix: carry the original context key so CONTEXT-1 gating is reachable from set\_context [\#527](https://github.com/OpenVoiceOS/ovos-workshop/pull/527) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.3.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.10a1) (2026-08-13)
 
@@ -518,15 +518,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
