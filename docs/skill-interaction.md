@@ -187,7 +187,7 @@ Both methods are backed by pluggable agent engines discovered and loaded via [ov
 registers under that name, so this lookup always fails and the code falls back to the bundled
 `HeuristicYesNoEngine`. The plugin this repo actually ships and depends on registers as
 `ovos-yes-no-plugin` (see `ovos_workshop/skills/ovos.py`'s `_get_yesno_engine` and `pyproject.toml`).
-See the manual's [Prompts](https://tigregotico.github.io/ovos-technical-manual/prompts/) page for details.
+See the manual's [Prompts](https://openvoiceos.github.io/beta-technical-manual/prompts/) page for details.
 **Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load,
 which in practice is always, given the mismatch above)
 

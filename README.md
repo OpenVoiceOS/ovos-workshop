@@ -48,7 +48,7 @@ Both keys can also be set system-wide under the `skills` block in `mycroft.conf`
 
 ## Documentation
 
-The [OVOS Technical Manual](https://tigregotico.github.io/ovos-technical-manual/workshop-overview/) is the canonical skill-authoring guide. Repo-local reference with exact source citations is in [`docs/`](docs/index.md):
+The [OVOS Technical Manual](https://openvoiceos.github.io/beta-technical-manual/workshop-overview/) is the canonical skill-authoring guide. Repo-local reference with exact source citations is in [`docs/`](docs/index.md):
 
 - [Skill classes](docs/skill-classes.md)
 - [OVOSSkill base class](docs/ovos-skill.md)
