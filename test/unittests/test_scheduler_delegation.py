@@ -23,6 +23,7 @@ import threading
 import time
 import unittest
 from datetime import datetime, timedelta, timezone
+import unittest.mock
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -218,6 +219,23 @@ class TestSpecificationDelegation(unittest.TestCase):
         at = datetime.fromisoformat(record["at"])
         self.assertIsNotNone(at.tzinfo)
         self.assertLessEqual(abs((at - before).total_seconds()), 5)
+
+    def test_a_naive_datetime_warns_once_per_process(self):
+        import ovos_workshop.skills.ovos as ovos_module
+        ovos_module._NAIVE_WHEN_WARNED = False
+        with unittest.mock.patch.object(ovos_module.LOG, "warning") as warning:
+            self.skill.schedule_event(Mock(), self.in_an_hour(), name="aware")
+            self.assertEqual(warning.call_count, 0)
+            naive = datetime.now() + timedelta(hours=1)
+            self.skill.schedule_event(Mock(), naive, name="first")
+            self.skill.schedule_event(Mock(), naive, name="second")
+            self.skill.schedule_repeating_event(Mock(), naive, 60, name="rep")
+        self.assertEqual(warning.call_count, 1)
+        text = warning.call_args[0][0]
+        self.assertIn("configured timezone", text)
+        self.assertIn("not the system timezone", text)
+        self.assertEqual(self.record("first")["at"],
+                         naive.replace(tzinfo=configured_zone()).isoformat())
 
     def test_a_negative_delay_is_refused_before_it_reaches_the_bus(self):
         with self.assertRaises(ValueError):
