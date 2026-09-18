@@ -88,6 +88,11 @@ from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResou
 from ovos_workshop.settings import PrivateSettings
 from ovos_workshop.skills.capabilities import get_skill_capabilities
 from ovos_workshop.skills.util import join_word_list, simple_trace
+from ovos_workshop.version import VERSION_MAJOR
+
+# mycroft.skill.set_cross_context/remove_cross_context are pre-OVOS-CONTEXT-1
+# compat broadcasts; deprecated shims are removed in the next MAJOR release.
+_CROSS_CONTEXT_REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
 
 
 def _typed_slots_map(message: Message) -> Dict[str, Any]:
@@ -1800,21 +1805,51 @@ class OVOSSkill:
     def handle_set_cross_context(self, message: Message):
         """
         Add global context to the intent service.
+
+        CONTEXT-1 §5.0: "There is no context-mutation topic: no participant
+        emits a Message whose purpose is to announce a context change to the
+        orchestrator or to another component." So this listener MUST NOT
+        write `session.intent_context`: the shared entry is already on the
+        session that `set_cross_skill_context` wrote, and a second write per
+        receiving skill would make one logical mutation into N+1 session
+        pushes that race each other at handler completion (SESSION-2 §2.6).
+
+        It therefore reaches the `original_key is None` path, which touches
+        only the pre-CONTEXT-1 adapt `session.context` field through the
+        legacy `add_context` topic, and never `Session.set_intent_context`.
+        A skill's own `set_context` call keeps its private session write;
+        only this broadcast-driven path gives it up.
+
         @param message: `mycroft.skill.set_cross_context` Message
         """
         context = message.data.get('context')
         word = message.data.get('word')
         origin = message.data.get('origin')
 
-        self.set_context(context, word, origin)
+        if not isinstance(context, str):
+            raise ValueError('Context should be a string')
+        if not isinstance(word, str):
+            raise ValueError('Word should be a string')
+        # munged exactly as `set_context` munges it, so the adapt-engine key
+        # is unchanged; `original_key` is left unset, which is what keeps
+        # this off the session.
+        self.intent_service._set_context(
+            self.alphanumeric_skill_id + context, word, origin)
 
     def handle_remove_cross_context(self, message: Message):
         """
         Remove global context from the intent service.
+
+        The mirror of :meth:`handle_set_cross_context`: adapt
+        `session.context` only, never `session.intent_context`.
+
         @param message: `mycroft.skill.remove_cross_context` Message
         """
         context = message.data.get('context')
-        self.remove_context(context)
+        if not isinstance(context, str):
+            raise ValueError('context should be a string')
+        self.intent_service._remove_context(
+            self.alphanumeric_skill_id + context)
 
     def _on_event_start(self, message: Message, handler_info: str,
                         skill_data: dict, activation: Optional[bool] = None):
@@ -3290,7 +3325,9 @@ class OVOSSkill:
             return False
         return intent.get("skill_id") == self.skill_id
 
-    def set_context(self, context: str, word: str = '', origin: str = ''):
+    def set_context(self, context: str, word: str = '', origin: str = '',
+                     turns_remaining: Optional[int] = None,
+                     expires_at: Optional[float] = None):
         """
         Add context to intent service.
 
@@ -3298,14 +3335,29 @@ class OVOSSkill:
         current dispatch message (`Session.intent_context`, private scope
         owned by this skill) via `IntentServiceInterface`/`_AdaptIntentApi`,
         so the mutation rides forward on whatever Message this handler
-        emits next (§5.3). The legacy `add_context` bus message - a
-        different mechanism, the adapt-engine `session.context` field - is
-        also emitted, for pre-spec orchestrators only.
+        emits next (§5.3). The legacy `add_context` bus message is also
+        emitted, for pre-spec orchestrators only: it carries the write to
+        the adapt-engine `session.context` field. A core that predates
+        §5.0 reads it there; a modern core folds the same key back into
+        `session.intent_context`, so the topic is a write-through of the
+        session write above and not an independent mutation.
+
+        `turns_remaining`/`expires_at` are the CONTEXT-1 §2 decay fields.
+        Passing `turns_remaining=1` is the one-turn confirmation-branch
+        gate; the literal `{"value": ..., "turns_remaining": 1}` is §3.2's
+        flag-context worked example, and §1.2 describes the same branch in
+        prose. Left unset, decay stays time-based only, as before this
+        parameter existed.
 
         Args:
             context:    Keyword
             word:       word connected to keyword
             origin:     origin of context
+            turns_remaining: number of intent matches this entry survives,
+                              per CONTEXT-1 §2/§4. `None` (default) means no
+                              turn-based decay.
+            expires_at: absolute unix timestamp this entry decays at. `None`
+                        (default) falls back to `context.timeout` config.
         """
         if not isinstance(context, str):
             raise ValueError('Context should be a string')
@@ -3315,7 +3367,9 @@ class OVOSSkill:
         original_context = context
         context = self.alphanumeric_skill_id + context
         self.intent_service._set_context(context, word, origin,
-                                          original_key=original_context)
+                                          original_key=original_context,
+                                          turns_remaining=turns_remaining,
+                                          expires_at=expires_at)
 
     def remove_context(self, context: str):
         """
@@ -3331,30 +3385,88 @@ class OVOSSkill:
         self.intent_service._remove_context(context,
                                              original_key=original_context)
 
-    def set_cross_skill_context(self, context: str, word: str = ''):
+    def set_cross_skill_context(self, context: str, word: str = '',
+                                 turns_remaining: Optional[int] = None,
+                                 expires_at: Optional[float] = None):
         """
-        Tell all skills to add a context to the intent service
+        Add a context entry visible to every skill's intents.
+
+        CONTEXT-1 §3/§5.0: a shared entry is a bare (owner-less) key in
+        `session.intent_context`, so writing it directly into the session
+        bound to the current dispatch message (§5.3) already makes it
+        visible to every other skill's intents reading that same session -
+        no bus round trip is needed for the mutation itself. The session
+        write above is the only `session.intent_context` mutation this call
+        causes, and it is the authoritative one.
+
+        The legacy `mycroft.skill.set_cross_context` broadcast below is kept
+        for orchestrators that still consume it. Its listener in every
+        receiving skill (`handle_set_cross_context`) writes only that
+        skill's adapt `session.context` field and never
+        `session.intent_context`, so the broadcast adds no second writer of
+        the shared entry — §5.0 removes the class of context-mutation topic
+        rather than replacing it, and this emit is a compat surface with a
+        removal version, not a mechanism.
 
         Args:
-            context:    Keyword
-            word:       word connected to keyword
+            context: Keyword
+            word: word connected to keyword
+            turns_remaining: number of intent matches this entry survives,
+                              per CONTEXT-1 §2/§4. `None` (default) means no
+                              turn-based decay.
+            expires_at: absolute unix timestamp this entry decays at. `None`
+                        (default) falls back to the `context.timeout`
+                        configuration **of the process making this call**,
+                        which on a satellite is not the orchestrator's
+                        configuration. §5.3 gives a deployer-configurable
+                        default decay to the orchestrator, for entries
+                        written without an explicit `turns_remaining` or
+                        `expires_at`; because this path always stamps one,
+                        that orchestrator-side default never reaches a
+                        shared entry. Pass `expires_at` explicitly when the
+                        window matters.
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
+        session = SessionManager.get(msg)
+        if expires_at is None:
+            # OVOS-CONTEXT-1: same decay policy as the private set_context
+            # path (`context.timeout`, minutes, default 2).
+            context_cfg = Configuration().get('context', {})
+            timeout_s = context_cfg.get('timeout', 2) * 60
+            expires_at = time.time() + timeout_s if timeout_s > 0 else None
+        session.set_intent_context(context, word, scope="shared",
+                                    expires_at=expires_at,
+                                    turns_remaining=turns_remaining)
+        log_deprecation(
+            "mycroft.skill.set_cross_context is a pre-OVOS-CONTEXT-1 "
+            "compat broadcast kept for orchestrators that still consume "
+            "it; the shared session write above is now the authoritative "
+            "mutation", _CROSS_CONTEXT_REMOVAL_VERSION)
         self.bus.emit(msg.forward('mycroft.skill.set_cross_context',
                                   {'context': context, 'word': word,
                                    'origin': self.skill_id}))
 
     def remove_cross_skill_context(self, context: str):
         """
-        Tell all skills to remove a keyword from the context manager.
+        Remove a shared context entry from every skill's intents.
+
+        CONTEXT-1 §3/§5.0: same session-delegation + legacy compat emit
+        as `set_cross_skill_context` above.
         """
         if not isinstance(context, str):
             raise ValueError('context should be a string')
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
+        session = SessionManager.get(msg)
+        session.remove_intent_context(context, scope="shared")
+        log_deprecation(
+            "mycroft.skill.remove_cross_context is a pre-OVOS-CONTEXT-1 "
+            "compat broadcast kept for orchestrators that still consume "
+            "it; the shared session removal above is now the authoritative "
+            "mutation", _CROSS_CONTEXT_REMOVAL_VERSION)
         self.bus.emit(msg.forward('mycroft.skill.remove_cross_context',
                                   {'context': context}))
 
