@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a2) (2026-09-18)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a1...9.8.4a2)
+
+**Merged pull requests:**
+
+- docs: point manual links at OpenVoiceOS/beta-technical-manual [\#598](https://github.com/OpenVoiceOS/ovos-workshop/pull/598) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.8.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a1) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.3a1...9.8.4a1)
@@ -55,19 +63,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -339,10 +347,6 @@
 ## [9.3.12a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.12a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.11a2...9.3.12a1)
-
-**Merged pull requests:**
-
-- fix: emit the clean entity name from register\_entity\_file [\#528](https://github.com/OpenVoiceOS/ovos-workshop/pull/528) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.3.11a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.11a2) (2026-08-13)
 
