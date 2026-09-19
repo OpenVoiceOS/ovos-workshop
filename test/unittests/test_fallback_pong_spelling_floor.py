@@ -30,22 +30,27 @@ MAP_FLOOR = Version("1.12.0a1")
 CANONICAL_POLL = {"ovos.fallback.ping", "ovos.fallback.pong"}
 
 # The ovos-spec-tools SpecMessage members that carry the canonical poll pair.
-# A switch written as SpecMessage.FALLBACK_PONG instead of a string literal is
-# the same switch, and it needs the same floor.
+# A switch written as SpecMessage.FALLBACK_PONG, SpecMessage["FALLBACK_PONG"]
+# or getattr(SpecMessage, "FALLBACK_PONG") instead of a string literal is the
+# same switch, and it needs the same floor. SpecMessage("ovos.fallback.pong")
+# is already caught as a string literal. Same rule as ovos-core's
+# test_fallback_spelling_floor.py (ovos-core#994).
 CANONICAL_POLL_MEMBERS = {"FALLBACK_PING": "ovos.fallback.ping",
                           "FALLBACK_PONG": "ovos.fallback.pong"}
 
 
-def poll_topics() -> set:
+def poll_topics(source: str = None) -> set:
     """Every bus topic the fallback skill names: string literals that start
-    with "ovos.", and SpecMessage.FALLBACK_PING / FALLBACK_PONG attribute uses
-    counted as the canonical topic they carry."""
-    tree = ast.parse(Path(fallback.__file__).read_text())
+    with "ovos.", and FALLBACK_PING / FALLBACK_PONG member uses (attribute,
+    subscript or getattr name) counted as the canonical topic they carry."""
+    tree = ast.parse(Path(fallback.__file__).read_text() if source is None else source)
     topics = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) \
-                and node.value.startswith("ovos."):
-            topics.add(node.value)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value.startswith("ovos."):
+                topics.add(node.value)
+            elif node.value in CANONICAL_POLL_MEMBERS:
+                topics.add(CANONICAL_POLL_MEMBERS[node.value])
         elif isinstance(node, ast.Attribute) and node.attr in CANONICAL_POLL_MEMBERS:
             topics.add(CANONICAL_POLL_MEMBERS[node.attr])
     return topics
@@ -64,6 +69,27 @@ def declared_floor() -> Version:
         if floors:
             return max(floors)
     raise AssertionError("ovos-workshop does not declare ovos-spec-tools")
+
+
+class TestPollTopicsGuard(unittest.TestCase):
+    """Mutants: each way a switch to the canonical pong can be written must
+    reach poll_topics(), or the floor case above never fires for it."""
+
+    def test_attribute_member_counts_as_the_canonical_topic(self):
+        src = "self.bus.emit(Message(SpecMessage.FALLBACK_PONG))"
+        self.assertIn("ovos.fallback.pong", poll_topics(src))
+
+    def test_subscript_member_counts_as_the_canonical_topic(self):
+        src = 'self.bus.emit(Message(SpecMessage["FALLBACK_PONG"]))'
+        self.assertIn("ovos.fallback.pong", poll_topics(src))
+
+    def test_getattr_member_counts_as_the_canonical_topic(self):
+        src = 'self.bus.emit(Message(getattr(SpecMessage, "FALLBACK_PING")))'
+        self.assertIn("ovos.fallback.ping", poll_topics(src))
+
+    def test_legacy_literal_is_not_the_canonical_topic(self):
+        src = 'self.bus.emit(Message("ovos.skills.fallback.pong"))'
+        self.assertEqual({"ovos.skills.fallback.pong"}, poll_topics(src))
 
 
 class TestFallbackPongSpellingFloor(unittest.TestCase):
