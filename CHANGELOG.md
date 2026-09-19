@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.5a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a3) (2026-09-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a2...9.8.5a3)
+
+**Merged pull requests:**
+
+- test\(fallback\): poll\_topics counts the string member forms too [\#644](https://github.com/OpenVoiceOS/ovos-workshop/pull/644) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.5a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a2) (2026-09-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a1...9.8.5a2)
@@ -79,19 +87,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -331,10 +339,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.14a1...9.4.0a1)
 
-**Merged pull requests:**
-
-- feat\(converse\): answer the OVOS-CONVERSE-1 broadcast poll [\#534](https://github.com/OpenVoiceOS/ovos-workshop/pull/534) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.3.14a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.14a1) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.13a2...9.3.14a1)
@@ -355,10 +359,6 @@
 ## [9.3.13a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.13a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.3.12a1...9.3.13a1)
-
-**Merged pull requests:**
-
-- fix: delegate set\_context/remove\_context to the session API \(finding 29 + fold-hazard fix\) [\#535](https://github.com/OpenVoiceOS/ovos-workshop/pull/535) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.3.12a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.3.12a1) (2026-08-13)
 
