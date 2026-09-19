@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.5a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a2) (2026-09-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a1...9.8.5a2)
+
+**Merged pull requests:**
+
+- chore\(ci\): bump codecov/codecov-action from v3 to v7 [\#642](https://github.com/OpenVoiceOS/ovos-workshop/pull/642) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a1) (2026-09-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a2...9.8.5a1)
