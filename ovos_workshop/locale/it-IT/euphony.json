@@ -1,0 +1,17 @@
+{
+  "normalize": {},
+  "rules": [
+    {
+      "connector": "e",
+      "condition": "starts_with_vowel",
+      "vowels": ["e"],
+      "replace_with": "ed"
+    },
+    {
+      "connector": "o",
+      "condition": "starts_with_vowel",
+      "vowels": ["o"],
+      "replace_with": "od"
+    }
+  ]
+}
