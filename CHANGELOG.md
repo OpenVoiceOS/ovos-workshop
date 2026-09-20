@@ -2,7 +2,27 @@
 
 ## [9.8.5a8](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a8) (2026-09-20)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a3...9.8.5a8)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a7...9.8.5a8)
+
+## [9.8.5a7](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a7) (2026-09-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a6...9.8.5a7)
+
+**Merged pull requests:**
+
+- translate\(nl-NL\): update skill.error.dialog [\#648](https://github.com/OpenVoiceOS/ovos-workshop/pull/648) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
+## [9.8.5a6](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a6) (2026-09-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a5...9.8.5a6)
+
+## [9.8.5a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a5) (2026-09-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a4...9.8.5a5)
+
+## [9.8.5a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a4) (2026-09-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a3...9.8.5a4)
 
 **Merged pull requests:**
 
@@ -10,7 +30,6 @@
 - translate\(nl-NL\): update game\_pause.dialog [\#651](https://github.com/OpenVoiceOS/ovos-workshop/pull/651) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
 - translate\(nl-NL\): update cant\_save\_game.dialog [\#650](https://github.com/OpenVoiceOS/ovos-workshop/pull/650) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
 - translate\(nl-NL\): update cant\_load\_game.dialog [\#649](https://github.com/OpenVoiceOS/ovos-workshop/pull/649) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
-- translate\(nl-NL\): update skill.error.dialog [\#648](https://github.com/OpenVoiceOS/ovos-workshop/pull/648) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
 - translate\(nl-NL\): update cancel.voc [\#647](https://github.com/OpenVoiceOS/ovos-workshop/pull/647) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
 
 ## [9.8.5a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a3) (2026-09-19)
@@ -100,19 +119,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -336,10 +355,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.0a1...9.5.0a2)
 
-**Merged pull requests:**
-
-- docs: prerelease-quirks changelog [\#546](https://github.com/OpenVoiceOS/ovos-workshop/pull/546) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.5.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.0a1) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.4.0a1...9.5.0a1)
@@ -538,15 +553,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
