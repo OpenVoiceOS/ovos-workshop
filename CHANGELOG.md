@@ -1,5 +1,24 @@
 # Changelog
 
+## [9.8.5a13](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a13) (2026-09-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a10...9.8.5a13)
+
+**Merged pull requests:**
+
+- translate\(kab\): update cancel.voc [\#665](https://github.com/OpenVoiceOS/ovos-workshop/pull/665) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(kab\): update cant\_load\_game.dialog [\#664](https://github.com/OpenVoiceOS/ovos-workshop/pull/664) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
+## [9.8.5a10](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a10) (2026-09-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a9...9.8.5a10)
+
+**Merged pull requests:**
+
+- translate\(kab\): update cant\_save\_game.dialog [\#663](https://github.com/OpenVoiceOS/ovos-workshop/pull/663) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(kab\): update game\_pause.dialog [\#662](https://github.com/OpenVoiceOS/ovos-workshop/pull/662) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(kab\): update game\_unpause.dialog [\#661](https://github.com/OpenVoiceOS/ovos-workshop/pull/661) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
 ## [9.8.5a9](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a9) (2026-09-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a8...9.8.5a9)
