@@ -1,8 +1,28 @@
 # Changelog
 
+## [9.8.5a15](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a15) (2026-09-22)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a14...9.8.5a15)
+
+**Merged pull requests:**
+
+- translate\(kab\): update cant\_load\_game.dialog [\#671](https://github.com/OpenVoiceOS/ovos-workshop/pull/671) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
 ## [9.8.5a14](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a14) (2026-09-21)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a10...9.8.5a14)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a13...9.8.5a14)
+
+## [9.8.5a13](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a13) (2026-09-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a12...9.8.5a13)
+
+## [9.8.5a12](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a12) (2026-09-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a11...9.8.5a12)
+
+## [9.8.5a11](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a11) (2026-09-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a10...9.8.5a11)
 
 **Merged pull requests:**
 
@@ -338,21 +358,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.3a1...9.5.4a1)
 
-**Closed issues:**
-
-- Adapt vocab from .voc files never matches .require\(\)'d intents due to inconsistent capitalization [\#559](https://github.com/OpenVoiceOS/ovos-workshop/issues/559)
-
 ## [9.5.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.3a1) (2026-08-26)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.2a1...9.5.3a1)
-
-**Closed issues:**
-
-- speak\_dialog ignores user .dialog overrides: the dialog renderer never looks in user\_directory [\#556](https://github.com/OpenVoiceOS/ovos-workshop/issues/556)
-
-**Merged pull requests:**
-
-- fix: render a user's dialog override instead of the skill's own [\#557](https://github.com/OpenVoiceOS/ovos-workshop/pull/557) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.5.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.2a1) (2026-08-15)
 
