@@ -7,6 +7,7 @@ values an engine computed off the dispatch message.
 import json
 import unittest
 from os.path import dirname
+from unittest.mock import patch
 
 from ovos_bus_client.message import Message
 from ovos_utils.fakebus import FakeBus
@@ -258,6 +259,76 @@ class DeclaredTypeResolutionTest(unittest.TestCase):
                            "value": "#005500"}],
                 "number": [{"span": [0, 4], "surface": "five", "value": 5}]}})
         self.assertEqual(self.skill.typed_slot(msg, "shade"), 5)
+
+
+class TypedLineIsNotDroppedTest(unittest.TestCase):
+    """OVOS-INTENT-1 §3.4 degrade rule on the workshop side.
+
+    ovos-workshop 9.2.1a1 (#466) validates every template line and skips the
+    ones it cannot expand. Up to 9.6.x that validation read a type prefix as
+    an invalid slot name, so `{number:offset}` was dropped as malformed and a
+    resource made only of typed lines never registered at all (failure mode
+    S1 in typed-slots-stable.md). 9.7.0a1 (#599) folds the prefix before the
+    validation. These tests pin that the line survives, on both paths a
+    skill has: the resource file, with an inline `<name>` reference beside
+    the typed slot, and a direct `register_template` call with samples built
+    in code.
+    """
+
+    def setUp(self):
+        self.bus = FakeBus()
+        self.bus.emitted_msgs = []
+        self.bus.on("message", lambda msg: self.bus.emitted_msgs.append(json.loads(msg)))
+        self.skill = OVOSSkill(skill_id="typed.test", bus=self.bus,
+                               resources_dir=RES_DIR)
+
+    def tearDown(self):
+        self.skill.default_shutdown()
+        self.skill = None
+
+    def _payloads(self, msg_type, name_part):
+        return [msg["data"] for msg in self.bus.emitted_msgs
+                if msg["type"] == msg_type
+                and name_part in msg["data"].get("name", "")
+                + msg["data"].get("intent_name", "")]
+
+    def _both(self, name_part):
+        spec = self._payloads("ovos.intent.register.template", name_part)
+        legacy = self._payloads("padatious:register_intent", name_part)
+        self.assertEqual(len(spec), 1, self.bus.emitted_msgs)
+        self.assertEqual(len(legacy), 1, self.bus.emitted_msgs)
+        return spec[0], legacy[0]
+
+    def test_typed_resource_line_is_registered_not_dropped(self):
+        self.bus.emitted_msgs = []
+        # The module logger is named "OVOS", not "ovos_workshop.intents", so
+        # assertNoLogs on the module name watches a logger nothing writes to
+        # and cannot fail. Patch the logger the module actually calls.
+        with patch("ovos_workshop.intents.LOG") as log:
+            self.skill.register_intent_file("alarm.intent", None)
+        log.warning.assert_not_called()
+        spec, legacy = self._both("alarm")
+        expected = ["set an alarm in {offset} (minutes|hours)",
+                    "wake me in {offset} (minutes|hours)"]
+        self.assertEqual(sorted(spec["samples"]), sorted(expected))
+        self.assertEqual(sorted(legacy["samples"]), sorted(expected))
+        self.assertEqual(spec["slot_types"], {"offset": "number"})
+
+    def test_typed_samples_built_in_code_are_registered_not_dropped(self):
+        iface = IntentServiceInterface(self.bus)
+        iface.set_id("typed.test")
+        self.bus.emitted_msgs = []
+        with patch("ovos_workshop.intents.LOG") as log:
+            iface.register_template(
+                "typed.test:alarm.code",
+                ["set an alarm in {number:offset} <unit>"], "en-US",
+                vocabs={"unit": ["minutes", "hours"]})
+        log.warning.assert_not_called()
+        spec, legacy = self._both("alarm.code")
+        self.assertEqual(spec["samples"],
+                         ["set an alarm in {offset} (minutes|hours)"])
+        self.assertEqual(legacy["samples"], spec["samples"])
+        self.assertEqual(spec["slot_types"], {"offset": "number"})
 
 
 if __name__ == "__main__":
