@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.6a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.6a3) (2026-09-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a2...9.8.6a3)
+
+**Merged pull requests:**
+
+- test: a typed-slot template line registers on both paths \(OVOS-INTENT-1 §3.4\) [\#643](https://github.com/OpenVoiceOS/ovos-workshop/pull/643) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.6a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.6a2) (2026-09-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a1...9.8.6a2)
@@ -337,10 +345,6 @@
 ## [9.6.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a2) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a1...9.6.0a2)
-
-**Merged pull requests:**
-
-- docs: warn that bare requires\_context entries are private-scoped [\#568](https://github.com/OpenVoiceOS/ovos-workshop/pull/568) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a1) (2026-09-01)
 
@@ -1276,15 +1280,15 @@
 
 ## [0.0.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.16a1) (2023-12-29)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15...0.0.16a1)
-
-## [0.0.15](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15) (2023-12-29)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a6...0.0.15)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a6...0.0.16a1)
 
 ## [0.0.15a6](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15a6) (2023-12-29)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a5...0.0.15a6)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15...0.0.15a6)
+
+## [0.0.15](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15) (2023-12-29)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/0.0.15a5...0.0.15)
 
 ## [0.0.15a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/0.0.15a5) (2023-12-29)
 
