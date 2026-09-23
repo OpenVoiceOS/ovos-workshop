@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.7a1) (2026-09-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a3...9.8.7a1)
+
+**Merged pull requests:**
+
+- fix\(kab\): native word connectors, d and naɣ, not akked and neɣ [\#677](https://github.com/OpenVoiceOS/ovos-workshop/pull/677) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.6a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.6a3) (2026-09-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a2...9.8.6a3)
@@ -186,19 +194,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -337,10 +345,6 @@
 ## [9.6.0a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a3) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a2...9.6.0a3)
-
-**Merged pull requests:**
-
-- docs: intent\_handler docstring — context gating reaches every registration payload [\#570](https://github.com/OpenVoiceOS/ovos-workshop/pull/570) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a2) (2026-09-01)
 
