@@ -23,11 +23,12 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
 from ovos_config.locations import get_xdg_data_save_path
+from ovos_workshop.version import VERSION_MAJOR
 from ovos_utils import flatten_list
 from ovos_spec_tools import (expand, inline_keywords, MalformedTemplate,
                              lang_distance, lang_matches)
 from ovos_utils.dialog import MustacheDialogRenderer, load_dialogs
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, log_deprecation
 
 SkillResourceTypes = namedtuple(
     "SkillResourceTypes",
@@ -46,6 +47,48 @@ SkillResourceTypes = namedtuple(
         "json"
     ]
 )
+
+
+# OVOS-INTENT-2 §2 requires a resource base name of "lowercase ASCII
+# letters, digits, and underscores". The rename wave brought the skill fleet
+# to that rule, but a user's own override folder is not ours to rename: a
+# file a user wrote as `TurnOn.intent` or `word_connectors.word_connectors`
+# is still on their disk. Deprecated shims are removed in the next MAJOR
+# release, as `common_play` already computes it.
+_LEGACY_OVERRIDE_REMOVAL_VERSION = f"{VERSION_MAJOR + 1}.0.0"
+
+# Skill ids that already carry the legacy name of a file we resolved, so the
+# warning is logged once per file and not once per lookup.
+_WARNED_LEGACY_OVERRIDES = set()
+
+
+def legacy_resource_name(file_name: str) -> Optional[str]:
+    """The pre-rename spelling of a compliant resource file name.
+
+    The rename wave applied one mapping: CamelCase became snake_case and a
+    dot inside the base name became an underscore. This reverses only the
+    second half, because the first is not reversible: `turn_on` was either
+    `TurnOn` or `turn.on`, and both are returned by the caller trying each.
+
+    Args:
+        file_name: a compliant file name, base name plus extension.
+
+    Returns:
+        A list of legacy spellings to try, or None when the name carries no
+        underscore and so cannot have been rewritten.
+    """
+    base, dot, extension = file_name.rpartition(".")
+    if not dot:
+        base, extension = file_name, ""
+    if "_" not in base:
+        return None
+    candidates = []
+    # dots became underscores
+    candidates.append(base.replace("_", ".") + ("." + extension if extension else ""))
+    # CamelCase became snake_case
+    camel = "".join(part[:1].upper() + part[1:] for part in base.split("_"))
+    candidates.append(camel + ("." + extension if extension else ""))
+    return candidates
 
 
 def locate_base_directories(skill_directory: str,
@@ -296,6 +339,32 @@ class ResourceFile:
             f"(skill_id={self.skill_id}, resource={self.resource_name}, "
             f"lang={self.resource_type.language}): {line!r} ({error})")
 
+    def _locate_legacy_override(self, walk_directory: str,
+                                file_name: str) -> Optional[Path]:
+        """Find *file_name* in a user override folder under its pre-rename
+        spelling, and log one deprecation warning naming both paths.
+
+        Returns:
+            The path of the legacy file, or None when there is none.
+        """
+        candidates = legacy_resource_name(file_name)
+        if not candidates:
+            return None
+        for directory, _, file_names in walk(walk_directory):
+            for candidate in candidates:
+                if candidate in file_names:
+                    legacy_path = Path(directory, candidate)
+                    compliant_path = Path(directory, file_name)
+                    if str(legacy_path) not in _WARNED_LEGACY_OVERRIDES:
+                        _WARNED_LEGACY_OVERRIDES.add(str(legacy_path))
+                        log_deprecation(
+                            f"user override {legacy_path} is read under its "
+                            f"pre-rename name; rename it to "
+                            f"{compliant_path} (OVOS-INTENT-2 §2)",
+                            _LEGACY_OVERRIDE_REMOVAL_VERSION)
+                    return legacy_path
+        return None
+
     def _locate(self) -> Optional[str]:
         """Locates a resource file in the skill's locale directory.
 
@@ -317,6 +386,15 @@ class ResourceFile:
             for directory, _, file_names in walk(walk_directory):
                 if file_name in file_names:
                     file_path = Path(directory, file_name)
+            if file_path is None:
+                # The compliant name is not in the override folder. A file the
+                # user wrote before the OVOS-INTENT-2 §2 rename wave is still
+                # under its old spelling, and renaming a user's own file is not
+                # ours to do. Read it, and say once that it must be renamed.
+                # Scope: the override folder only. The skill's own tree below
+                # is compliant by the rename wave and gets no fallback.
+                file_path = self._locate_legacy_override(walk_directory,
+                                                         file_name)
 
         # check the skill resources
         if file_path is None:
