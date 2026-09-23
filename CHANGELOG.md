@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.6a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.6a1) (2026-09-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a15...9.8.6a1)
+
+**Merged pull requests:**
+
+- fix\(kab\): the word\_connectors.json that dev is red without [\#673](https://github.com/OpenVoiceOS/ovos-workshop/pull/673) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.5a15](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.5a15) (2026-09-22)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.5a14...9.8.5a15)
@@ -162,19 +170,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -338,17 +346,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.5a2...9.5.6a1)
 
-**Merged pull requests:**
-
-- fix: allow ovos-config 3.x [\#564](https://github.com/OpenVoiceOS/ovos-workshop/pull/564) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.5.5a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a2) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.5.5a1...9.5.5a2)
-
-**Merged pull requests:**
-
-- docs: add AGENTS.md with the conventions for coding agents [\#562](https://github.com/OpenVoiceOS/ovos-workshop/pull/562) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.5.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.5.5a1) (2026-08-31)
 
