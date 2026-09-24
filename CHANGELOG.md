@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.8a1) (2026-09-24)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.7a1...9.8.8a1)
+
+**Merged pull requests:**
+
+- fix: cross-skill context writes go to the session; the legacy topics stay as compat [\#629](https://github.com/OpenVoiceOS/ovos-workshop/pull/629) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.7a1) (2026-09-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a3...9.8.7a1)
@@ -337,10 +345,6 @@
 ## [9.6.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.1a1) (2026-09-01)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.0a3...9.6.1a1)
-
-**Merged pull requests:**
-
-- fix: make default\_shutdown re-entrant [\#573](https://github.com/OpenVoiceOS/ovos-workshop/pull/573) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.0a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.0a3) (2026-09-01)
 
