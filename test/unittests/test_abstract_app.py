@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import gc
 import unittest
 from os import remove
 from unittest.mock import Mock, patch
@@ -33,6 +34,17 @@ class TestApp(unittest.TestCase):
     gui = GUIInterface("TestApplication")
 
     app = Application(skill_id="TestApplication", gui=gui, bus=bus)
+
+    def setUp(self):
+        # `test_default_shutdown` below patches `OVOSSkill.default_shutdown`
+        # at the class level for the duration of one test method; any OVOSSkill
+        # instance from an earlier test that is still only cyclic garbage
+        # (skill <-> bus event-handler reference cycles, collected by the
+        # generational GC rather than refcounting) would have its `__del__`
+        # fire into that same patched mock if collection happens to land
+        # inside this test's window. Flushing here, before any patch is
+        # active, keeps that window free of unrelated cross-test garbage.
+        gc.collect()
 
     def test_gui_init(self):
         # The passed GUIInterface has len()==0 (empty data), so it evaluates as
