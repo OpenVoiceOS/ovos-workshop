@@ -223,7 +223,9 @@ class _AdaptIntentApi:
         self._iface.register_intent(name, intent_parser)
 
     def set_context(self, context: str, word: str, origin: str,
-                     original_key: Optional[str] = None):
+                     original_key: Optional[str] = None,
+                     turns_remaining: Optional[int] = None,
+                     expires_at: Optional[float] = None):
         """Add adapt-engine context (adapt-engine only).
 
         `context` is the munged (alphanumeric_skill_id + context) legacy
@@ -235,33 +237,54 @@ class _AdaptIntentApi:
         `session` bound to `msg` (`SessionManager.get(msg)`, ovos-spec-tools
         >=1.10.3a1) via `Session.set_intent_context` - `forward`/`reply`
         derived from `msg` stamp from that same bound object (CONTEXT-1
-        §5.3), so the write rides out on whatever this call emits next. The
-        legacy `add_context` message below is a *different* mechanism (the
-        adapt-engine `session.context` field, not `intent_context`) kept for
-        cores that still consume it, and warns once per process via
+        §5.3), so the write rides out on whatever this call emits next.
+
+        With `original_key` unset no session write happens at all. That is
+        the path the legacy `mycroft.skill.set_cross_context` listener takes
+        (`OVOSSkill.handle_set_cross_context`): a Message that announces a
+        context change must not cause a `session.intent_context` write in
+        every receiver (§5.0), so that path carries the write to the
+        adapt-engine `session.context` field only, through the legacy
+        `add_context` message below. That message warns once per process via
         `_legacy_warn_add_context_once` (see that helper).
+
+        `turns_remaining` and `expires_at` are CONTEXT-1 §2 decay fields,
+        passed straight through to `Session.set_intent_context`. Omitted,
+        they keep the pre-existing behaviour: `expires_at` defaults to
+        `now + context.timeout` (minutes, default 2) **read from the process
+        making this call**, which on a satellite is not the orchestrator's
+        configuration, so the §5.3 orchestrator-side default decay never
+        applies to an entry written here; `turns_remaining` is unset (the
+        one-turn gate `{"value": null, "turns_remaining": 1}` is §3.2's
+        flag-context worked example, which §1.2 describes in prose, and it
+        is reachable by passing `turns_remaining=1` explicitly).
         """
         msg = dig_for_message() or Message("")
         if "skill_id" not in msg.context:
             msg.context["skill_id"] = self.skill_id
         if original_key is not None:
             session = SessionManager.get(msg)
-            # OVOS-CONTEXT-1: mirror ovos-core's decay policy
-            # (`context.timeout`, minutes, default 2) so a skill-side write
-            # folds into the registry with the SAME `expires_at` a core-side
-            # write would carry - an omitted `expires_at` here produced
-            # immortal entries that stripped core's decay stamp for that
-            # key. One decay policy on both write paths.
-            context_cfg = Configuration().get('context', {})
-            timeout_s = context_cfg.get('timeout', 2) * 60
-            expires_at = time.time() + timeout_s if timeout_s > 0 else None
+            if expires_at is None:
+                # OVOS-CONTEXT-1: mirror ovos-core's decay policy
+                # (`context.timeout`, minutes, default 2) so a skill-side
+                # write folds into the registry with the SAME `expires_at`
+                # a core-side write would carry - an omitted `expires_at`
+                # here produced immortal entries that stripped core's decay
+                # stamp for that key. One decay policy on both write paths.
+                context_cfg = Configuration().get('context', {})
+                timeout_s = context_cfg.get('timeout', 2) * 60
+                expires_at = time.time() + timeout_s if timeout_s > 0 else None
             session.set_intent_context(original_key, word,
                                         scope="private",
                                         owner_id=self.skill_id,
-                                        expires_at=expires_at)
-        # `add_context` mutates the adapt-engine `session.context` field, a
-        # different mechanism than `intent_context` above, kept for
-        # orchestrators that predate OVOS-CONTEXT-1 and still consume it.
+                                        expires_at=expires_at,
+                                        turns_remaining=turns_remaining)
+        # `add_context` carries the write to the adapt-engine
+        # `session.context` field, kept for orchestrators that predate
+        # OVOS-CONTEXT-1 and still consume it. A modern core folds the same
+        # key back into `session.intent_context`, so for a modern core this
+        # is a write-through of the session write above, not a second
+        # mutation.
         _legacy_warn_add_context_once()
         data = {'context': context, 'word': word, 'origin': origin}
         if original_key is not None:
@@ -858,14 +881,18 @@ class IntentServiceInterface:
         return self._adapt.register_adapt_intent(name, intent_parser)
 
     def _set_context(self, context: str, word: str, origin: str,
-                      original_key: Optional[str] = None):
+                      original_key: Optional[str] = None,
+                      turns_remaining: Optional[int] = None,
+                      expires_at: Optional[float] = None):
         """Non-warning implementation shared by the deprecated public facade
         (`set_context`) and OVOSSkill's own supported `set_context`/
         `remove_context` API (ovos_workshop/skills/ovos.py), which delegates
         here so the SUPPORTED base-class path does not itself trigger the
         facade's external-caller deprecation warning."""
         return self._adapt.set_context(context, word, origin,
-                                        original_key=original_key)
+                                        original_key=original_key,
+                                        turns_remaining=turns_remaining,
+                                        expires_at=expires_at)
 
     def set_context(self, context: str, word: str, origin: str,
                      original_key: Optional[str] = None):
