@@ -15,8 +15,7 @@ OVOSSkill                             ovos_workshop/skills/ovos.py
 │   └── OVOSGameSkill                 ovos_workshop/skills/game_skill.py
 │       └── ConversationalGameSkill   ovos_workshop/skills/game_skill.py
 ├── UniversalSkill                    ovos_workshop/skills/auto_translatable.py
-│   ├── UniversalFallback             ovos_workshop/skills/auto_translatable.py
-│   └── UniversalCommonQuerySkill     ovos_workshop/skills/auto_translatable.py (deprecated)
+│   └── UniversalFallback             ovos_workshop/skills/auto_translatable.py
 └── OVOSAbstractApplication           ovos_workshop/app.py
 ```
 

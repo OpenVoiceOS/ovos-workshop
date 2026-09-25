@@ -24,7 +24,7 @@ frameworks, templates and patches for the OpenVoiceOS universe
 | `ConversationalSkill` | `ovos_workshop.skills.converse` | Adds converse loop support |
 | `ActiveSkill` | `ovos_workshop.skills.active` | Always-active converse skill |
 | `FallbackSkill` | `ovos_workshop.skills.fallback` | Handles unmatched utterances |
-| `CommonQuerySkill` | `ovos_workshop.skills.common_query_skill` | Question/answer pipeline |
+| `@common_query` | `ovos_workshop.decorators` | Marks an `OVOSSkill` method as a question/answer handler |
 | `OVOSCommonPlaybackSkill` | `ovos_workshop.skills.common_play` | OCP media playback |
 | `OVOSGameSkill` | `ovos_workshop.skills.game_skill` | OCP-integrated game loop |
 | `ConversationalGameSkill` | `ovos_workshop.skills.game_skill` | Game skill with converse loop and auto-save |

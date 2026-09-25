@@ -174,15 +174,20 @@ Similar to `create_universal_handler()` but designed for fallback handlers (whic
 
 ---
 
-## UniversalCommonQuerySkill
+## Common query in a translated skill
 
-`UniversalCommonQuerySkill` is defined in `ovos_workshop/skills/auto_translatable.py:376`.
-> **Deprecated.** Use `UniversalSkill` with `@common_query` instead.
+`UniversalCommonQuerySkill` and `CommonQuerySkill` are removed. To answer free
+questions in a translated skill, decorate a method of a `UniversalSkill` with
+`@common_query` from `ovos_workshop.decorators`.
 
-Combines `UniversalSkill` with `CommonQuerySkill`. Both the input phrase and the skill's answer are translated automatically:
+The translation is not symmetrical here:
 
-- `CQS_match_query_phrase` receives the phrase in `self.internal_language`.
-- The returned answer is translated back to `self.lang` before being spoken.
+- `self.speak()` translates the answer from `self.internal_language` to `self.lang`.
+- The handler receives the question phrase in the language of the request. Only
+  `register_intent()` and `register_intent_file()` translate their input, and a
+  `@common_query` handler goes through neither. Translate the phrase in the
+  handler with `self.translate_utterance()` if the answer logic needs the
+  internal language.
 
 ---
 
