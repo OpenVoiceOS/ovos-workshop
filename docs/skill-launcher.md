@@ -9,7 +9,7 @@ The skill launcher handles loading skill classes from plugins or files, connecti
 ```python
 from ovos_workshop.skill_launcher import SKILL_BASE_CLASSES
 
-# [OVOSSkill, OVOSCommonPlaybackSkill, CommonQuerySkill, ActiveSkill,
+# [OVOSSkill, OVOSCommonPlaybackSkill, ActiveSkill,
 #  FallbackSkill, UniversalSkill, UniversalFallback, OVOSGameSkill,
 #  ConversationalGameSkill]
 ```

@@ -2,7 +2,7 @@
 
 ## What is `ovos-workshop`?
 
-`ovos-workshop` provides all base classes, decorators, and helpers needed to write skills and applications for OpenVoiceOS. It includes `OVOSSkill`, `FallbackSkill`, `CommonQuerySkill`, `OVOSCommonPlaybackSkill`, `OVOSGameSkill`, `UniversalSkill`, `OVOSAbstractApplication`, `FileSystemAccess`, `SkillApi`, and all intent decorators.
+`ovos-workshop` provides all base classes, decorators, and helpers needed to write skills and applications for OpenVoiceOS. It includes `OVOSSkill`, `FallbackSkill`, `OVOSCommonPlaybackSkill`, `OVOSGameSkill`, `UniversalSkill`, `OVOSAbstractApplication`, `FileSystemAccess`, `SkillApi`, and all intent decorators.
 
 ---
 
