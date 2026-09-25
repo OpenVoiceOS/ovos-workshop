@@ -178,16 +178,21 @@ Similar to `create_universal_handler()` but designed for fallback handlers (whic
 
 `UniversalCommonQuerySkill` and `CommonQuerySkill` are removed. To answer free
 questions in a translated skill, decorate a method of a `UniversalSkill` with
-`@common_query` from `ovos_workshop.decorators`.
+`@common_query()` from `ovos_workshop.decorators`. Write the parentheses:
+`common_query` is a decorator factory, and the bare name marks no method.
 
 The translation is not symmetrical here:
 
-- `self.speak()` translates the answer from `self.internal_language` to `self.lang`.
-- The handler receives the question phrase in the language of the request. Only
-  `register_intent()` and `register_intent_file()` translate their input, and a
-  `@common_query` handler goes through neither. Translate the phrase in the
-  handler with `self.translate_utterance()` if the answer logic needs the
-  internal language.
+- The answer is translated. The pipeline dispatches
+  `question:action.<skill_id>` to the winning skill, the skill answers with
+  `self.speak()`, and `speak()` translates from `self.internal_language` to
+  `self.lang`.
+- The question phrase is not translated. `UniversalSkill` translates the input
+  of `register_intent()` and `register_intent_file()`, and of a converse
+  request, and `UniversalFallback` wraps a fallback handler, but a
+  `@common_query()` handler goes through none of those paths and receives the
+  phrase in the language of the request. Translate it in the handler with
+  `self.translate_utterance()` if the answer logic needs the internal language.
 
 ---
 
