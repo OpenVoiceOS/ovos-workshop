@@ -1096,6 +1096,25 @@ class OVOSSkill:
             # Static method or function: don't pass 'self'
             self._cq_callback(message.data["phrase"], answer, lang)
 
+    def _emit_common_query_response(self, message: Message, data: dict):
+        """
+        Emit a Common Query answer.
+
+        `question:query` (the dispatch topic this handler is bound to)
+        contains a ':' and therefore has no `.response` counterpart
+        (OVOS-MSG-1 §5.3) — `message.response()` raises on it. Answer on
+        the legacy `question:query.response` topic via `reply` instead,
+        which is what ovos-common-query-pipeline-plugin subscribes to.
+        COMMON-QUERY-1's spec topic (`ovos.common_query.response`) uses
+        an `utterance` payload key, not the `phrase` key this handler
+        produces, so it is not emitted here; full adoption of the spec
+        topic and payload shape lands together with the plugin.
+
+        @param message: the `question:query` Message being answered
+        @param data: the answer payload (searching/answer/no-answer leg)
+        """
+        self.bus.emit(message.reply("question:query.response", data))
+
     def __handle_question_query(self, message: Message):
         """
         Handle an incoming question query.
@@ -1110,9 +1129,9 @@ class OVOSSkill:
         LOG.debug(f"Common QA: {self.skill_id}")
         # First, notify the requestor that we are attempting to handle
         # (this extends a timeout while this skill looks for a match)
-        self.bus.emit(message.response({"phrase": search_phrase,
-                                        "skill_id": self.skill_id,
-                                        "searching": True}))
+        self._emit_common_query_response(message, {"phrase": search_phrase,
+                                                     "skill_id": self.skill_id,
+                                                     "searching": True})
         answer = None
         confidence = 0
         try:
@@ -1122,16 +1141,16 @@ class OVOSSkill:
             LOG.exception(f"Failed to get answer from {self._cq_handler}")
 
         if answer and confidence >= 0.5:
-            self.bus.emit(message.response({"phrase": search_phrase,
-                                            "skill_id": self.skill_id,
-                                            "answer": answer,
-                                            "callback_data": {"answer": answer},  # so we get it in callback
-                                            "conf": confidence}))
+            self._emit_common_query_response(message, {"phrase": search_phrase,
+                                                         "skill_id": self.skill_id,
+                                                         "answer": answer,
+                                                         "callback_data": {"answer": answer},  # so we get it in callback
+                                                         "conf": confidence})
         else:
             # Signal we are done (can't handle it)
-            self.bus.emit(message.response({"phrase": search_phrase,
-                                            "skill_id": self.skill_id,
-                                            "searching": False}))
+            self._emit_common_query_response(message, {"phrase": search_phrase,
+                                                         "skill_id": self.skill_id,
+                                                         "searching": False})
 
     def _register_public_api(self):
         """
