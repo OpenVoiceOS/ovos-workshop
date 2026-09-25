@@ -228,15 +228,17 @@ arity, the return shape and the choice of the confidence all changed:
   `Optional[Tuple[str, CQSMatchLevel, Optional[dict]]]`: the matched portion of
   the phrase, a match level, and optional callback data.
 * **What a ported three-tuple does.** The new call site unpacks two names, so it
-  raises `ValueError: too many values to unpack (expected 2)` inside the
-  framework, where nothing names the cause.
+  raises `ValueError: too many values to unpack (expected 2)`. The framework
+  catches it and logs the traceback, `ovos.py:1121`, and the skill answers
+  nothing: the user hears silence, and the reason is in the log.
 * **Who chooses the number.** The old skill returned a `CQSMatchLevel`, and the
   framework turned it into a float in `__calc_confidence`.
 * **The seeds to start from.** That calculation began at `EXACT` 0.9,
-  `CATEGORY` 0.6 or `GENERAL` 0.5, then adjusted for the consumed portion of
-  the phrase and the word count. The handler now returns the confidence itself,
-  and those three numbers are where to start. They are also why the floor above
-  is `0.5`: `GENERAL` sat exactly on it.
+  `CATEGORY` 0.6 or `GENERAL` 0.5, then added four terms: the consumed portion
+  of the phrase, the sentence count, the relevance and a word-count modifier.
+  The handler now returns the confidence itself, and those three seeds are where
+  to start. They are also why the floor above is `0.5`: `GENERAL` sat exactly on
+  it.
 
 Which release carries the removal, measured from the published artifacts:
 `8.0.4a2` still ships both surfaces, `8.0.4a4` ships neither, and the tag
