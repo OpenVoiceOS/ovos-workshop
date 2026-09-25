@@ -183,6 +183,46 @@ Intent layers now gate via intent context instead of enable/disable
 uses JSON-based euphony rules (#405). New yesno/selection agent plugins
 (#390). New spec topic `ovos.utterance.speak` emitted (#425).
 
+## 8.0.4a3 (#400) — `CommonQuerySkill` and `UniversalCommonQuerySkill` removed
+
+`ovos_workshop/skills/common_query_skill.py` is deleted, with
+`CommonQuerySkill` and `CQSMatchLevel`, and `UniversalCommonQuerySkill` is
+deleted from `ovos_workshop/skills/auto_translatable.py`. Both carried a
+`DeprecationWarning` that named 4.0.0 as the removal version.
+
+An import of either raises. Replace the base class with a method of a regular
+`OVOSSkill`:
+
+```python
+from ovos_workshop.decorators import common_query
+from ovos_workshop.skills import OVOSSkill
+
+
+class MySkill(OVOSSkill):
+    @common_query()
+    def handle_question(self, phrase: str, lang: str):
+        return "the answer", 0.8
+```
+
+Write the parentheses. `common_query` is a decorator factory, so a bare
+`@common_query` binds the method to the factory's inner function, sets no
+`common_query` attribute, and the skill never announces itself to the
+pipeline.
+
+The handler takes the phrase and the language and returns an `(answer,
+confidence)` pair, as `CQS_match_query_phrase` did. A confidence below `0.5`
+is not offered to the contest. A skill registers one such handler: if two
+methods carry the decorator, only one of them is registered, and which one
+depends on attribute order.
+
+Which release carries the removal, measured from the published artifacts:
+`8.0.4a2` still ships both surfaces, `8.0.4a4` ships neither, and the tag
+`8.0.4a3` has no files on PyPI. So the first installable release without them
+is `8.0.4a4`.
+
+The stable channel is unaffected. The newest stable is `8.0.0`, which is older
+than the removal, so only an install that allows prereleases can reach it.
+
 ## 8.0.1a1 - 8.0.4a4
 
 Locale folder names normalized to canonical BCP-47 form, with lookups and
