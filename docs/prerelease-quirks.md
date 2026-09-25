@@ -187,8 +187,13 @@ uses JSON-based euphony rules (#405). New yesno/selection agent plugins
 
 `ovos_workshop/skills/common_query_skill.py` is deleted, with
 `CommonQuerySkill` and `CQSMatchLevel`, and `UniversalCommonQuerySkill` is
-deleted from `ovos_workshop/skills/auto_translatable.py`. Both carried a
-`DeprecationWarning` that named 4.0.0 as the removal version.
+deleted from `ovos_workshop/skills/auto_translatable.py`.
+
+Both were warned, and the warning named `CommonQuerySkill`.
+`common_query_skill.py:60` raised it, with 4.0.0 as the removal version.
+
+`UniversalCommonQuerySkill` inherited that warning from its parent and carried
+none of its own, so a search of the logs for its name found nothing.
 
 An import of either raises. Replace the base class with a method of a regular
 `OVOSSkill`:
@@ -210,10 +215,28 @@ Write the parentheses. `common_query` is a decorator factory, so a bare
 pipeline.
 
 The handler takes the phrase and the language and returns an `(answer,
-confidence)` pair, as `CQS_match_query_phrase` did. A confidence below `0.5`
-is not offered to the contest. A skill registers one such handler: if two
-methods carry the decorator, only one of them is registered, and which one
-depends on attribute order.
+confidence)` pair. A confidence below `0.5` is not offered to the contest. A
+skill registers one such handler: if two methods carry the decorator, only one
+of them is registered, and which one depends on attribute order.
+
+The body of a `CQS_match_query_phrase` does not port across unchanged. The
+arity, the return shape and the choice of the confidence all changed:
+
+* **Arity.** The old method took the phrase alone. The new handler is called
+  with the phrase and the language, `ovos.py:1119`.
+* **Return shape.** The old method returned
+  `Optional[Tuple[str, CQSMatchLevel, Optional[dict]]]`: the matched portion of
+  the phrase, a match level, and optional callback data.
+* **What a ported three-tuple does.** The new call site unpacks two names, so it
+  raises `ValueError: too many values to unpack (expected 2)` inside the
+  framework, where nothing names the cause.
+* **Who chooses the number.** The old skill returned a `CQSMatchLevel`, and the
+  framework turned it into a float in `__calc_confidence`.
+* **The seeds to start from.** That calculation began at `EXACT` 0.9,
+  `CATEGORY` 0.6 or `GENERAL` 0.5, then adjusted for the consumed portion of
+  the phrase and the word count. The handler now returns the confidence itself,
+  and those three numbers are where to start. They are also why the floor above
+  is `0.5`: `GENERAL` sat exactly on it.
 
 Which release carries the removal, measured from the published artifacts:
 `8.0.4a2` still ships both surfaces, `8.0.4a4` ships neither, and the tag
