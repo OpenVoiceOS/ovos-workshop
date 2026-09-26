@@ -43,6 +43,83 @@ class TestResourceFiles(unittest.TestCase):
         self.assertIsNone(invalid_resource)
 
 
+class TestFindResourceLanguageScope(unittest.TestCase):
+    """A nested resource resolves inside the requested language only.
+
+    OVOS-INTENT-2 §2: "A loader resolves a resource by searching the language
+    directory and all its subdirectories, recursively." The recursion is scoped
+    to one language directory, so a request for a language must not be answered
+    with another language's file. find_resource used to check only a
+    subdirectory whose name equalled res_dirname, then fall back to walking the
+    whole locale tree, which returned whichever language scandir listed first.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="ovos-t4396-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _write(self, rel):
+        path = Path(self.root, "locale", rel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("a template\n", encoding="utf-8")
+        return path
+
+    def test_a_nested_resource_resolves_in_the_requested_language(self):
+        from ovos_workshop.resource_files import find_resource
+        en = self._write("en-US/dialog/no_word.dialog")
+        ca = self._write("ca-ES/dialog/no_word.dialog")
+        self.assertEqual(find_resource("no_word.dialog", self.root, "locale",
+                                       "en-US"), en)
+        self.assertEqual(find_resource("no_word.dialog", self.root, "locale",
+                                       "ca-ES"), ca)
+
+    def test_another_language_does_not_answer_for_the_requested_one(self):
+        """The reported defect: en-US ships no such file, ca-ES does."""
+        from ovos_workshop.resource_files import find_resource
+        self._write("en-US/spell.intent")
+        self._write("ca-ES/dialog/no_word.dialog")
+        self.assertIsNone(find_resource("no_word.dialog", self.root, "locale",
+                                        "en-US"))
+
+    def test_a_skill_can_detect_a_missing_translation(self):
+        """The purpose of the fix: absence is reported as absence."""
+        from ovos_workshop.resource_files import find_resource
+        self._write("ca-ES/dialog/no_word.dialog")
+        self.assertIsNone(find_resource("no_word.dialog", self.root, "locale",
+                                        "de-DE"))
+
+    def test_a_deeply_nested_resource_is_found(self):
+        """§2 says recursively, not one level."""
+        from ovos_workshop.resource_files import find_resource
+        deep = self._write("en-US/a/b/c/deep.dialog")
+        self.assertEqual(find_resource("deep.dialog", self.root, "locale",
+                                       "en-US"), deep)
+
+    def test_a_flat_resource_still_resolves(self):
+        from ovos_workshop.resource_files import find_resource
+        flat = self._write("en-US/spell.intent")
+        self.assertEqual(find_resource("spell.intent", self.root, "locale",
+                                       "en-US"), flat)
+
+    def test_a_close_region_still_falls_back(self):
+        """§2.2 permits the nearest language; en-GB may answer for en-US."""
+        from ovos_workshop.resource_files import find_resource
+        gb = self._write("en-GB/dialog/kettle.dialog")
+        self.assertEqual(find_resource("kettle.dialog", self.root, "locale",
+                                       "en-US"), gb)
+
+    def test_the_result_does_not_depend_on_directory_order(self):
+        """Both languages ship it; each request gets its own copy."""
+        from ovos_workshop.resource_files import find_resource
+        first = self._write("en-US/dialog/both.dialog")
+        second = self._write("ca-ES/dialog/both.dialog")
+        for lang, expected in (("en-US", first), ("ca-ES", second)):
+            with self.subTest(lang=lang):
+                self.assertEqual(find_resource("both.dialog", self.root,
+                                               "locale", lang), expected)
+
+
 class TestResourceType(unittest.TestCase):
     from ovos_workshop.resource_files import ResourceType
     # TODO
