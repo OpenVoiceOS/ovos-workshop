@@ -106,6 +106,29 @@ def match_lang_directories(lang: str, base_dirs: List[Path]) -> List[Path]:
     return [c[0] for c in candidates]
 
 
+def _foreign_lang_dirs(directory: Path, root_dir: str,
+                       lang: Optional[str]) -> set:
+    """
+    Language subdirectories of the locale tree that must not answer for `lang`.
+
+    Only the ``locale`` base is pruned. OVOS-INTENT-2 §2 states that all
+    localized resources live under a single ``locale/`` directory "with one
+    subdirectory per language", so every first-level subdirectory there is a
+    language directory. A ``<skill>/<res_dirname>/`` tree is not described by
+    that specification, so its subdirectory names carry no such guarantee and
+    it is left alone.
+
+    @param directory: base directory about to be walked
+    @param root_dir: skill root directory
+    @param lang: requested BCP-47 language code, or None for a language-blind
+        lookup, which prunes nothing
+    @return: set of directories to prune from the walk
+    """
+    if not lang or directory != Path(root_dir, "locale"):
+        return set()
+    return {folder for folder in directory.iterdir() if folder.is_dir()}
+
+
 def find_resource(res_name: str, root_dir: str, res_dirname: str,
                   lang: Optional[str] = None) -> Optional[Path]:
     """
@@ -130,19 +153,25 @@ def find_resource(res_name: str, root_dir: str, res_dirname: str,
         Path: The full path to the resource file or None if not found
     """
     if lang:
+        # OVOS-INTENT-2 §2: "A loader resolves a resource by searching the
+        # language directory and all its subdirectories, recursively."
+        # locate_lang_directories returns the usable matches nearest first, so
+        # the first hit is the closest language that ships the resource.
         for directory in locate_lang_directories(lang, root_dir, '.'):
-            # Iterate over nodes in the language directory
-            for x in directory.iterdir():
-                if x.is_file() and res_name == x.name:
-                    return x
-                elif x.is_dir() and x.name == res_dirname:
-                    for y in x.iterdir():
-                        # Iterate over resource subdirectories within a lang dir
-                        if y.is_file() and res_name == y.name:
-                            return y
+            for candidate in sorted(directory.rglob(res_name)):
+                if candidate.is_file():
+                    return candidate
 
     for directory in locate_base_directories(root_dir, res_dirname):
-        for d, _, file_names in walk(directory):
+        skip = _foreign_lang_dirs(directory, root_dir, lang)
+        for d, dir_names, file_names in walk(directory):
+            # Prune the language directories of the locale tree. OVOS-INTENT-2
+            # §2 gives locale/ "one subdirectory per language", so each of
+            # these IS a language directory: the ones that match `lang` were
+            # already searched above, and the ones that do not must not answer
+            # a request for `lang`. Without this the walk returned whichever
+            # language scandir happened to list first.
+            dir_names[:] = [n for n in dir_names if Path(d, n) not in skip]
             if res_name in file_names:
                 return Path(directory, d, res_name)
 
