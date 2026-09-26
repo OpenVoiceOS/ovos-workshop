@@ -1,0 +1,11 @@
+{
+  "normalize": {},
+  "rules": [
+    {
+      "connector": "e",
+      "condition": "starts_with_vowel",
+      "vowels": ["a", "e", "i", "o", "u"],
+      "replace_with": "et"
+    }
+  ]
+}

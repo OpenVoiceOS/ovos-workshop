@@ -52,6 +52,15 @@ class TestAbortSkill(ConversationalSkill):
             sleep(1)
             self.speak("you can't abort me")
 
+    @killable_intent(callback=handle_intent_aborted)
+    @intent_handler("test4.intent")
+    def handle_test_quick_intent(self, message):
+        """A killable_intent handler that returns immediately (never
+        aborted) - used to verify the killable thread/listener bookkeeping
+        is cleaned up on natural completion, not just when killed."""
+        self.stop_called = False
+        self.speak("quick done")
+
     def stop(self):
         self.stop_called = True
 
