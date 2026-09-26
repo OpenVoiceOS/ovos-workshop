@@ -183,6 +183,71 @@ Intent layers now gate via intent context instead of enable/disable
 uses JSON-based euphony rules (#405). New yesno/selection agent plugins
 (#390). New spec topic `ovos.utterance.speak` emitted (#425).
 
+## 8.0.4a3 (#400) — `CommonQuerySkill` and `UniversalCommonQuerySkill` removed
+
+`ovos_workshop/skills/common_query_skill.py` is deleted, with
+`CommonQuerySkill` and `CQSMatchLevel`, and `UniversalCommonQuerySkill` is
+deleted from `ovos_workshop/skills/auto_translatable.py`.
+
+Both were warned, and the warning named `CommonQuerySkill`.
+`common_query_skill.py:60` raised it, with 4.0.0 as the removal version.
+
+`UniversalCommonQuerySkill` inherited that warning from its parent and carried
+none of its own, so a search of the logs for its name found nothing.
+
+An import of either raises. Replace the base class with a method of a regular
+`OVOSSkill`:
+
+```python
+from ovos_workshop.decorators import common_query
+from ovos_workshop.skills import OVOSSkill
+
+
+class MySkill(OVOSSkill):
+    @common_query()
+    def handle_question(self, phrase: str, lang: str):
+        return "the answer", 0.8
+```
+
+Write the parentheses. `common_query` is a decorator factory, so a bare
+`@common_query` binds the method to the factory's inner function, sets no
+`common_query` attribute, and the skill never announces itself to the
+pipeline.
+
+The handler takes the phrase and the language and returns an `(answer,
+confidence)` pair. A confidence below `0.5` is not offered to the contest. A
+skill registers one such handler: if two methods carry the decorator, only one
+of them is registered, and which one depends on attribute order.
+
+The body of a `CQS_match_query_phrase` does not port across unchanged. The
+arity, the return shape and the choice of the confidence all changed:
+
+* **Arity.** The old method took the phrase alone. The new handler is called
+  with the phrase and the language, `ovos.py:1119`.
+* **Return shape.** The old method returned
+  `Optional[Tuple[str, CQSMatchLevel, Optional[dict]]]`: the matched portion of
+  the phrase, a match level, and optional callback data.
+* **What a ported three-tuple does.** The new call site unpacks two names, so it
+  raises `ValueError: too many values to unpack (expected 2)`. The framework
+  catches it and logs the traceback, `ovos.py:1121`, and the skill answers
+  nothing: the user hears silence, and the reason is in the log.
+* **Who chooses the number.** The old skill returned a `CQSMatchLevel`, and the
+  framework turned it into a float in `__calc_confidence`.
+* **The seeds to start from.** That calculation began at `EXACT` 0.9,
+  `CATEGORY` 0.6 or `GENERAL` 0.5, then added four terms: the consumed portion
+  of the phrase, the sentence count, the relevance and a word-count modifier.
+  The handler now returns the confidence itself, and those three seeds are where
+  to start. They are also why the floor above is `0.5`: `GENERAL` sat exactly on
+  it.
+
+Which release carries the removal, measured from the published artifacts:
+`8.0.4a2` still ships both surfaces, `8.0.4a4` ships neither, and the tag
+`8.0.4a3` has no files on PyPI. So the first installable release without them
+is `8.0.4a4`.
+
+The stable channel is unaffected. The newest stable is `8.0.0`, which is older
+than the removal, so only an install that allows prereleases can reach it.
+
 ## 8.0.1a1 - 8.0.4a4
 
 Locale folder names normalized to canonical BCP-47 form, with lookups and
