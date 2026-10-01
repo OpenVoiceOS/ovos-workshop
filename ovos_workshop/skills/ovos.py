@@ -1394,14 +1394,15 @@ class OVOSSkill:
             with self._shutdown_lock:
                 if self._shutdown_done:
                     return
+        skill_id = getattr(self, 'skill_id', self.__class__.__name__)
         try:
             self.shutdown()
         except Exception as e:
-            LOG.error(f"Skill specific shutdown for '{self.skill_id}' encountered an error: {e}")
+            LOG.error(f"Skill specific shutdown for '{skill_id}' encountered an error: {e}")
         try:
             self.default_shutdown()
         except Exception as e:
-            LOG.error(f"Default shutdown for skill '{self.skill_id}' encountered an error: {e}")
+            LOG.error(f"Default shutdown for skill '{skill_id}' encountered an error: {e}")
 
     def detach(self):
         """
