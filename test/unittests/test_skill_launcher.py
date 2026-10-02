@@ -1,5 +1,6 @@
 import shutil
 import unittest
+import unittest.mock
 import sys
 
 from os import environ
@@ -157,5 +158,48 @@ class TestPluginSkillLoader(unittest.TestCase):
 
 
 class TestSkillContainer(unittest.TestCase):
-    # TODO
-    pass
+    def setUp(self):
+        from ovos_bus_client.session import SessionManager
+        SessionManager.bus = None
+
+    def tearDown(self):
+        from ovos_bus_client.session import SessionManager
+        SessionManager.bus = None
+
+    def test_connect_to_core_wires_session_manager_bus(self):
+        """
+        Regression test: standalone SkillContainer must wire
+        SessionManager.connect_to_bus() when it owns/connects its bus,
+        mirroring ovos-core's IntentService (the only other caller of
+        SessionManager.connect_to_bus in the stack). Without this,
+        SessionManager.bus stays None and speak(wait=True) /
+        SessionManager.wait_while_speaking silently no-op in standalone
+        skill containers.
+        """
+        from ovos_workshop.skill_launcher import SkillContainer
+        from ovos_bus_client.session import SessionManager
+
+        bus = FakeBus()
+        container = SkillContainer(skill_id="test_skill.test", bus=bus)
+        # avoid blocking on wait_for_core()/mycroft.skills.is_ready
+        container.load_skill = lambda message=None: None
+        bus.wait_for_response = lambda message, **kwargs: None
+
+        # exercise only the bus-wiring half of _connect_to_core; stub out
+        # the blocking wait_for_core() polling loop it defines internally
+        import ovos_workshop.skill_launcher as skill_launcher_mod
+        orig_thread_wait = None
+
+        # call the real method but short-circuit the blocking retry loop by
+        # patching threading.Event().wait used inside wait_for_core
+        with unittest.mock.patch.object(
+                skill_launcher_mod.threading, "Event") as mock_event_cls:
+            mock_event_cls.return_value.wait.side_effect = RuntimeError(
+                "stop retry loop")
+            try:
+                container._connect_to_core()
+            except RuntimeError:
+                pass
+
+        self.assertIsNotNone(SessionManager.bus)
+        self.assertIs(SessionManager.bus, bus)

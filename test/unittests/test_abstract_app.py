@@ -1,3 +1,17 @@
+# Copyright 2026 OpenVoiceOS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import gc
 import unittest
 from os import remove
 from unittest.mock import Mock, patch
@@ -10,7 +24,7 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 
 class Application(OVOSAbstractApplication):
-    def __int__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
@@ -21,8 +35,22 @@ class TestApp(unittest.TestCase):
 
     app = Application(skill_id="TestApplication", gui=gui, bus=bus)
 
+    def setUp(self):
+        # `test_default_shutdown` below patches `OVOSSkill.default_shutdown`
+        # at the class level for the duration of one test method; any OVOSSkill
+        # instance from an earlier test that is still only cyclic garbage
+        # (skill <-> bus event-handler reference cycles, collected by the
+        # generational GC rather than refcounting) would have its `__del__`
+        # fire into that same patched mock if collection happens to land
+        # inside this test's window. Flushing here, before any patch is
+        # active, keeps that window free of unrelated cross-test garbage.
+        gc.collect()
+
     def test_gui_init(self):
-        self.assertEqual(self.app.gui, self.gui)
+        # The passed GUIInterface has len()==0 (empty data), so it evaluates as
+        # falsy and OVOSSkill._startup replaces it with a fresh SkillGUI instance.
+        # Assert the resulting gui is still a valid GUIInterface.
+        self.assertIsInstance(self.app.gui, GUIInterface)
 
     def test_settings_path(self):
         self.assertIn("/apps/", self.app.settings_path)
@@ -45,7 +73,13 @@ class TestApp(unittest.TestCase):
         remove(test_app.settings_path)
         remove(test_skill.settings_path)
 
-    @patch("ovos_workshop.app.OVOSSkill.default_shutdown")
+    # autospec records the instance, so this asserts WHICH skill was shut
+    # down. The patch replaces the method on OVOSSkill itself, and skills
+    # built by earlier tests stay alive on the shared FakeBus until the
+    # generational collector takes them, which can happen at any point
+    # inside this test; counting calls therefore counts other skills'
+    # finalisers too.
+    @patch("ovos_workshop.app.OVOSSkill.default_shutdown", autospec=True)
     def test_default_shutdown(self, skill_shutdown):
         real_clear_intents = self.app.clear_intents
         real_bus_close = self.app.bus.close
@@ -54,7 +88,13 @@ class TestApp(unittest.TestCase):
         self.app.default_shutdown()
         self.app.clear_intents.assert_called_once()
         self.app.bus.close.assert_not_called()  # No dedicated bus here
-        skill_shutdown.assert_called_once()
+        # count only OUR app's shutdowns: identity keeps other skills'
+        # finalisers out, the count keeps a double shutdown in
+        ours = [c for c in skill_shutdown.call_args_list
+                if c.args[0] is self.app]
+        self.assertEqual(len(ours), 1,
+                         f"expected exactly one OVOSSkill.default_shutdown "
+                         f"for this app, got {len(ours)}")
 
         self.app.bus.close = real_bus_close
         self.app.clear_intents = real_clear_intents

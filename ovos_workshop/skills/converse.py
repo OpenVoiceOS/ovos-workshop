@@ -2,11 +2,11 @@ import abc
 from inspect import signature
 from typing import Optional
 
-from langcodes import closest_match
 from ovos_bus_client.message import Message
 from ovos_bus_client.message import dig_for_message
+from ovos_bus_client.session import SessionManager
 from ovos_config.config import Configuration
-from ovos_utils.lang import standardize_lang_tag
+from ovos_spec_tools import closest_lang, standardize_lang
 from ovos_utils.log import LOG
 from ovos_utils.skills import get_non_properties
 from padacioso import IntentContainer
@@ -55,6 +55,10 @@ class ConversationalSkill(OVOSSkill):
 
     def _register_system_event_handlers(self):
         super()._register_system_event_handlers()
+        # OVOS-CONVERSE-1 §6.2 broadcast poll: one static topic for every
+        # candidate, membership decided by session.converse_handlers
+        self.add_event("ovos.converse.ping", self._handle_converse_broadcast_ack, speak_errors=False)
+        # V0 compat: pre-broadcast cores still address each candidate by topic
         self.add_event(f"{self.skill_id}.converse.ping", self._handle_converse_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.request", self._handle_converse_request, speak_errors=False)
         self.add_event(f"{self.skill_id}.activate", self.handle_activate, speak_errors=False)
@@ -104,14 +108,8 @@ class ConversationalSkill(OVOSSkill):
 
     def _get_closest_lang(self, lang: str) -> Optional[str]:
         if self.converse_matchers:
-            lang = standardize_lang_tag(lang)
-            closest, score = closest_match(lang, list(self.converse_matchers.keys()))
-            # https://langcodes-hickford.readthedocs.io/en/sphinx/index.html#distance-values
-            # 0 -> These codes represent the same language, possibly after filling in values and normalizing.
-            # 1- 3 -> These codes indicate a minor regional difference.
-            # 4 - 10 -> These codes indicate a significant but unproblematic regional difference.
-            if score < 10:
-                return closest
+            lang = standardize_lang(lang)
+            return closest_lang(lang, list(self.converse_matchers.keys()))
         return None
 
     def _handle_converse_ack(self, message: Message):
@@ -124,6 +122,37 @@ class ConversationalSkill(OVOSSkill):
             "skill.converse.pong",
             data={"skill_id": self.skill_id,
                   "can_handle": self.can_converse(message)},
+            context={"skill_id": self.skill_id}))
+
+    def _handle_converse_broadcast_ack(self, message: Message):
+        """
+        Answer the OVOS-CONVERSE-1 §4.2 broadcast poll.
+
+        The ping names no candidate. This skill decides whether it is one by
+        testing its own skill_id against the session's converse-eligibility
+        list, and answers only when it is named (§9.3 — a skill that answers
+        when not named is non-conformant).
+
+        The candidacy test is `session.converse_handlers` membership
+        (OVOS-CONVERSE-1 §9.3: "on each ping MUST check whether its own
+        `skill_id` appears in `context.session.converse_handlers`"), which is
+        distinct from `session.active_handlers` (§2.1: "It is distinct from
+        `session.active_handlers`"). The claim decision itself is unchanged:
+        the same `can_converse` callback the legacy per-skill ping uses.
+        @param message: `ovos.converse.ping` Message
+        """
+        session = SessionManager.get(message)
+        # canonical fields, not the deprecated `active_skills` /
+        # `utterance_states` views — those log a deprecation warning per ping,
+        # per skill, per utterance
+        if not any(h.get("skill_id") == self.skill_id
+                   for h in session.converse_handlers):
+            return  # not a candidate this round
+
+        self.bus.emit(message.reply(
+            "ovos.converse.pong",
+            data={"skill_id": self.skill_id,
+                  "result": self.can_converse(message)},
             context={"skill_id": self.skill_id}))
 
     def _handle_skill_activated(self, message: Message):
@@ -159,24 +188,10 @@ class ConversationalSkill(OVOSSkill):
         with `converse`.
         @param message: `{self.skill_id}.converse.request` Message
         """
-        # NOTE: there was a routing bug before ovos-core 2.0.3 that ovos-workshop depended on
-        is_latest = True
-        try:
-            from ovos_core.version import OVOS_VERSION_TUPLE
-            if OVOS_VERSION_TUPLE < (2, 0, 3):
-                is_latest = False
-        except ImportError:
-            # Assume latest when ovos-core isn't available (eg. standalone skills)
-            pass
-
-        if is_latest:
-            # swap source/destination in context (ensure skill emitted messages have correct routing)
-            message = message.reply(message.msg_type, message.data)
-            response_message = message.forward('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": False})
-        else:
-            response_message = message.reply('skill.converse.response',
-                                        {"skill_id": self.skill_id, "result": False})
+        # swap source/destination in context (ensure skill emitted messages have correct routing)
+        message = message.reply(message.msg_type, message.data)
+        response_message = message.forward('skill.converse.response',
+                                    {"skill_id": self.skill_id, "result": False})
 
         # check if a conversational intent triggered
         # these are skill specific intents that may trigger instead of converse
@@ -188,7 +203,7 @@ class ConversationalSkill(OVOSSkill):
                 params = signature(self.converse).parameters
                 kwargs = {"message": message,
                           "utterances": message.data['utterances'],
-                          "lang": standardize_lang_tag(message.data['lang'])}
+                          "lang": standardize_lang(message.data['lang'])}
                 kwargs = {k: v for k, v in kwargs.items() if k in params}
 
                 response_message.data["result"] = self.converse(**kwargs)
@@ -199,10 +214,8 @@ class ConversationalSkill(OVOSSkill):
                 response_message.data["error"] =  repr(e)
 
         self.bus.emit(response_message)
-        if is_latest:
-            self.bus.emit(message.forward("ovos.utterance.handled"))
-        else:
-            self.bus.emit(message.reply("ovos.utterance.handled"))
+        # PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+        # converse match itself; the skill must not also emit it.
 
     def _handle_converse_intents(self, message):
         """ called before converse method
