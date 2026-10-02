@@ -20,7 +20,7 @@ import unittest
 from logging import Logger
 from threading import Event, Thread
 from time import time
-from unittest.mock import ANY, Mock
+from unittest.mock import ANY, Mock, patch
 from os.path import join, dirname, isdir
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -1473,6 +1473,30 @@ class TestOVOSSkill(unittest.TestCase):
         test_skill.settings.store.assert_called_once()
         test_skill.gui.shutdown.assert_called_once()
         test_skill.event_scheduler.shutdown.assert_called_once()
+
+    def test_del_on_half_built_skill_logs_without_masking(self):
+        """
+        A skill whose __init__ raised before calling `super().__init__()`
+        has no `skill_id` attribute. `__del__` must still log the real
+        teardown failure (`_shutdown_lock` is missing too) instead of
+        raising a second, unrelated AttributeError for `skill_id`.
+        """
+        class HalfBuilt(OVOSSkill):
+            def __init__(self):
+                raise RuntimeError("init failed before super().__init__()")
+
+        skill = object.__new__(HalfBuilt)
+        self.assertFalse(hasattr(skill, 'skill_id'))
+
+        with patch("ovos_workshop.skills.ovos.LOG") as mock_log:
+            skill.__del__()
+
+        messages = [str(call.args[0]) for call in mock_log.error.call_args_list]
+        self.assertEqual(len(messages), 1, messages)
+        self.assertTrue(messages[0].startswith(
+            "Default shutdown for skill 'HalfBuilt' encountered an error: "),
+            messages[0])
+        self.assertIn("_shutdown_lock", messages[0])
 
     def test_schedule_event(self):
         # TODO
