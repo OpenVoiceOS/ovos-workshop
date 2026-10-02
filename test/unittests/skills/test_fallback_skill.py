@@ -188,6 +188,22 @@ class TestFallbackSkillV2(TestCase):
         # TODO
         pass
 
+    def test_default_shutdown_on_uninitialized_skill_logs_no_error(self):
+        """
+        A FallbackSkill built without `bus`/`skill_id` kwargs never runs
+        `_startup`, so `_bus` stays unset. `FallbackSkill.default_shutdown`
+        must not touch the `bus` property for that case: it raises after
+        logging a full stack trace at ERROR level.
+        """
+        from ovos_workshop.skills.fallback import LOG as fallback_log
+
+        test_skill = _ConcreteFallback()  # no bus, no skill_id
+
+        with patch.object(fallback_log, "error") as mock_error:
+            test_skill.default_shutdown()
+
+        mock_error.assert_not_called()
+
     def test_register_decorated(self):
         # TODO
         pass
