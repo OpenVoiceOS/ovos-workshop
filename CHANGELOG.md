@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.11a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.11a1) (2026-10-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.10a1...9.8.11a1)
+
+**Merged pull requests:**
+
+- fix: OVOSSkill.\_\_del\_\_ masks teardown errors on a half-built skill [\#689](https://github.com/OpenVoiceOS/ovos-workshop/pull/689) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.10a1) (2026-10-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.9a2...9.8.10a1)
@@ -337,10 +345,6 @@
 ## [9.6.5a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.5a1) (2026-09-04)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.4a1...9.6.5a1)
-
-**Merged pull requests:**
-
-- fix: write intent context through the dispatch message's session \(OVOS-CONTEXT-1 §5.3\) [\#584](https://github.com/OpenVoiceOS/ovos-workshop/pull/584) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.4a1) (2026-09-03)
 
