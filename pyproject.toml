@@ -45,6 +45,18 @@ ovos-skill-launcher = "ovos_workshop.skill_launcher:_launch_script"
 [tool.setuptools]
 include-package-data = true
 
+# The locale tree is data, not code, so nothing here imports it and the build
+# backend does not find it on its own. Without this the wheel ships 30 .py
+# files and no locale directory at all: join_word_list falls back to "," for
+# every language, .voc and .dialog resolve to nothing, and only an editable
+# install passes the suite.
+[tool.setuptools.package-data]
+ovos_workshop = [
+    "locale/*/*.json",
+    "locale/*/*.dialog",
+    "locale/*/*.voc",
+]
+
 [tool.setuptools.packages.find]
 include = ["ovos_workshop*"]
 
