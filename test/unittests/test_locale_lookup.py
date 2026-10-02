@@ -9,11 +9,16 @@ Covers:
   word_connectors.json with "and"/"or" keys
 - Euphony rules loaded from JSON config produce correct transformations
 - util.py helpers: simple_trace, normalize_word, apply_euphony
+- The installed distribution ships every locale resource file the source
+  tree has, for every file type, not only *.json
 """
+import importlib.metadata
 import json
 import os
+import sysconfig
 import unittest
 from os.path import dirname, join
+from pathlib import Path
 
 from ovos_workshop.skills.util import (
     _get_word, join_word_list, simple_trace,
@@ -410,6 +415,64 @@ class TestJoinWordListMoreLanguages(unittest.TestCase):
         self.assertEqual(
             join_word_list(["uno", "otro"], "or", ",", "an-ES"),
             "uno u otro")
+
+
+class TestInstalledDistributionShipsEveryLocaleFile(unittest.TestCase):
+    """The installed distribution's RECORD must list every locale file the
+    source tree has, not only the ones a narrow package-data glob names.
+
+    Reads the RECORD through importlib.metadata rather than importing
+    ovos_workshop: this repository's test/__init__.py makes pytest's default
+    import mode put the repository root back on sys.path even with the bare
+    `pytest` entry point, which shadows the installed wheel with the
+    checkout's own source tree. An import-based check then passes no matter
+    what the wheel ships, because it ends up reading the checkout either way.
+    importlib.metadata finds the dist-info directory straight from
+    sys.path, so it is unaffected by that shadowing. The lookup is further
+    restricted to the interpreter's own site-packages, because the same
+    rootdir-on-sys.path effect also makes a stray ovos_workshop.egg-info
+    left behind by an in-place build a candidate, and that directory has
+    no RECORD or direct_url.json for this check to read.
+
+    An editable install's RECORD only lists the files package-data names,
+    while the editable redirect still serves every source file at runtime,
+    so this check is skipped there; the other tests in this module already
+    exercise the full source tree for that case.
+    """
+
+    @staticmethod
+    def _find_installed_distribution(name):
+        site_packages = Path(sysconfig.get_path("purelib")).resolve()
+        for dist in importlib.metadata.distributions():
+            dist_name = dist.metadata.get("Name", "").lower().replace("_", "-")
+            if dist_name == name and Path(dist._path).parent.resolve() == site_packages:
+                return dist
+        raise LookupError(f"no {name} distribution found under {site_packages}")
+
+    def test_record_lists_every_source_locale_file(self):
+        dist = self._find_installed_distribution("ovos-workshop")
+        try:
+            direct_url = json.loads(dist.read_text("direct_url.json") or "{}")
+        except FileNotFoundError:
+            direct_url = {}
+        if direct_url.get("dir_info", {}).get("editable"):
+            self.skipTest("editable install: RECORD does not reflect runtime files")
+
+        expected = set()
+        for lang in os.listdir(LOCALE_DIR):
+            lang_dir = join(LOCALE_DIR, lang)
+            if not os.path.isdir(lang_dir):
+                continue
+            for name in os.listdir(lang_dir):
+                expected.add(f"ovos_workshop/locale/{lang}/{name}")
+
+        shipped = {str(f) for f in (dist.files or [])
+                  if str(f).startswith("ovos_workshop/locale/")}
+        missing = sorted(expected - shipped)
+        self.assertEqual(
+            missing, [],
+            f"{len(missing)} locale files are missing from the installed "
+            f"distribution, for example: {missing[:5]}")
 
 
 if __name__ == "__main__":

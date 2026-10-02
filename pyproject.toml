@@ -48,5 +48,8 @@ include-package-data = true
 [tool.setuptools.packages.find]
 include = ["ovos_workshop*"]
 
+[tool.setuptools.package-data]
+ovos_workshop = ["locale/*/*"]
+
 [tool.setuptools.dynamic]
 version = {attr = "ovos_workshop.version.__version__"}
