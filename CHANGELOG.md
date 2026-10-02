@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.10a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.10a1) (2026-10-02)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.9a2...9.8.10a1)
+
+**Merged pull requests:**
+
+- fix\(packaging\): ship the locale tree in the wheel [\#687](https://github.com/OpenVoiceOS/ovos-workshop/pull/687) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.9a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.9a2) (2026-09-26)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.9a1...9.8.9a2)
@@ -341,10 +349,6 @@
 ## [9.6.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.3a1) (2026-09-02)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.2a3...9.6.3a1)
-
-**Merged pull requests:**
-
-- fix: intent\_files registrations forward context gates [\#580](https://github.com/OpenVoiceOS/ovos-workshop/pull/580) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.2a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.2a3) (2026-09-02)
 
