@@ -18,8 +18,8 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 class ConversationalSkill(OVOSSkill):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.converse_matchers = {}
+        super().__init__(*args, **kwargs)
 
     def activate(self, duration_minutes=None):
         """
@@ -89,7 +89,8 @@ class ConversationalSkill(OVOSSkill):
         fuzzy = not self.settings.get("strict_intents", False)
 
         for lang in self.native_langs:
-            self.converse_matchers[lang] = IntentContainer(fuzz=fuzzy)
+            if lang not in self.converse_matchers:
+                self.converse_matchers[lang] = IntentContainer(fuzz=fuzzy)
 
             resources = self.load_lang(self.res_dir, lang)
             resource_file = ResourceFile(resources.types.intent, intent_file)
