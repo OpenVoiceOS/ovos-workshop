@@ -1,12 +1,20 @@
 # Changelog
 
+## [9.8.14a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.14a1) (2026-10-04)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.13a1...9.8.14a1)
+
+**Merged pull requests:**
+
+- fix: keep every converse intent of a language in one matcher [\#698](https://github.com/OpenVoiceOS/ovos-workshop/pull/698) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.13a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.13a1) (2026-10-04)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.12a1...9.8.13a1)
 
 **Merged pull requests:**
 
-- fix: create converse\_matchers before the base init registers intents [\#696](https://github.com/OpenVoiceOS/ovos-workshop/pull/696) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- fix: converse\_matchers init order and per-language intent matcher [\#696](https://github.com/OpenVoiceOS/ovos-workshop/pull/696) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
 ## [9.8.12a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.12a1) (2026-10-04)
 
@@ -258,19 +266,19 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 **Merged pull requests:**
 
 - feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
-
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 **Merged pull requests:**
 
@@ -313,10 +321,6 @@
 ## [9.6.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.9a1) (2026-09-05)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.8a1...9.6.9a1)
-
-**Merged pull requests:**
-
-- fix: converse candidacy per OVOS-CONVERSE-1 [\#590](https://github.com/OpenVoiceOS/ovos-workshop/pull/590) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.8a1) (2026-09-05)
 
