@@ -670,7 +670,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
         """
         # A skill that never finished init has no bound bus; `self.bus`
         # raises for that expected case after logging a full stack trace.
-        if self._bus is not None:
+        if self._bus:
             self.bus.emit(
                 Message('ovos.common_play.skills.detach',
                         {"skill_id": self.skill_id}))

@@ -202,7 +202,7 @@ class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
         """
         # A skill that never finished init has no bound bus; `self.bus`
         # raises for that expected case after logging a full stack trace.
-        if self._bus is not None:
+        if self._bus:
             self.bus.emit(Message("ovos.skills.fallback.deregister",
                                   {"skill_id": self.skill_id}))
             self.bus.remove_all_listeners(f"ovos.skills.fallback.{self.skill_id}")

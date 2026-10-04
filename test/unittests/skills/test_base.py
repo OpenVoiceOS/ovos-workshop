@@ -1523,6 +1523,21 @@ class TestOVOSSkill(unittest.TestCase):
         mock_error.assert_not_called()
         mock_exception.assert_not_called()
 
+    def test_default_shutdown_with_falsy_bus_does_not_raise(self):
+        """
+        `_bus` can be a non-None object that is falsy; the `bus` property
+        rejects it, so `default_shutdown` must test truthiness as well.
+        """
+        class _FalsyBus:
+            def __bool__(self):
+                return False
+
+        test_skill = OVOSSkill(bus=_FalsyBus(), skill_id="falsy.bus.skill")
+        self.assertIsNotNone(test_skill._bus)
+        self.assertFalse(test_skill._bus)
+
+        test_skill.default_shutdown()
+
     def test_schedule_event(self):
         # TODO
         pass

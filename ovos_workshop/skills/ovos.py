@@ -1390,7 +1390,7 @@ class OVOSSkill:
         # bound bus, and the `bus` property raises for that expected case
         # after logging a full stack trace. Nothing attached to a bus, so
         # there is nothing to tell `detach_skill`.
-        if self._bus is not None:
+        if self._bus:
             self.bus.emit(
                 Message('detach_skill', {'skill_id': self.skill_id},
                         {'skill_id': self.skill_id}))
