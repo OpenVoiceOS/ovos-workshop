@@ -18,8 +18,8 @@ from ovos_workshop.skills.ovos import OVOSSkill
 
 class ConversationalSkill(OVOSSkill):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.converse_matchers = {}
+        super().__init__(*args, **kwargs)
 
     def activate(self, duration_minutes=None):
         """
