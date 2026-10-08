@@ -19,3 +19,5 @@ dist
 # Created by unit tests
 .pytest_cache/
 /.gtm/
+.env
+test/unittests/skills/temp_config/
