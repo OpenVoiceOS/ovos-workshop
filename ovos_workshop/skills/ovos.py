@@ -1356,8 +1356,12 @@ class OVOSSkill:
         try:
             self.settings_change_callback = None
 
-            # Store settings
-            if self.settings != self._initial_settings:
+            # Store settings. A skill that never finished init (no `bus`/
+            # `skill_id` kwargs, so `_startup` never ran) never got a
+            # `_settings` object either; the `settings` property would log
+            # a full stack trace for that expected case, so check the
+            # private attribute instead of going through the property.
+            if self._settings is not None and self.settings != self._initial_settings:
                 self.settings.store()
             if self._settings_watchdog:
                 self._settings_watchdog.shutdown()
@@ -1382,9 +1386,14 @@ class OVOSSkill:
         except Exception as e:
             self.log.error(f"Failed to remove events for {self.skill_id}: {e}")
 
-        self.bus.emit(
-            Message('detach_skill', {'skill_id': self.skill_id},
-                    {'skill_id': self.skill_id}))
+        # Same as settings above: a skill that never finished init has no
+        # bound bus, and the `bus` property raises for that expected case
+        # after logging a full stack trace. Nothing attached to a bus, so
+        # there is nothing to tell `detach_skill`.
+        if self._bus:
+            self.bus.emit(
+                Message('detach_skill', {'skill_id': self.skill_id},
+                        {'skill_id': self.skill_id}))
 
     def __del__(self):
         # GC can drop the last reference after an explicit unload already

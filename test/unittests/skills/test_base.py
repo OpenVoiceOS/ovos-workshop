@@ -1498,6 +1498,46 @@ class TestOVOSSkill(unittest.TestCase):
             messages[0])
         self.assertIn("_shutdown_lock", messages[0])
 
+    def test_del_on_uninitialized_skill_logs_no_error(self):
+        """
+        A skill built without `bus`/`skill_id` kwargs never runs `_startup`,
+        so `_bus` and `_settings` stay unset. GC still calls `__del__` ->
+        `default_shutdown()` on it. That must not touch the `bus` or
+        `settings` properties, which log a full stack trace at ERROR level
+        for this exact case (and `bus` then raises) before `__del__`'s own
+        except handler logs a second ERROR for the escaped exception.
+        """
+        # Before `_startup` runs, `self.log` is the shared `LOG` class, and
+        # `LOG.error`/`LOG.warning` build a fresh dynamically-named logger
+        # per call site (`LOG._get_real_logger`), so no single named logger
+        # can be attached to ahead of time. Patch the classmethods directly
+        # instead of trying to capture their output.
+        from ovos_workshop.skills.ovos import LOG as ovos_log
+
+        test_skill = OVOSSkill()  # no bus, no skill_id: _startup never ran
+
+        with patch.object(ovos_log, "error") as mock_error, \
+                patch.object(ovos_log, "exception") as mock_exception:
+            test_skill.__del__()
+
+        mock_error.assert_not_called()
+        mock_exception.assert_not_called()
+
+    def test_default_shutdown_with_falsy_bus_does_not_raise(self):
+        """
+        `_bus` can be a non-None object that is falsy; the `bus` property
+        rejects it, so `default_shutdown` must test truthiness as well.
+        """
+        class _FalsyBus:
+            def __bool__(self):
+                return False
+
+        test_skill = OVOSSkill(bus=_FalsyBus(), skill_id="falsy.bus.skill")
+        self.assertIsNotNone(test_skill._bus)
+        self.assertFalse(test_skill._bus)
+
+        test_skill.default_shutdown()
+
     def test_schedule_event(self):
         # TODO
         pass

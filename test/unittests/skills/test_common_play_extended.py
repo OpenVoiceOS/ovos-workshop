@@ -120,6 +120,27 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
             self.skill.ocp_voc_match("play some music")
         self.assertIn("voc_match_span", str(ctx.warning))
 
+    def test_default_shutdown_on_uninitialized_skill_logs_no_error(self) -> None:
+        """
+        A skill built without `bus`/`skill_id` kwargs never runs `_startup`,
+        so `_bus` stays unset. `OVOSCommonPlaybackSkill.default_shutdown`
+        must not touch the `bus` property for that case: it raises after
+        logging a full stack trace at ERROR level.
+        """
+        from ovos_workshop.skills.common_play import (
+            OVOSCommonPlaybackSkill, LOG as ocp_log,
+        )
+
+        class _Impl(OVOSCommonPlaybackSkill):
+            pass
+
+        test_skill = _Impl()  # no bus, no skill_id
+
+        with patch.object(ocp_log, "error") as mock_error:
+            test_skill.default_shutdown()
+
+        mock_error.assert_not_called()
+
 
 class TestOCPKeywordSoftFail(unittest.TestCase):
     """register_ocp_keyword must still emit ovos.common_play.register_keyword

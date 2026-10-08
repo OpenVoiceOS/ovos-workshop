@@ -665,10 +665,13 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
     def default_shutdown(self):
         """
         Detach the skill from the OCP framework and perform standard shutdown procedures.
-        
+
         Emits a message to notify the OCP system that the skill is being detached, then calls the superclass shutdown method.
         """
-        self.bus.emit(
-            Message('ovos.common_play.skills.detach',
-                    {"skill_id": self.skill_id}))
+        # A skill that never finished init has no bound bus; `self.bus`
+        # raises for that expected case after logging a full stack trace.
+        if self._bus:
+            self.bus.emit(
+                Message('ovos.common_play.skills.detach',
+                        {"skill_id": self.skill_id}))
         super().default_shutdown()
