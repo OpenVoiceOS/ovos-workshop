@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a1) (2026-10-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.15a1...9.8.16a1)
+
+**Merged pull requests:**
+
+- fix: common query answers reply on question:query.response [\#606](https://github.com/OpenVoiceOS/ovos-workshop/pull/606) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [9.8.15a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.15a1) (2026-10-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.14a1...9.8.15a1)
@@ -334,17 +342,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a3...9.6.8a1)
 
-**Merged pull requests:**
-
-- fix: complete the targeted stop dispatch's handler-lifecycle trio [\#594](https://github.com/OpenVoiceOS/ovos-workshop/pull/594) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.6.7a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a3) (2026-09-05)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.7a2...9.6.7a3)
-
-**Merged pull requests:**
-
-- refactor: voc\_match\_span replaces voc\_match\_all; deprecate ocp\_voc\_match [\#593](https://github.com/OpenVoiceOS/ovos-workshop/pull/593) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.7a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.7a2) (2026-09-05)
 
