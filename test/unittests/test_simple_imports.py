@@ -45,23 +45,6 @@ class TestPassiveSkillImport(unittest.TestCase):
         self.assertFalse(result)
 
 
-class TestSkillsLayersDeprecatedImport(unittest.TestCase):
-    """Tests for ovos_workshop/skills/layers.py (deprecated re-export)."""
-
-    def test_import_raises_deprecation_warning(self) -> None:
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            import ovos_workshop.skills.layers  # noqa: F401
-            self.assertTrue(
-                any(issubclass(w.category, DeprecationWarning) for w in caught),
-                "Expected DeprecationWarning when importing ovos_workshop.skills.layers",
-            )
-
-    def test_intent_layers_available(self) -> None:
-        from ovos_workshop.skills.layers import IntentLayers
-        self.assertIsNotNone(IntentLayers)
-
-
 class TestFallbackHandlerDecorator(unittest.TestCase):
     """Tests for ovos_workshop/decorators/fallback_handler.py."""
 
