@@ -16,9 +16,15 @@ import os
 import sys
 import tempfile
 import unittest
+import warnings
 from unittest.mock import patch
 
 from ovos_utils.fakebus import FakeBus
+
+try:
+    from ahocorasick_ner import AhocorasickNER
+except ImportError:
+    AhocorasickNER = None  # optional dependency, as in common_play.py
 
 
 class _SimplePlaybackSkill:
@@ -109,16 +115,51 @@ class TestOVOSCommonPlaybackSkillInit(unittest.TestCase):
 
     def test_ocp_voc_match_no_matchers(self) -> None:
         """ocp_voc_match returns empty dict when no matchers registered."""
-        with self.assertWarns(DeprecationWarning):
-            result = self.skill.ocp_voc_match("play some music")
+        result = self.skill.ocp_voc_match("play some music")
         self.assertIsInstance(result, dict)
         self.assertEqual(result, {})
 
-    def test_ocp_voc_match_deprecated(self) -> None:
-        """ocp_voc_match is deprecated in favor of voc_match_span."""
-        with self.assertWarns(DeprecationWarning) as ctx:
+    def test_ocp_voc_match_is_not_deprecated(self) -> None:
+        """ocp_voc_match is supported: voc_match_span reads a .voc file and
+        cannot see a keyword registered at run time, so it is no replacement
+        (T-4576, measured in the case below)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             self.skill.ocp_voc_match("play some music")
-        self.assertIn("voc_match_span", str(ctx.warning))
+        self.assertEqual([w for w in caught
+                          if issubclass(w.category, DeprecationWarning)], [])
+
+    def test_a_registered_ocp_keyword_matches_through_the_supported_method(self) -> None:
+        """The path ovos-media has: a keyword registered from a Python list,
+        no .voc file anywhere, matched in the utterance's own casing."""
+        from ovos_utils.ocp import MediaType
+        if AhocorasickNER is None:
+            self.skipTest("ahocorasick_ner is not installed, "
+                          "local OCP matching does not run")
+        self.skill.register_ocp_keyword(MediaType.MUSIC, "playlist_name",
+                                        ["liked songs", "my favourites"])
+        utt = "play my Liked Songs now"
+
+        self.assertEqual(self.skill.ocp_voc_match(utt),
+                         {"playlist_name": "Liked Songs"})
+
+        # the same label through the method the deprecation named, in every
+        # spelling a caller would try: nothing, because there is no .voc file
+        for spelling in ("playlist_name", "PlaylistName", "liked songs"):
+            self.assertEqual(self.skill.voc_match_span(utt, spelling), [])
+
+    def test_the_longest_registered_sample_wins(self) -> None:
+        """The label carries one value, and it is the longest match, so a
+        catalogue that registers both a title and its prefix is not truncated."""
+        from ovos_utils.ocp import MediaType
+        if AhocorasickNER is None:
+            self.skipTest("ahocorasick_ner is not installed, "
+                          "local OCP matching does not run")
+        self.skill.register_ocp_keyword(MediaType.MUSIC, "album_name",
+                                        ["dark side", "dark side of the moon"])
+        self.assertEqual(
+            self.skill.ocp_voc_match("play dark side of the moon"),
+            {"album_name": "dark side of the moon"})
 
     def test_default_shutdown_on_uninitialized_skill_logs_no_error(self) -> None:
         """
