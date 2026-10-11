@@ -1557,6 +1557,10 @@ class OVOSSkill:
             blacklist_name = intent_file.rsplit(".", 1)[0]
             disallowed_strings += resources.load_blacklist_file(blacklist_name)
 
+            # OVOS-INTENT-2 §4.5: a sibling "<intent>.required" locale file
+            # lists keywords of which one must occur for this intent to match
+            required_keywords = resources.load_required_file(blacklist_name)
+
             # OVOS-INTENT-2 §4.3: for each "{slot}" the template declares, a
             # sibling "<slot>.blacklist" locale file lists slot-value
             # exclusions — values that MUST NOT bind to that slot (the
@@ -1577,6 +1581,7 @@ class OVOSSkill:
                 name, samples, lang,
                 blacklisted_words=disallowed_strings,
                 slot_blacklist=slot_blacklist,
+                required_keywords=required_keywords,
                 vocabs=resources.vocabularies(),
                 requires_context=requires_context,
                 excludes_context=excludes_context)

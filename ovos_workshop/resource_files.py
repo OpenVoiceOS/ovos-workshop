@@ -42,6 +42,7 @@ SkillResourceTypes = namedtuple(
         "vocabulary",
         "word",
         "blacklist",
+        "required",
         "qml",
         "json"
     ]
@@ -295,6 +296,7 @@ class ResourceType:
             vocab="vocab",
             word="dialog",
             blacklist="vocab",
+            required="vocab",
             qml="gui"
         )
 
@@ -663,10 +665,18 @@ class BlacklistFile(ResourceFile):
         for phrase in phrases:
             if any(c in phrase for c in "(|[<"):
                 LOG.warning(
-                    f"blacklist entry {phrase!r} still carries unexpanded "
+                    f"{self.resource_type.file_extension} entry {phrase!r} "
+                    f"still carries unexpanded "
                     f"template syntax and will never match; fix the source "
                     f"line in {self.file_path}")
         return phrases
+
+
+class RequiredFile(BlacklistFile):
+    """Defines a required-keywords file (OVOS-INTENT-2 §4.5): a slot-free
+    list of keywords of which at least one must occur in an utterance for
+    the sibling intent (same base name) to match. It loads exactly as a
+    blacklist file does."""
 
 
 class SkillResources:
@@ -745,6 +755,7 @@ class SkillResources:
             vocabulary=ResourceType("vocab", ".voc", self.language),
             word=ResourceType("word", ".word", self.language),
             blacklist=ResourceType("blacklist", ".blacklist", self.language),
+            required=ResourceType("required", ".required", self.language),
             qml=ResourceType("qml", ".qml"),
             json=ResourceType("json", ".json", self.language)
         )
@@ -852,6 +863,24 @@ class SkillResources:
         blacklist_file.skill_id = self.skill_id
         blacklist_file.vocabularies = self._locale_vocabularies()
         return blacklist_file.load()
+
+    def load_required_file(self, name: str) -> List[str]:
+        """
+        Loads the keywords contained in a required-keywords file.
+
+        A required-keywords file lists slot-free keywords, and the sibling
+        intent (the ``.intent`` sharing its base name) matches only when one
+        of them occurs in the utterance.
+
+        Args:
+            name: name of the required-keywords file (no extension needed)
+        Returns:
+            A list of required keywords, empty when the file does not exist
+        """
+        required_file = RequiredFile(self.types.required, name)
+        required_file.skill_id = self.skill_id
+        required_file.vocabularies = self._locale_vocabularies()
+        return required_file.load()
 
     def locate_qml_file(self, name: str) -> str:
         qml_file = QmlFile(self.types.qml, name)

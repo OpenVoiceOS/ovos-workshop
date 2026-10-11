@@ -689,7 +689,8 @@ class IntentServiceInterface:
                           slot_blacklist: Optional[Dict[str, List[str]]] = None,
                           vocabs: Optional[Dict[str, List[str]]] = None,
                           requires_context: Optional[List[ContextGate]] = None,
-                          excludes_context: Optional[List[ContextGate]] = None):
+                          excludes_context: Optional[List[ContextGate]] = None,
+                          required_keywords: Optional[List[str]] = None):
         # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
         samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
         if not samples:
@@ -729,6 +730,7 @@ class IntentServiceInterface:
                 'name': intent_name,
                 'lang': lang,
                 'blacklisted_words': blacklisted_words,
+                'required_keywords': required_keywords or [],
                 # kept so a skill can resolve a slot's declared type when it
                 # reads OVOS-INTENT-1 §5.6 entries off a dispatch message
                 'slot_types': slot_types}
@@ -764,6 +766,7 @@ class IntentServiceInterface:
                                    "samples": samples,
                                    "blacklist": blacklisted_words or [],
                                    "slot_blacklist": slot_blacklist or {},
+                                   "required_keywords": required_keywords or [],
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
                                    # extensions per INTENT-4 §5.3
