@@ -449,6 +449,7 @@ class _PadatiousIntentApi:
                                        slot_blacklist: Optional[Dict[str, List[str]]] = None,
                                        requires_context: Optional[List[ContextGate]] = None,
                                        excludes_context: Optional[List[ContextGate]] = None,
+                                       required_keywords: Optional[List[str]] = None,
                                        required_slots: Optional[List[str]] = None):
         """Emit the legacy ``padatious:register_intent`` topic.
 
@@ -461,6 +462,7 @@ class _PadatiousIntentApi:
                                    'lang': lang,
                                    'blacklisted_words': blacklisted_words,
                                    'slot_blacklist': slot_blacklist or {},
+                                   'required_keywords': required_keywords or [],
                                    'required_slots': required_slots or [],
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
@@ -770,6 +772,7 @@ class IntentServiceInterface:
                           vocabs: Optional[Dict[str, List[str]]] = None,
                           requires_context: Optional[List[ContextGate]] = None,
                           excludes_context: Optional[List[ContextGate]] = None,
+                          required_keywords: Optional[List[str]] = None,
                           required_slots: Optional[List[str]] = None):
         required_slots = check_required_slots(required_slots)
         # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
@@ -821,6 +824,7 @@ class IntentServiceInterface:
                 'name': intent_name,
                 'lang': lang,
                 'blacklisted_words': blacklisted_words,
+                'required_keywords': required_keywords or [],
                 'required_slots': required_slots,
                 # kept so a skill can resolve a slot's declared type when it
                 # reads OVOS-INTENT-1 §5.6 entries off a dispatch message
@@ -850,6 +854,7 @@ class IntentServiceInterface:
                                                        slot_blacklist=slot_blacklist,
                                                        requires_context=requires_context,
                                                        excludes_context=excludes_context,
+                                                       required_keywords=required_keywords,
                                                        required_slots=required_slots)
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
@@ -858,6 +863,7 @@ class IntentServiceInterface:
                                    "samples": samples,
                                    "blacklist": blacklisted_words or [],
                                    "slot_blacklist": slot_blacklist or {},
+                                   "required_keywords": required_keywords or [],
                                    "required_slots": required_slots,
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
