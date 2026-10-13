@@ -96,7 +96,22 @@ def match_lang_directories(lang: str, base_dirs: List[Path]) -> List[Path]:
     """
     candidates = []
     for directory in base_dirs:
-        for name in _subdirectory_names(directory):
+        names = _subdirectory_names(directory)
+        # An exact (case-insensitive) directory match is the nearest any
+        # name can be, so trust it and skip every other name in this
+        # directory rather than scoring all of them. A skill that ships one
+        # locale directory per served language costs little either way, but
+        # one that ships far more than the hub serves (a skill with its own
+        # large multi-language locale tree, shared with skills that serve
+        # only a handful) paid ovos_spec_tools' lang_matches/lang_distance
+        # once per unmatched name per lookup -- measured 7-9s of an 11-
+        # language boot's skill-load phase on the skill with the fleet's
+        # largest locale tree (65 directories, ~130 files each).
+        exact = [name for name in names if name.lower() == lang.lower()]
+        if exact:
+            candidates += [(Path(directory, name), 0.0) for name in exact]
+            continue
+        for name in names:
             # ovos_spec_tools owns the language-distance policy and its
             # threshold; a directory whose name is not a usable match for
             # `lang` scores beyond it and is skipped.

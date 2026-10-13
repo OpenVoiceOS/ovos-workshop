@@ -71,6 +71,24 @@ class TestResourceLookupCache(unittest.TestCase):
     def test_missing_directory(self):
         self.assertEqual(match_lang_directories("en-US", [self.skill / "absent"]), [])
 
+    def test_exact_match_skips_distance_for_every_other_name(self):
+        """A skill whose locale tree ships far more languages than the hub
+        serves (ovos-skill-date-time: 65 directories vs. a typical skill's
+        handful) paid ovos_spec_tools' lang_matches/lang_distance once per
+        unmatched name per lookup -- measured 7-9s of an 11-language boot's
+        skill-load phase. An exact (case-insensitive) directory match is
+        the nearest any name can be, so it must not cost a distance call
+        for the other 64."""
+        for lang in (f"xx-{n:02d}" for n in range(60)):
+            _touch(self.skill / "locale" / lang / "intents" / "hello.intent")
+        resource_files._subdir_cache.clear()
+        with mock.patch.object(resource_files, "_lang_dir_distance",
+                               side_effect=AssertionError(
+                                   "distance scored for a name an exact "
+                                   "match already made unnecessary")):
+            result = locate_lang_directories("en-US", str(self.skill))
+        self.assertEqual(result, [self.skill / "locale" / "en-US"])
+
 
 if __name__ == "__main__":
     unittest.main()
