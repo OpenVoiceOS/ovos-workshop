@@ -16,10 +16,38 @@ Utility functions for skills, including word list joining with language-specific
 and error traceback formatting.
 """
 
+import json
+import os
+from os.path import dirname, isdir, isfile, join
 from typing import Dict, List, Optional
 
+from ovos_spec_tools import closest_lang, iter_locale_dirs
 from ovos_utils.log import LOG
-from ovos_workshop.resource_files import CoreResources
+
+_LOCALE_ROOT = dirname(dirname(__file__))  # iter_locale_dirs looks for <root>/locale/
+
+
+def _load_workshop_json(name: str, lang: str) -> Optional[Dict]:
+    """Load a JSON config file shipped under ovos-workshop's ``locale/`` dir.
+
+    Resolves the closest available language directory per OVOS-LANG.
+
+    @param name: file base name (no extension)
+    @param lang: requested BCP-47 language tag
+    @return: parsed JSON dict, or None if not found
+    """
+    # discover available langs once, pick the single closest match
+    available = dict(iter_locale_dirs(_LOCALE_ROOT))  # {lang_norm: Path}
+    if not available:
+        return None
+    best = closest_lang(lang, list(available.keys()))
+    if best is None:
+        return None
+    path = join(str(available[best]), f"{name}.json")
+    if not isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def simple_trace(stack_trace: List[str]) -> str:
@@ -50,7 +78,7 @@ def _get_word(lang: str, connector: str) -> str:
     Returns:
         Translated connector word, or ", " as fallback
     """
-    data = CoreResources(lang).load_json_file("word_connectors")
+    data = _load_workshop_json("word_connectors", lang) or {}
     if connector in data:
         return data[connector]
     LOG.warning(f"untranslated word connector '{connector}' for lang: {lang}")
@@ -67,7 +95,7 @@ def _load_euphony_rules(lang: str) -> Optional[Dict]:
         Dict with euphony rules or None if not found
     """
     try:
-        return CoreResources(lang).load_json_file("euphony")
+        return _load_workshop_json("euphony", lang)
     except Exception:
         return None
 

@@ -315,8 +315,8 @@ class TestOVOSSkill(unittest.TestCase):
         skill.res_dir = join(dirname(__file__), "test_locale")
         lang = "en-US"
         self.assertEqual(
-            skill.load_lang(lang=lang).load_vocabulary_file("condition"),
-            [["hot"], ["cold"], ["freezing"]])
+            skill.load_lang(lang=lang).load_vocabulary("condition", lang),
+            ["hot", "cold", "freezing"])
 
         other_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, other_dir)
@@ -327,8 +327,8 @@ class TestOVOSSkill(unittest.TestCase):
 
         self.assertEqual(
             skill.load_lang(root_directory=other_dir,
-                            lang=lang).load_vocabulary_file("condition"),
-            [["sunny"]])
+                            lang=lang).load_vocabulary("condition", lang),
+            ["sunny"])
 
     def test_voc_match_span(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
