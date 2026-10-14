@@ -1199,6 +1199,20 @@ class OVOSSkill:
             self.add_event(f'{self.skill_id}.public_api',
                            self._send_public_api, speak_errors=False)
 
+    def _decline_converse(self, message: Message):
+        """Per-skill converse ping (pre-broadcast cores): a plain skill never converses."""
+        self.bus.emit(message.reply("skill.converse.pong",
+                                    data={"skill_id": self.skill_id, "can_handle": False},
+                                    context={"skill_id": self.skill_id}))
+
+    def _decline_converse_broadcast(self, message: Message):
+        """OVOS-CONVERSE-1 §4.2 broadcast ping: answer "no" when this skill is a candidate this round (§9.3)."""
+        session = SessionManager.get(message)
+        if any(h.get("skill_id") == self.skill_id for h in session.converse_handlers):
+            self.bus.emit(message.reply("ovos.converse.pong",
+                                        data={"skill_id": self.skill_id, "result": False},
+                                        context={"skill_id": self.skill_id}))
+
     def _register_system_event_handlers(self):
         """
         Register default messagebus event handlers
@@ -1222,6 +1236,12 @@ class OVOSSkill:
         # Pre-spec cores emit only the per-skill twin; they get the same answer.
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
+        # A plain skill cannot converse, but ovos-core polls every dispatched skill and waits for ALL of them (up
+        # to 0.5 s per utterance). Until ovos-workshop #339 every skill answered "no"; restore that so the round
+        # closes at once. ConversationalSkill binds these topics with real answers, so bind only without it.
+        if not callable(getattr(self, "can_converse", None)):
+            self.add_event("ovos.converse.ping", self._decline_converse_broadcast, speak_errors=False)
+            self.add_event(f"{self.skill_id}.converse.ping", self._decline_converse, speak_errors=False)
 
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
         self.add_event('mycroft.skill.disable_intent', self.handle_disable_intent, speak_errors=False)
