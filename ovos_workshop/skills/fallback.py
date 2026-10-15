@@ -1,4 +1,4 @@
-# Copyright 2019 Mycroft AI Inc.
+# Copyright 2026 OpenVoiceOS
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 import abc
 import operator
-from typing import Optional, List
+from typing import Callable, Optional, List
 
 from ovos_bus_client.message import Message, dig_for_message
 from ovos_config import Configuration
@@ -25,7 +25,7 @@ from ovos_workshop.decorators.killable import AbortEvent, killable_event
 from ovos_workshop.skills.ovos import OVOSSkill
 
 
-class FallbackSkill(OVOSSkill):
+class FallbackSkill(OVOSSkill, metaclass=abc.ABCMeta):
     """
     Fallbacks come into play when no skill matches an Adapt or closely with
     a Padatious intent.  All Fallback skills work together to give them a
@@ -157,9 +157,10 @@ class FallbackSkill(OVOSSkill):
         self.bus.emit(message.forward(
             f"ovos.skills.fallback.{self.skill_id}.response",
             data={"result": status, "fallback_handler": handler_name}))
-        self.bus.emit(message.forward("ovos.utterance.handled"))
+        # PIPELINE-1 §9.5: the core emits `ovos.utterance.handled` for a
+        # fallback match itself; the skill must not also emit it.
 
-    def register_fallback(self, handler: callable, priority: int):
+    def register_fallback(self, handler: Callable, priority: int) -> None:
         """
         Register a fallback handler and add a messagebus handler to call it on
         any fallback request.
@@ -199,9 +200,12 @@ class FallbackSkill(OVOSSkill):
         """
         Remove all registered handlers and perform skill shutdown.
         """
-        self.bus.emit(Message("ovos.skills.fallback.deregister",
-                              {"skill_id": self.skill_id}))
-        self.bus.remove_all_listeners(f"ovos.skills.fallback.{self.skill_id}")
+        # A skill that never finished init has no bound bus; `self.bus`
+        # raises for that expected case after logging a full stack trace.
+        if self._bus:
+            self.bus.emit(Message("ovos.skills.fallback.deregister",
+                                  {"skill_id": self.skill_id}))
+            self.bus.remove_all_listeners(f"ovos.skills.fallback.{self.skill_id}")
         super().default_shutdown()
 
     def _register_decorated(self):

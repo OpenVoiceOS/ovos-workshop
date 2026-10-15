@@ -59,7 +59,52 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
         @wraps(func)
         def call_function(*args, **kwargs):
             skill = args[0]
-            t = create_killable_daemon(func, args, kwargs, autostart=False)
+
+            # Wrap func so AbortEvent exits the thread cleanly rather than
+            # propagating as an unhandled thread exception (which pytest ≥3.11
+            # treats as a test failure via its threadexception plugin).
+            def _guarded(*a, **kw):
+                try:
+                    func(*a, **kw)
+                except AbortEvent:
+                    pass  # intentional kill — not an error
+                finally:
+                    # the thread is finishing on its own (no abort message
+                    # ever arrived, eg. a get_response() waiter that timed
+                    # out or returned normally); unregister the `.once`
+                    # listeners now instead of leaving them on the bus
+                    # forever. Left unremoved, every call to a
+                    # killable_intent/killable_event-wrapped method leaks a
+                    # bus listener (plus its closure over `t`/`skill`/`sess`)
+                    # that never fires again - harmless for a single call,
+                    # but unbounded over the life of a long-lived skill
+                    # instance (eg. a shared test-suite skill reused across
+                    # many calls).
+                    skill.bus.remove(msg, abort)
+                    if react_to_stop:
+                        skill.bus.remove(skill.skill_id + ".stop", abort)
+                        # STOP-1 §5.3/§9: a skill performing user-visible
+                        # activity MUST also react to the `ovos.stop` global
+                        # broadcast, not only its own targeted `<skill_id>.stop`
+                        # dispatch. Kept alongside the legacy topic above for
+                        # one deprecation cycle. Registered under its own
+                        # closure (not `abort` itself): `ovos.stop` is a
+                        # namespace-migrated topic and FakeBus/MessageBusClient
+                        # key their legacy<->ovos.* dedup guard per HANDLER, so
+                        # reusing `abort` here would fold it into the same
+                        # dedup entry as the non-migrated `msg`/`<skill_id>.stop`
+                        # registrations above and hijack their removal.
+                        skill.bus.remove("ovos.stop", on_global_stop)
+                    if t in skill._threads:
+                        skill._threads.remove(t)
+
+            t = create_killable_daemon(_guarded, args, kwargs, autostart=False)
+            # belt-and-suspenders: create_killable_daemon already marks the
+            # thread as daemon, but that behavior lives in the ovos-utils
+            # dependency; enforce it here too so a leaked thread (eg. a
+            # get_response() waiter whose abort message never arrives) can
+            # never block process exit, regardless of what ovos-utils does.
+            t.daemon = True
             sess = SessionManager.get()
 
             def abort(m: Message):
@@ -109,6 +154,9 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
                     raise
                 cb()
 
+            def on_global_stop(m: Message):
+                abort(m)
+
             # save reference to threads so they can be killed later
             if not hasattr(skill, "_threads"):
                 skill._threads = []
@@ -116,6 +164,7 @@ def killable_event(msg: str = "mycroft.skills.abort_execution",
             skill.bus.once(msg, abort)
             if react_to_stop:
                 skill.bus.once(skill.skill_id + ".stop", abort)
+                skill.bus.once("ovos.stop", on_global_stop)
             t.start()
             return t
 

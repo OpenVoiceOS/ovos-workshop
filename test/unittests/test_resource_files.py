@@ -43,6 +43,83 @@ class TestResourceFiles(unittest.TestCase):
         self.assertIsNone(invalid_resource)
 
 
+class TestFindResourceLanguageScope(unittest.TestCase):
+    """A nested resource resolves inside the requested language only.
+
+    OVOS-INTENT-2 §2: "A loader resolves a resource by searching the language
+    directory and all its subdirectories, recursively." The recursion is scoped
+    to one language directory, so a request for a language must not be answered
+    with another language's file. find_resource used to check only a
+    subdirectory whose name equalled res_dirname, then fall back to walking the
+    whole locale tree, which returned whichever language scandir listed first.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="ovos-t4396-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _write(self, rel):
+        path = Path(self.root, "locale", rel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("a template\n", encoding="utf-8")
+        return path
+
+    def test_a_nested_resource_resolves_in_the_requested_language(self):
+        from ovos_workshop.resource_files import find_resource
+        en = self._write("en-US/dialog/no_word.dialog")
+        ca = self._write("ca-ES/dialog/no_word.dialog")
+        self.assertEqual(find_resource("no_word.dialog", self.root, "locale",
+                                       "en-US"), en)
+        self.assertEqual(find_resource("no_word.dialog", self.root, "locale",
+                                       "ca-ES"), ca)
+
+    def test_another_language_does_not_answer_for_the_requested_one(self):
+        """The reported defect: en-US ships no such file, ca-ES does."""
+        from ovos_workshop.resource_files import find_resource
+        self._write("en-US/spell.intent")
+        self._write("ca-ES/dialog/no_word.dialog")
+        self.assertIsNone(find_resource("no_word.dialog", self.root, "locale",
+                                        "en-US"))
+
+    def test_a_skill_can_detect_a_missing_translation(self):
+        """The purpose of the fix: absence is reported as absence."""
+        from ovos_workshop.resource_files import find_resource
+        self._write("ca-ES/dialog/no_word.dialog")
+        self.assertIsNone(find_resource("no_word.dialog", self.root, "locale",
+                                        "de-DE"))
+
+    def test_a_deeply_nested_resource_is_found(self):
+        """§2 says recursively, not one level."""
+        from ovos_workshop.resource_files import find_resource
+        deep = self._write("en-US/a/b/c/deep.dialog")
+        self.assertEqual(find_resource("deep.dialog", self.root, "locale",
+                                       "en-US"), deep)
+
+    def test_a_flat_resource_still_resolves(self):
+        from ovos_workshop.resource_files import find_resource
+        flat = self._write("en-US/spell.intent")
+        self.assertEqual(find_resource("spell.intent", self.root, "locale",
+                                       "en-US"), flat)
+
+    def test_a_close_region_still_falls_back(self):
+        """§2.2 permits the nearest language; en-GB may answer for en-US."""
+        from ovos_workshop.resource_files import find_resource
+        gb = self._write("en-GB/dialog/kettle.dialog")
+        self.assertEqual(find_resource("kettle.dialog", self.root, "locale",
+                                       "en-US"), gb)
+
+    def test_the_result_does_not_depend_on_directory_order(self):
+        """Both languages ship it; each request gets its own copy."""
+        from ovos_workshop.resource_files import find_resource
+        first = self._write("en-US/dialog/both.dialog")
+        second = self._write("ca-ES/dialog/both.dialog")
+        for lang, expected in (("en-US", first), ("ca-ES", second)):
+            with self.subTest(lang=lang):
+                self.assertEqual(find_resource("both.dialog", self.root,
+                                               "locale", lang), expected)
+
+
 class TestResourceType(unittest.TestCase):
     from ovos_workshop.resource_files import ResourceType
     # TODO
@@ -107,8 +184,55 @@ class TestSkillResources(unittest.TestCase):
             shutil.rmtree(data_path)
 
     def test_load_dialog_renderer(self):
-        # TODO
-        pass
+        """The skill's own dialog is rendered when there is no override."""
+        skill_id = "test.dialog.plain"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the skill")
+
+    def test_a_user_dialog_override_is_rendered_instead_of_the_skill_one(self):
+        """What a skill says must be overridable, like everything else it owns.
+
+        Every other resource type prefers the user override directory, so a
+        translation written there changes what the skill hears. Dialog is what
+        the skill *says*, and it was read only from the skill's own directory,
+        so an override there was written, kept, and never used.
+        """
+        skill_id = "test.dialog.overridden"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        self._user_override(skill_id, "en-us", "hello.dialog", "hello from the user")
+
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the user")
+
+    def test_an_override_for_another_language_is_not_used(self):
+        skill_id = "test.dialog.other.lang"
+        skill_dir = self._skill_with_dialog(skill_id, "hello.dialog",
+                                            "hello from the skill")
+        self._user_override(skill_id, "de-de", "hello.dialog", "hallo vom Benutzer")
+
+        resources = self.SkillResources(str(skill_dir), "en-us", skill_id=skill_id)
+        self.assertEqual(resources.dialog_renderer.render("hello"),
+                         "hello from the skill")
+
+    def _skill_with_dialog(self, skill_id, file_name, text):
+        skill_dir = Path(self.test_data_path) / "skills" / skill_id
+        dialog_dir = skill_dir / "locale" / "en-us"
+        dialog_dir.mkdir(parents=True, exist_ok=True)
+        (dialog_dir / file_name).write_text(text, encoding="utf-8")
+        return skill_dir
+
+    def _user_override(self, skill_id, lang, file_name, text):
+        from ovos_config.locations import get_xdg_data_save_path
+
+        override = Path(get_xdg_data_save_path()) / "resources" / skill_id / lang
+        override.mkdir(parents=True, exist_ok=True)
+        (override / file_name).write_text(text, encoding="utf-8")
+        return override
 
     def test_define_resource_types(self):
         # TODO
