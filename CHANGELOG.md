@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.8.17a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.17a1) (2026-10-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.16a2...9.8.17a1)
+
+**Merged pull requests:**
+
+- fix: plain skills decline the converse poll again \(regression from \#339\) [\#714](https://github.com/OpenVoiceOS/ovos-workshop/pull/714) ([mikejgray](https://github.com/mikejgray))
+- fix: ship locale JSON resources in the built wheel [\#691](https://github.com/OpenVoiceOS/ovos-workshop/pull/691) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.16a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a2) (2026-10-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.16a1...9.8.16a2)
@@ -18,10 +27,6 @@
 ## [9.8.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a1) (2026-10-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.15a1...9.8.16a1)
-
-**Merged pull requests:**
-
-- fix: common query answers reply on question:query.response [\#606](https://github.com/OpenVoiceOS/ovos-workshop/pull/606) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.8.15a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.15a1) (2026-10-08)
 
