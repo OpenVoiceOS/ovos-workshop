@@ -19,7 +19,7 @@ class TestUniversalSkill(unittest.TestCase):
     def test_load_lang_honours_root_directory(self):
         skill = self.UniversalSkill()
         lang = skill.internal_language
-        skill._load_lang(lang=lang)
+        skill.load_lang(lang=lang)
 
         other = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, other)
@@ -28,9 +28,9 @@ class TestUniversalSkill(unittest.TestCase):
         with open(join(voc_dir, "condition.voc"), "w") as f:
             f.write("sunny\n")
 
-        resources = skill._load_lang(root_directory=other, lang=lang)
-        self.assertEqual(resources.load_vocabulary_file("condition"),
-                         [["sunny"]])
+        resources = skill.load_lang(root_directory=other, lang=lang)
+        self.assertEqual(resources.load_vocabulary("condition", lang),
+                         ["sunny"])
 
     # TODO: Test other class methods
 
