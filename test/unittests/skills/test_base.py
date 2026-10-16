@@ -432,7 +432,7 @@ class TestOVOSSkill(unittest.TestCase):
 
         skill.intent_service.register_template.assert_called_once_with(
             f"{skill.skill_id}:time", ["what time is it"], "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            blacklisted_words=[], slot_blacklist={}, required_keywords=[], vocabs=ANY,
             requires_context=["confirming_time"],
             excludes_context=[{"key": "active_room", "scope": "shared"}])
 
@@ -583,7 +583,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.register_intent_file("time.intent", Mock(__name__="test"))
         skill.intent_service.register_template.assert_called_once_with(
             f"{skill.skill_id}:time", en_samples, "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            blacklisted_words=[], slot_blacklist={}, required_keywords=[], vocabs=ANY,
             requires_context=None, excludes_context=None)
 
         # With secondary language
@@ -594,11 +594,11 @@ class TestOVOSSkill(unittest.TestCase):
             skill.intent_service.register_template.call_count, 2)
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", en_samples, "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            blacklisted_words=[], slot_blacklist={}, required_keywords=[], vocabs=ANY,
             requires_context=None, excludes_context=None)
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", uk_samples, "uk-UA",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            blacklisted_words=[], slot_blacklist={}, required_keywords=[], vocabs=ANY,
             requires_context=None, excludes_context=None)
 
     def test_register_intent_file_with_context_gating(self):
@@ -615,7 +615,7 @@ class TestOVOSSkill(unittest.TestCase):
             excludes_context=[{"key": "active_room", "scope": "shared"}])
         skill.intent_service.register_template.assert_called_once_with(
             f"{skill.skill_id}:time", en_samples, "en-US",
-            blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
+            blacklisted_words=[], slot_blacklist={}, required_keywords=[], vocabs=ANY,
             requires_context=["confirming_time"],
             excludes_context=[{"key": "active_room", "scope": "shared"}])
 
