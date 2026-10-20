@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.19a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.19a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.18a1...9.8.19a1)
+
+**Merged pull requests:**
+
+- fix: create directories with exist\_ok [\#719](https://github.com/OpenVoiceOS/ovos-workshop/pull/719) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.18a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.18a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.17a1...9.8.18a1)
@@ -283,10 +291,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a1...9.8.1a2)
 
-**Closed issues:**
-
-- OVOSSkill.voc\_list ignores its lang argument [\#610](https://github.com/OpenVoiceOS/ovos-workshop/issues/610)
-
 **Merged pull requests:**
 
 - ci: coverage installs the pyproject test extra; drop requirements/test.txt [\#631](https://github.com/OpenVoiceOS/ovos-workshop/pull/631) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
@@ -328,7 +332,6 @@
 **Merged pull requests:**
 
 - fix: key resource caches by resource directory [\#613](https://github.com/OpenVoiceOS/ovos-workshop/pull/613) ([JarbasAl](https://github.com/JarbasAl))
-- fix: stamp the calling skill on ovos.intent.deregister context [\#609](https://github.com/OpenVoiceOS/ovos-workshop/pull/609) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.7.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.1a1) (2026-09-08)
 
