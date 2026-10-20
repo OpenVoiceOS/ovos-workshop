@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from ovos_utils.process_utils import RuntimeRequirements
@@ -72,12 +73,38 @@ class TestOVOSSkill(unittest.TestCase):
         pass
 
     def test_voc_match(self):
-        # TODO
-        pass
+        import shutil
+        import tempfile
+        skill_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, skill_dir, ignore_errors=True)
+        os.makedirs(os.path.join(skill_dir, "locale", "en-us"))
+        os.makedirs(os.path.join(skill_dir, "locale", "da-dk"))
+        with open(os.path.join(skill_dir, "locale", "en-us", "infinity.voc"), "w") as f:
+            f.write("forever\n")
+        with open(os.path.join(skill_dir, "locale", "da-dk", "infinity.voc"), "w") as f:
+            f.write("evighed\n")
+
+        skill = OVOSSkill(bus=self.bus, skill_id="test_voc_lang_skill",
+                          resources_dir=skill_dir)
+        self.assertTrue(skill.voc_match("evighed", "infinity", lang="da-DK"))
+        self.assertFalse(skill.voc_match("forever", "infinity", lang="da-DK"))
 
     def test_voc_list(self):
-        # TODO
-        pass
+        import shutil
+        import tempfile
+        skill_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, skill_dir, ignore_errors=True)
+        os.makedirs(os.path.join(skill_dir, "locale", "en-us"))
+        os.makedirs(os.path.join(skill_dir, "locale", "da-dk"))
+        with open(os.path.join(skill_dir, "locale", "en-us", "infinity.voc"), "w") as f:
+            f.write("forever\n")
+        with open(os.path.join(skill_dir, "locale", "da-dk", "infinity.voc"), "w") as f:
+            f.write("evighed\n")
+
+        skill = OVOSSkill(bus=self.bus, skill_id="test_voc_lang_skill2",
+                          resources_dir=skill_dir)
+        self.assertEqual(skill.voc_list("infinity", "da-DK"), ["evighed"])
+        self.assertEqual(skill.voc_list("infinity", "en-US"), ["forever"])
 
     def test_remove_voc(self):
         # TODO
@@ -90,6 +117,59 @@ class TestOVOSSkill(unittest.TestCase):
     def test_register_intent_layer(self):
         # TODO
         pass
+
+    def test_register_adapt_intent_no_self_deprecation_warning(self):
+        """OVOSSkill.register_intent (adapt path) is the framework's own
+        internal registration path — it must not route through the
+        deprecated IntentServiceInterface.register_adapt_intent public shim
+        and must not log a deprecation warning for a plain skill-authored
+        adapt intent."""
+        import warnings
+        from ovos_workshop.intents import IntentBuilder
+
+        bus = FakeBus()
+        skill = OVOSSkill(bus=bus, skill_id="test_no_dep_warn_skill")
+        skill.register_vocabulary("hello world", "HelloWorldKeyword",
+                                  lang="en-US")
+
+        def handler(message):
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            skill.register_intent(
+                IntentBuilder("HelloWorldIntent").require("HelloWorldKeyword"),
+                handler)
+        deprecation_warnings = [w for w in caught
+                                if issubclass(w.category, DeprecationWarning)]
+        self.assertEqual(deprecation_warnings, [])
+        self.assertIn("HelloWorldIntent", skill.intent_service.intent_names)
+
+    def test_register_adapt_intent_spec_emits_keyword_topic(self):
+        """A plain adapt intent with cached vocab samples must spec-emit
+        ovos.intent.register.keyword (OVOS-INTENT-4 §5) — regression test
+        for the vocab-cache/munged-name mismatch."""
+        from ovos_spec_tools import SpecMessage
+        from ovos_workshop.intents import IntentBuilder
+
+        bus = FakeBus()
+        captured = []
+        bus.on(str(SpecMessage.INTENT_REGISTER_KEYWORD),
+              lambda m: captured.append(m))
+        skill = OVOSSkill(bus=bus, skill_id="test_kw_emit_skill")
+        skill.register_vocabulary("hello world", "HelloWorldKeyword",
+                                  lang="en-US")
+
+        def handler(message):
+            pass
+
+        skill.register_intent(
+            IntentBuilder("HelloWorldIntent").require("HelloWorldKeyword"),
+            handler)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0].data["required"],
+                         [{"name": "HelloWorldKeyword",
+                           "samples": ["hello world"]}])
 
     def test_send_stop_signal(self):
         # TODO
