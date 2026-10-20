@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.8.18a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.18a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.17a1...9.8.18a1)
+
+**Merged pull requests:**
+
+- fix: make pyproject.toml parse again [\#716](https://github.com/OpenVoiceOS/ovos-workshop/pull/716) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.8.17a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.17a1) (2026-10-15)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.16a2...9.8.17a1)
@@ -246,10 +254,6 @@
 ## [9.8.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a1) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.3a1...9.8.4a1)
-
-**Merged pull requests:**
-
-- fix: scheduler delegation test reads skill\_id, not owner [\#608](https://github.com/OpenVoiceOS/ovos-workshop/pull/608) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.8.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.3a1) (2026-09-16)
 
