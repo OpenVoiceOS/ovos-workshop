@@ -47,8 +47,7 @@ class FileSystemAccess:
             log_deprecation(f"Settings at {old_path} will be ignored", "0.1.0")
             shutil.move(old_path, xdg_path)
 
-        if not isdir(xdg_path):
-            os.makedirs(xdg_path)
+        os.makedirs(xdg_path, exist_ok=True)
         return xdg_path
 
     def open(self, filename: str, mode: str) -> TextIO:
