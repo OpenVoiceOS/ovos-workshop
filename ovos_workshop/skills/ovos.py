@@ -79,7 +79,7 @@ from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
-from ovos_workshop.decorators import ContextGate
+from ovos_workshop.decorators import ContextGate, check_required_slots
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
@@ -1005,9 +1005,12 @@ class OVOSSkill:
                     voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
                     requires_context = method.requires_context if hasattr(method, 'requires_context') else []
                     excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
+                    required_slots = method.required_slots.get(intent) \
+                        if hasattr(method, 'required_slots') and isinstance(intent, str) else None
                     self.register_intent(intent, method, voc_blacklist=voc_blacklist,
                                          requires_context=requires_context,
-                                         excludes_context=excludes_context)
+                                         excludes_context=excludes_context,
+                                         required_slots=required_slots)
 
             if hasattr(method, 'intent_files'):
                 requires_context = method.requires_context if hasattr(method, 'requires_context') else []
@@ -1488,7 +1491,8 @@ class OVOSSkill:
     def register_intent(self, intent_parser: Union[IntentBuilder, Intent, str],
                         handler: callable, voc_blacklist: Optional[List[str]] = None,
                         requires_context: Optional[List[ContextGate]] = None,
-                        excludes_context: Optional[List[ContextGate]] = None):
+                        excludes_context: Optional[List[ContextGate]] = None,
+                        required_slots: Optional[List[str]] = None):
         """
         Register an Intent with the intent service.
 
@@ -1508,13 +1512,19 @@ class OVOSSkill:
             excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
                               entry shape and carry-through as
                               requires_context
+            required_slots: OVOS-INTENT-3 §5.3 required slot names, for a
+                            padatious intent file only
         """
         if isinstance(intent_parser, str):
             if not intent_parser.endswith('.intent'):
                 raise ValueError
             return self.register_intent_file(intent_parser, handler, voc_blacklist,
                                              requires_context=requires_context,
-                                             excludes_context=excludes_context)
+                                             excludes_context=excludes_context,
+                                             required_slots=required_slots)
+        if required_slots:
+            raise ValueError("required_slots applies to a template (.intent) "
+                             f"intent, not to {intent_parser!r}")
         return self._register_adapt_intent(intent_parser, handler,
                                            requires_context=requires_context,
                                            excludes_context=excludes_context)
@@ -1522,7 +1532,8 @@ class OVOSSkill:
     def register_intent_file(self, intent_file: str, handler: callable,
                              voc_blacklist: Optional[List[str]] = None,
                              requires_context: Optional[List[ContextGate]] = None,
-                             excludes_context: Optional[List[ContextGate]] = None):
+                             excludes_context: Optional[List[ContextGate]] = None,
+                             required_slots: Optional[List[str]] = None):
         """Register an Intent file with the intent service.
 
         For example:
@@ -1551,7 +1562,12 @@ class OVOSSkill:
                               {"key":..., "scope":...} mapping
             excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
                               entry shape as requires_context
+            required_slots: OVOS-INTENT-3 §5.3 bare slot names the engine
+                            MUST extract for a match. A locale whose
+                            templates do not declare each of them is not
+                            registered.
         """
+        required_slots = check_required_slots(required_slots)
         # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
         # The intent NAME is the author's label for the intent, not the name of
         # the file the samples came from, so the `.intent` authoring extension
@@ -1599,7 +1615,8 @@ class OVOSSkill:
                 slot_blacklist=slot_blacklist,
                 vocabs=resources.vocabularies(),
                 requires_context=requires_context,
-                excludes_context=excludes_context)
+                excludes_context=excludes_context,
+                required_slots=required_slots)
         if handler:
             # keyed canonically (bare, no "<skill_id>:" prefix, no ".intent"
             # suffix) so enable_intent()/disable_intent() can look the
@@ -3326,7 +3343,10 @@ class OVOSSkill:
             # spelling -- a caller may legitimately ask for the canonical
             # name of a padatious (".intent"-authored) intent.
             if isinstance(intent, dict):
-                self.register_intent_file(f'{canonical}.intent', handler)
+                # OVOS-INTENT-3 §5.3: the declaration travels on every
+                # registration of the intent
+                self.register_intent_file(f'{canonical}.intent', handler,
+                                          required_slots=intent.get('required_slots'))
             else:
                 intent.name = intent_name
                 self.register_intent(intent, handler)

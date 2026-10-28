@@ -434,7 +434,8 @@ class TestOVOSSkill(unittest.TestCase):
             f"{skill.skill_id}:time", ["what time is it"], "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
             requires_context=["confirming_time"],
-            excludes_context=[{"key": "active_room", "scope": "shared"}])
+            excludes_context=[{"key": "active_room", "scope": "shared"}],
+            required_slots=[])
 
     def test_find_resource(self):
         # TODO
@@ -584,7 +585,7 @@ class TestOVOSSkill(unittest.TestCase):
         skill.intent_service.register_template.assert_called_once_with(
             f"{skill.skill_id}:time", en_samples, "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
-            requires_context=None, excludes_context=None)
+            requires_context=None, excludes_context=None, required_slots=[])
 
         # With secondary language
         skill.intent_service.register_template.reset_mock()
@@ -595,11 +596,11 @@ class TestOVOSSkill(unittest.TestCase):
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", en_samples, "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
-            requires_context=None, excludes_context=None)
+            requires_context=None, excludes_context=None, required_slots=[])
         skill.intent_service.register_template.assert_any_call(
             f"{skill.skill_id}:time", uk_samples, "uk-UA",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
-            requires_context=None, excludes_context=None)
+            requires_context=None, excludes_context=None, required_slots=[])
 
     def test_register_intent_file_with_context_gating(self):
         skill = OVOSSkill(bus=self.bus, skill_id=self.skill_id)
@@ -617,7 +618,8 @@ class TestOVOSSkill(unittest.TestCase):
             f"{skill.skill_id}:time", en_samples, "en-US",
             blacklisted_words=[], slot_blacklist={}, vocabs=ANY,
             requires_context=["confirming_time"],
-            excludes_context=[{"key": "active_room", "scope": "shared"}])
+            excludes_context=[{"key": "active_room", "scope": "shared"}],
+            required_slots=[])
 
     def test_register_intent_file_binds_the_canonical_event_only(self):
         # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
