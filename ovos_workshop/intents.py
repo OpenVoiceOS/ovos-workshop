@@ -15,12 +15,12 @@ from ovos_utils.log import LOG, log_deprecation
 # OVOS-INTENT-4 keyword-intent definition primitives, re-exported from ovos-spec-tools.
 from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
                              SpecMessage, INTENT_FILE_SUFFIX,
-                             declared_slot_types, inline_keywords, expand,
-                             MalformedTemplate)
+                             declared_slot_types, declared_slots,
+                             inline_keywords, expand, MalformedTemplate)
 from ovos_spec_tools.expansion import strip_type_prefixes
 from ovos_spec_tools.resources import read_resource_file
 
-from ovos_workshop.decorators import ContextGate
+from ovos_workshop.decorators import ContextGate, check_required_slots
 from ovos_workshop.version import VERSION_MAJOR
 
 # Deprecated adapt/padatious shims are removed in the next MAJOR release.
@@ -448,7 +448,8 @@ class _PadatiousIntentApi:
                                        file_name: str = '',
                                        slot_blacklist: Optional[Dict[str, List[str]]] = None,
                                        requires_context: Optional[List[ContextGate]] = None,
-                                       excludes_context: Optional[List[ContextGate]] = None):
+                                       excludes_context: Optional[List[ContextGate]] = None,
+                                       required_slots: Optional[List[str]] = None):
         """Emit the legacy ``padatious:register_intent`` topic.
 
         TODO: drop once the padatious pipeline consumes ovos.intent.register.template (INTENT-4 §6) directly.
@@ -460,6 +461,7 @@ class _PadatiousIntentApi:
                                    'lang': lang,
                                    'blacklisted_words': blacklisted_words,
                                    'slot_blacklist': slot_blacklist or {},
+                                   'required_slots': required_slots or [],
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
                                    # extensions per INTENT-4 §5.3
@@ -767,7 +769,9 @@ class IntentServiceInterface:
                           slot_blacklist: Optional[Dict[str, List[str]]] = None,
                           vocabs: Optional[Dict[str, List[str]]] = None,
                           requires_context: Optional[List[ContextGate]] = None,
-                          excludes_context: Optional[List[ContextGate]] = None):
+                          excludes_context: Optional[List[ContextGate]] = None,
+                          required_slots: Optional[List[str]] = None):
+        required_slots = check_required_slots(required_slots)
         # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
         samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
         if not samples:
@@ -801,12 +805,23 @@ class IntentServiceInterface:
             LOG.warning(f"{self.skill_id}: not registering template "
                         f"'{intent_name}' ({lang}), it has no valid samples")
             return
+        # INTENT-3 §5.3 / INTENT-4 §6.3: a required slot that no valid
+        # template of this language declares can never be extracted, so the
+        # registration is malformed. Other languages register independently.
+        available = declared_slots(samples)
+        missing = [slot for slot in required_slots if slot not in available]
+        if missing:
+            LOG.warning(f"{self.skill_id}: not registering template "
+                        f"'{intent_name}' ({lang}), no template declares "
+                        f"required slot(s) {missing}")
+            return
         name = intent_name.split(':')[-1]
         data = {'file_name': file_name,
                 "samples": samples,
                 'name': intent_name,
                 'lang': lang,
                 'blacklisted_words': blacklisted_words,
+                'required_slots': required_slots,
                 # kept so a skill can resolve a slot's declared type when it
                 # reads OVOS-INTENT-1 §5.6 entries off a dispatch message
                 'slot_types': slot_types}
@@ -834,7 +849,8 @@ class IntentServiceInterface:
                                                        file_name,
                                                        slot_blacklist=slot_blacklist,
                                                        requires_context=requires_context,
-                                                       excludes_context=excludes_context)
+                                                       excludes_context=excludes_context,
+                                                       required_slots=required_slots)
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
                                    "intent_name": self._clean_padatious_name(intent_name),
@@ -842,6 +858,7 @@ class IntentServiceInterface:
                                    "samples": samples,
                                    "blacklist": blacklisted_words or [],
                                    "slot_blacklist": slot_blacklist or {},
+                                   "required_slots": required_slots,
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
                                    # extensions per INTENT-4 §5.3

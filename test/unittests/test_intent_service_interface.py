@@ -195,7 +195,8 @@ class UtteranceIntentRegistrationTest(unittest.TestCase):
         intent_service.register_padatious_intent('test', filename, lang='en-US')
         expected_data = {'file_name': '/tmp/test.intent', 'lang': 'en-US', 'name': 'test',
                          'samples': ['this is a test', 'test the intent'], 'blacklisted_words': None,
-                         'slot_blacklist': {}, 'requires_context': [], 'excludes_context': []}
+                         'slot_blacklist': {}, 'required_slots': [],
+                         'requires_context': [], 'excludes_context': []}
         self.check_emitter([expected_data])
 
     def test_register_intent_with_context_gating(self):
@@ -211,6 +212,7 @@ class UtteranceIntentRegistrationTest(unittest.TestCase):
         expected_data = {'file_name': '', 'lang': 'en-US', 'name': 'test',
                          'samples': ['this is a test', 'test the intent'],
                          'blacklisted_words': None, 'slot_blacklist': {},
+                         'required_slots': [],
                          'requires_context': ["confirming"],
                          'excludes_context': [{"key": "active_room", "scope": "shared"}]}
         self.check_emitter([expected_data])
