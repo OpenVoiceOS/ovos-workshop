@@ -1,15 +1,5 @@
 # Changelog
 
-## [9.8.20a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a5) (2026-10-28)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a3...9.8.20a5)
-
-**Merged pull requests:**
-
-- translate\(gl-ES\): update cant\_load\_game.dialog [\#724](https://github.com/OpenVoiceOS/ovos-workshop/pull/724) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
-- translate\(gl-ES\): update skill.error.dialog [\#723](https://github.com/OpenVoiceOS/ovos-workshop/pull/723) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
-- translate\(gl-ES\): update cancel.voc [\#722](https://github.com/OpenVoiceOS/ovos-workshop/pull/722) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
-
 ## [9.8.20a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a3) (2026-10-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a2...9.8.20a3)
