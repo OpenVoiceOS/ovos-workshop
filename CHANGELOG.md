@@ -310,7 +310,6 @@
 **Merged pull requests:**
 
 - fix: honour the requested lang in OVOSSkill.voc\_list [\#627](https://github.com/OpenVoiceOS/ovos-workshop/pull/627) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-- translate\(da-DK\): add missing locale files [\#616](https://github.com/OpenVoiceOS/ovos-workshop/pull/616) ([andlo](https://github.com/andlo))
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
@@ -328,10 +327,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
 
-**Merged pull requests:**
-
-- fix: stamp the registering skill on every INTENT-4 registration [\#617](https://github.com/OpenVoiceOS/ovos-workshop/pull/617) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.7.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.2a1) (2026-09-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.1a1...9.7.2a1)
@@ -339,10 +334,6 @@
 ## [9.7.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.1a1) (2026-09-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.0a2...9.7.1a1)
-
-**Merged pull requests:**
-
-- fix: assert the scheduler record's skill\_id, not the retired owner [\#614](https://github.com/OpenVoiceOS/ovos-workshop/pull/614) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.7.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.0a2) (2026-09-06)
 
