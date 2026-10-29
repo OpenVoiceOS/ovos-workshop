@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.10.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.10.1a1) (2026-10-29)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.10.0a1...9.10.1a1)
+
+**Merged pull requests:**
+
+- fix: ship the workshop dialogs in every locale under spec base names [\#737](https://github.com/OpenVoiceOS/ovos-workshop/pull/737) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.10.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.10.0a1) (2026-10-29)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.9.0a1...9.10.0a1)
@@ -330,10 +338,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a2...9.8.2a1)
 
-**Merged pull requests:**
-
-- fix: schedule\_event\(handler, 0\) sends an instant due now, not in.seconds=0 [\#632](https://github.com/OpenVoiceOS/ovos-workshop/pull/632) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-
 ## [9.8.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a2) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a1...9.8.1a2)
@@ -344,15 +348,15 @@
 
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
-
-## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.7.3a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.4a1...9.8.0a1)
 
 ## [9.7.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.4a1) (2026-09-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.7.4a1)
+
+## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.3a1)
 
 ## [9.7.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.2a1) (2026-09-08)
 
