@@ -137,6 +137,21 @@ class TestMalformedResourcesDoNotAbortInit(StableShapeCase):
         self.assertIn("yes.voc", reports[0])
 
 
+class TestWorkshopVocabularyIsNotRegistered(StableShapeCase):
+    def test_only_the_skill_vocabulary_is_registered(self):
+        skill = self.build({"en-us/hello.voc": "hello\n"})
+        registered = []
+        with mock.patch.object(skill.intent_service, "register_keyword",
+                               lambda vocab_type, *args: registered.append(
+                                   vocab_type)):
+            skill.load_vocab_files()
+        self.assertEqual(registered, [f"{skill.alphanumeric_skill_id}hello"])
+
+    def test_cancel_still_matches(self):
+        skill = self.build({"en-us/hello.voc": "hello\n"})
+        self.assertTrue(skill.voc_match("forget it", "cancel"))
+
+
 class TestDuplicateIntentWinner(StableShapeCase):
     GL = {
         "gl-es/intent/HowAreYou.intent":

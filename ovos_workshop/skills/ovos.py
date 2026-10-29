@@ -769,11 +769,20 @@ class OVOSSkill(_LegacyResourcesMixin):
         canonical entity comes first, aliases canonicalize to it
         (OVOS-INTENT-2 §4.3 / :func:`ovos_spec_tools.keyword_form`)."""
         resources = self.load_lang(root_directory or self.res_dir)
+        workshop_locale = Path(dirname(dirname(abspath(__file__))), "locale")
         for lang in self.native_langs:
             keywords = self._guarded(
                 lambda: list(resources.vocabulary_keywords(lang)),
                 default=[])
             for voc_name, entity, aliases in keywords:
+                try:
+                    path = resources.find(voc_name, ".voc", lang)
+                except MalformedResource:
+                    continue  # reported where the vocabulary is used
+                # the workshop's own .voc files (cancel.voc) serve voc_match;
+                # they are not keywords of the skill
+                if path is None or workshop_locale in path.parents:
+                    continue
                 # keep exact filename case: str.title() lowercases multi-word
                 # CamelCase names ("HelloWorldKeyword" -> "Helloworldkeyword"),
                 # breaking IntentBuilder.require() lookups (#485/#491)
