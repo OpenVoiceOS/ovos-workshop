@@ -2203,7 +2203,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         handler_name = camel_case_split(self.name)
         msg_data = {'skill': handler_name}
         try:
-            speech = self.render_dialog('skill.error', msg_data)
+            speech = self.render_dialog('skill_error', msg_data)
         except DialogNotFound as err:
             # no error dialog in this language: log it, speak nothing
             self.log.error(err)

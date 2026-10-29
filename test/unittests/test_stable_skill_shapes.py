@@ -365,7 +365,7 @@ class TestMissingDialogRaises(StableShapeCase):
         self.assertIn("no dialog 'no.such.key'",
                       errors[0]["data"]["exception"])
         core = open(join(os.path.dirname(__import__("ovos_workshop").__file__),
-                         "locale", "en-US", "skill.error.dialog")).read()
+                         "locale", "en-US", "skill_error.dialog")).read()
         self.assertEqual(len(self.spoken()), 1)
         self.assertIn(self.spoken()[0].split("Speaker")[0].strip(),
                       core.replace("{skill}", "Speaker"))
@@ -408,7 +408,8 @@ class TestMissingDialogRaises(StableShapeCase):
 class TestSkillErrorDialog(StableShapeCase):
     def test_no_error_dialog_in_the_language_speaks_nothing(self):
         skill = self.build({"en-us/hello.dialog": "hello\n"})
-        with mock.patch.object(OVOSSkill, "lang", "de-DE"):
+        # the workshop ships no zu-ZA locale
+        with mock.patch.object(OVOSSkill, "lang", "zu-ZA"):
             skill._on_event_error("boom", Message("x"), "mycroft.skill.handler",
                                   {}, True)
         self.assertEqual(self.spoken(), [])
@@ -421,7 +422,7 @@ class TestSkillErrorDialog(StableShapeCase):
         skill._on_event_error("boom", Message("x"), "mycroft.skill.handler",
                               {}, True)
         core = open(join(os.path.dirname(__import__("ovos_workshop").__file__),
-                         "locale", "en-US", "skill.error.dialog"),
+                         "locale", "en-US", "skill_error.dialog"),
                     encoding="utf-8").read()
         name = camel_case_split(skill.name)
         self.assertIn(self.spoken(), [[line.replace("{skill}", name)]
