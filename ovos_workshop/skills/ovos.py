@@ -473,7 +473,8 @@ class OVOSSkill(_LegacyResourcesMixin):
             raise TypeError(f"Expected a MessageBusClient, got: {type(value)}")
 
     # magic properties -> depend on message.context / Session
-    def render_dialog(self, name: str, data: Optional[dict] = None) -> str:
+    def render_dialog(self, name: str, data: Optional[dict] = None,
+                      lang: Optional[str] = None) -> str:
         """
         Render a random phrase from a ``.dialog`` file for the skill's current
         language, filling ``{name}`` slots from ``data``.
@@ -484,6 +485,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         Args:
             name: a dialog file name (no extension)
             data: values used to fill the dialog's named slots
+            lang: language of the dialog (default self.lang)
         Returns:
             A rendered phrase ready for text-to-speech.
         Raises:
@@ -491,7 +493,7 @@ class OVOSSkill(_LegacyResourcesMixin):
                 current language, or no renderer can produce a sentence
                 from it.
         """
-        lang = self._resource_lang
+        lang = standardize_lang(lang or self.lang)
         try:
             phrases = self.load_lang().load_dialog(name, lang)
         except FileNotFoundError:
@@ -644,20 +646,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         return standardize_lang(lang)
 
     @property
-    def _resource_lang(self) -> str:
-        """Language for resource-file lookups (``.dialog``, ``.voc``,
-        ``.intent``, ``.entity``).
-
-        Defaults to the message-context language (:attr:`lang`). Subclasses
-        that decouple resource language from query language — see
-        :class:`~ovos_workshop.skills.auto_translatable.UniversalSkill`,
-        whose dialogs/vocab are authored in ``internal_language`` while
-        ``self.lang`` reflects the incoming query language — override this
-        single property and the resource lookups follow.
-        """
-        return self.lang
-
-    @property
     def core_lang(self) -> str:
         """
         Get the configured default language as a BCP-47 language code.
@@ -716,7 +704,7 @@ class OVOSSkill(_LegacyResourcesMixin):
                 core_locale=workshop_locale,
                 user_locale=user_locale,
                 skill_directory=root_directory, skill_id=self.skill_id,
-                default_lang=lambda: self._resource_lang, lang=lang)
+                default_lang=lambda: self.lang, lang=lang)
         resources = self._lang_resources[key]
         for entity_lang in [standardize_lang(lang)] if lang \
                 else self.native_langs:
@@ -1834,7 +1822,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         @param lang: language of `entity` (default self.lang)
         """
         keyword_type = self.alphanumeric_skill_id + entity_type
-        lang = standardize_lang(lang or self._resource_lang)
+        lang = standardize_lang(lang or self.lang)
         self.intent_service.register_keyword(keyword_type, entity,
                                              lang=lang)
 
@@ -1847,7 +1835,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         self.log.debug('registering regex string: ' + regex_str)
         re.compile(regex_str)  # validate regex
         self.intent_service.register_adapt_regex(
-            regex_str, lang=standardize_lang(lang or self._resource_lang))
+            regex_str, lang=standardize_lang(lang or self.lang))
 
     # event/intent registering internal handlers
     def handle_homescreen_loaded(self, message: Message):
@@ -2685,7 +2673,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         this skill instance so subsequent ``voc_match`` / ``remove_voc``
         calls do not re-walk the locale tree.
         """
-        lang = standardize_lang(lang or self._resource_lang)
+        lang = standardize_lang(lang or self.lang)
         cache_key = (self.res_dir, lang, voc_filename)
         if cache_key not in self._voc_cache:
             vocab = self._guarded(self.load_lang().voc_list,

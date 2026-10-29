@@ -123,14 +123,11 @@ class _LegacyResourcesMixin:
     """
 
     # one cache per (res_dir, lang) for resources / dialog_renderer /
-    # find_resource. Keying on the resource language preserves
-    # back-compat for UniversalSkill (whose resources live in
-    # `internal_language` via `_resource_lang`) and for plain OVOSSkill
-    # instances whose session language can change at runtime.
+    # find_resource, because the session language can change at runtime
     def _legacy_skill_resources(self, root_directory: Optional[str] = None,
                                 lang: Optional[str] = None):
         root_directory = root_directory or self.res_dir
-        lang = lang or getattr(self, "_resource_lang", None) or self.lang
+        lang = lang or self.lang
         key = (root_directory, lang)
         cache = getattr(self, "_skill_resources_compat", None)
         if not isinstance(cache, dict):

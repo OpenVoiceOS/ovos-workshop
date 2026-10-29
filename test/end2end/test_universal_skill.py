@@ -14,13 +14,14 @@ and outgoing speech is translated back to the user's language by
 The lang-decoupling is the **defining behaviour** of UniversalSkill, and a
 regression would silently strand dialogs (skill speaks the literal dialog
 name) and break vocab checks. This module is a tripwire over the three
-public surfaces — :attr:`OVOSSkill._resource_lang`, :meth:`speak_dialog`,
+public surfaces — adapt registration, :meth:`speak_dialog`,
 and :meth:`voc_match` — plus one full round-trip simulating the real-world
 flow with deterministic stubs (no network, no real translator plugin).
 """
 import os
 from threading import Event
 from unittest import TestCase
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
@@ -174,12 +175,20 @@ class TestUniversalSkillResourceLang(TestCase):
     def _skill(self):
         return self.minicroft.plugin_skills[self.skill_id].instance
 
-    # --- the override itself ----------------------------------------------
+    # --- adapt registration follows internal_language --------------------
 
-    def test_resource_lang_points_at_internal_language(self):
+    def test_adapt_registration_uses_internal_language(self):
         skill = self._skill()
-        self.assertEqual(skill._resource_lang, "en-US")
-        self.assertEqual(skill.internal_language, "en-US")
+        with patch.object(type(skill), "lang", new_callable=PropertyMock,
+                          return_value="fr-FR"), \
+                patch.object(skill.intent_service,
+                             "register_keyword") as keyword, \
+                patch.object(skill.intent_service,
+                             "register_adapt_regex") as regex:
+            skill.register_vocabulary("yes", "Affirm")
+            skill.register_regex("(?P<Thing>.*)")
+        self.assertEqual(keyword.call_args.kwargs["lang"], "en-US")
+        self.assertEqual(regex.call_args.kwargs["lang"], "en-US")
 
     # --- dialog rendering follows internal_language -----------------------
 
@@ -209,7 +218,7 @@ class TestUniversalSkillResourceLang(TestCase):
 
     def test_voc_match_uses_internal_language_for_foreign_query(self):
         """voc_match("yes please", "affirmative") fires from a fr-FR session
-        because the voc is en-US and _resource_lang points there."""
+        because the voc is en-US, the internal language."""
         responses = []
         event = Event()
         self.minicroft.bus.on(
@@ -228,7 +237,7 @@ class TestUniversalSkillResourceLang(TestCase):
                         "no voc_check response — handler did not fire")
         self.assertEqual(
             responses, [True],
-            "voc_match returned False — _resource_lang likely fell back to "
+            "voc_match returned False — the lookup likely fell back to "
             "the query lang (fr-FR) instead of internal_language (en-US)")
 
     # --- realistic full round-trip ----------------------------------------

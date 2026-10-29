@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from ovos_config import Configuration
 
 from ovos_bus_client import Message
@@ -59,16 +61,24 @@ class UniversalSkill(OVOSSkill):
                         f"internal_language, casting to {lang}")
             self.internal_language = lang
 
-    @property
-    def _resource_lang(self) -> str:
-        """UniversalSkill authors its ``.dialog`` / ``.voc`` / ``.intent``
-        files in :attr:`internal_language`. Incoming utterances are
-        translated *into* that language before the handler runs and
-        :meth:`speak` translates outgoing text back to ``self.lang``, so
-        every resource lookup — dialog rendering, vocabulary listing and
-        matching, adapt keyword/regex registration — must target the
-        internal language regardless of the query language."""
-        return self.internal_language
+    # dialogs and vocabulary are written in internal_language, while
+    # self.lang stays the query language that speak() translates into
+    def render_dialog(self, name: str, data: Optional[dict] = None,
+                      lang: Optional[str] = None) -> str:
+        return super().render_dialog(name, data,
+                                     lang or self.internal_language)
+
+    def voc_list(self, voc_filename: str,
+                 lang: Optional[str] = None) -> List[str]:
+        return super().voc_list(voc_filename, lang or self.internal_language)
+
+    def register_vocabulary(self, entity: str, entity_type: str,
+                            lang: Optional[str] = None):
+        super().register_vocabulary(entity, entity_type,
+                                    lang or self.internal_language)
+
+    def register_regex(self, regex_str: str, lang: Optional[str] = None):
+        super().register_regex(regex_str, lang or self.internal_language)
 
     def detect_language(self, utterance: str):
         """
