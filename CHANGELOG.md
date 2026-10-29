@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.10.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.10.0a1) (2026-10-29)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.9.0a1...9.10.0a1)
+
+**Merged pull requests:**
+
+- feat: send an intent's .required keywords on its registration [\#703](https://github.com/OpenVoiceOS/ovos-workshop/pull/703) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [9.9.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.9.0a1) (2026-10-28)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a7...9.9.0a1)
@@ -175,10 +183,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.7a1...9.8.8a1)
 
-**Merged pull requests:**
-
-- fix: cross-skill context writes go to the session; the legacy topics stay as compat [\#629](https://github.com/OpenVoiceOS/ovos-workshop/pull/629) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-
 ## [9.8.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.7a1) (2026-09-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.6a3...9.8.7a1)
@@ -306,10 +310,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a2...9.8.5a1)
 
-**Merged pull requests:**
-
-- fix: say that a naive schedule time is read in the configured timezone [\#630](https://github.com/OpenVoiceOS/ovos-workshop/pull/630) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-
 ## [9.8.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a2) (2026-09-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a1...9.8.4a2)
@@ -337,10 +337,6 @@
 ## [9.8.1a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a2) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a1...9.8.1a2)
-
-**Merged pull requests:**
-
-- ci: coverage installs the pyproject test extra; drop requirements/test.txt [\#631](https://github.com/OpenVoiceOS/ovos-workshop/pull/631) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
 ## [9.8.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a1) (2026-09-10)
 
@@ -668,15 +664,15 @@
 
 ## [8.1.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.1.0a1) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.1.0a1)
-
-## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.0.4a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a4...8.1.0a1)
 
 ## [8.0.4a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a4) (2026-04-08)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a4)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a3...8.0.4a4)
+
+## [8.0.4a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a3) (2026-04-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/8.0.4a2...8.0.4a3)
 
 ## [8.0.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/8.0.4a2) (2026-04-08)
 
