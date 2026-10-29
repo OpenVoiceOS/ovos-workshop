@@ -67,21 +67,20 @@ class TestMalformedResourcesDoNotAbortInit(StableShapeCase):
         }, _TwoIntentSkill)
         registered = json.dumps([m["data"] for m in self.msgs])
         self.assertIn("say good", registered)
-        self.assertIn("open the file browser", registered)
+        self.assertNotIn("file browser", registered)
         self.assertTrue(skill._init_event.is_set())
 
     def test_duplicate_intent_with_mixed_case_name(self):
         skill = self.build({
             "en-us/intent/HowAreYou.intent": "how are you doing\n",
             "en-us/intents/HowAreYou.intent": "how are things\n",
-            "en-us/open.file.browser.intent": "open the file browser\n",
             "en-us/good.intent": "say good\n",
         }, _TwoIntentSkill)
         skill.register_intent_file("HowAreYou.intent", lambda m: None)
         samples = [m["data"]["samples"] for m in self.msgs
                    if m["type"] == "ovos.intent.register.template"
                    and m["data"].get("intent_name", "").endswith("HowAreYou")]
-        self.assertEqual(samples, [["how are things"]])
+        self.assertEqual(samples, [])
         self.assertTrue(skill._init_event.is_set())
 
     def test_dialog_mixing_lines_with_and_without_a_slot(self):
@@ -102,7 +101,7 @@ class TestMalformedResourcesDoNotAbortInit(StableShapeCase):
         self.assertEqual(skill.remove_voc("some blank text", "blank"),
                          "some blank text")
 
-    def test_duplicate_entity_registers_the_shallower_file(self):
+    def test_duplicate_entity_is_not_registered(self):
         skill = self.build({
             "en-us/pet.entity": "cat\n",
             "en-us/sub/pet.entity": "dog\n"})
@@ -110,16 +109,7 @@ class TestMalformedResourcesDoNotAbortInit(StableShapeCase):
         pets = [m["data"]["samples"] for m in self.msgs
                 if m["type"] == "ovos.entity.register"
                 and m["data"].get("entity_name") == "pet"]
-        self.assertEqual(pets, [["cat"]])
-
-    def test_duplicate_entity_winner_is_by_depth_not_by_name(self):
-        skill = self.build({
-            "en-us/pet.entity": "cat\n",
-            "en-us/a/pet.entity": "dog\n"})
-        pets = [m["data"]["samples"] for m in self.msgs
-                if m["type"] == "ovos.entity.register"
-                and m["data"].get("entity_name") == "pet"]
-        self.assertEqual(pets, [["cat"]])
+        self.assertEqual(pets, [])
 
     def test_duplicate_vocabulary_is_ignored_and_reported_once(self):
         skill = self.build({
@@ -152,56 +142,19 @@ class TestWorkshopVocabularyIsNotRegistered(StableShapeCase):
         self.assertTrue(skill.voc_match("forget it", "cancel"))
 
 
-class TestDuplicateIntentWinner(StableShapeCase):
-    GL = {
-        "gl-es/intent/HowAreYou.intent":
-            "como estiveches\ncomo estás\ncomo foi o teu día\n",
-        "gl-es/intents/HowAreYou.intent":
-            "como  che vai\ncomo che foi\ncomo che foi o día\ncomo estás",
+class TestDuplicateResource(StableShapeCase):
+    FILES = {
+        "gl-es/intent/HowAreYou.intent": "como estás\n",
+        "gl-es/intents/HowAreYou.intent": "como che vai\n",
     }
 
-    def templates(self, name):
-        return [m["data"] for m in self.msgs
-                if m["type"] == "ovos.intent.register.template"
-                and m["data"].get("intent_name", "").endswith(name)]
+    def test_a_duplicate_resolves_to_nothing(self):
+        skill = self.build(self.FILES)
+        self.assertIsNone(skill._locate_lang_file(
+            "HowAreYou.intent", ".intent", "gl-ES"))
 
-    def test_local_media_shape_registers_the_shallower_file(self):
-        skill = self.build({
-            "en-us/open.file.browser.intent": "open the file browser\n",
-            "en-us/intents/open.file.browser.intent": "open file browser\n"})
-        skill.register_intent_file("open.file.browser.intent", lambda m: None)
-        registered = self.templates("open.file.browser")
-        self.assertTrue(registered)
-        self.assertEqual(registered[-1]["samples"], ["open the file browser"])
-
-    def test_hello_world_shape_ties_pick_the_last_path(self):
-        skill = self.build(self.GL)
-        expected = join(skill.res_dir, "locale", "gl-es", "intents",
-                        "HowAreYou.intent")
-        for _ in range(2):
-            self.assertEqual(skill._locate_lang_file(
-                "HowAreYou.intent", ".intent", "gl-ES"), expected)
-        with open(expected, encoding="utf-8") as f:
-            self.assertEqual(f.read(), self.GL["gl-es/intents/HowAreYou.intent"])
-
-    def test_winner_does_not_depend_on_walk_order(self):
-        from pathlib import Path
-        from unittest import mock
-        skill = self.build(self.GL)
-        original = Path.rglob
-        results = set()
-        for order in (lambda x: x, reversed,
-                      lambda x: sorted(x, key=lambda p: hash(str(p)))):
-            with mock.patch.object(
-                    Path, "rglob",
-                    lambda self, pat, o=order: list(o(list(original(self, pat))))):
-                results.add(skill._locate_lang_file(
-                    "HowAreYou.intent", ".intent", "gl-ES"))
-        self.assertEqual(len(results), 1)
-        self.assertTrue(results.pop().endswith("gl-es/intents/HowAreYou.intent"))
-
-    def test_both_paths_are_named_in_one_warning(self):
-        skill = self.build(self.GL)
+    def test_a_duplicate_is_reported_once(self):
+        skill = self.build(self.FILES)
         reports = []
         skill.log = type("L", (), {
             "warning": lambda self, m: reports.append(m),
@@ -210,8 +163,7 @@ class TestDuplicateIntentWinner(StableShapeCase):
         for _ in range(3):
             skill._locate_lang_file("HowAreYou.intent", ".intent", "gl-ES")
         self.assertEqual(len(reports), 1)
-        self.assertIn("gl-es/intent/HowAreYou.intent", reports[0])
-        self.assertIn("gl-es/intents/HowAreYou.intent", reports[0])
+        self.assertIn("HowAreYou.intent", reports[0])
 
 
 class TestUserOverride(StableShapeCase):

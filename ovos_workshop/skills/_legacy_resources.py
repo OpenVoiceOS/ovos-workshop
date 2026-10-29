@@ -2,7 +2,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-"""Deprecated resource-loading entry points for :class:`OVOSSkill`.
+"""Deprecated entry points of :class:`OVOSSkill`.
 
 OVOSSkill drives resource loading through
 :class:`ovos_spec_tools.LocaleResources`. These legacy entry points delegate
@@ -22,7 +22,11 @@ Surface that lives in the mixin:
 - :class:`_LegacyLocaleResources` — the object :meth:`OVOSSkill.load_lang`
   returns, which still answers the :class:`SkillResources` methods;
 - :attr:`runtime_requirements` / :attr:`network_requirements` — declared
-  deprecated in ovos-core; kept so LAN/cache/offline skills still load.
+  deprecated in ovos-core; kept so LAN/cache/offline skills still load;
+- :meth:`load_regex_files` — the adapt ``.rx`` loader;
+- :meth:`register_homescreen_app`, :meth:`register_resting_screen` and the
+  ``@homescreen_app`` scan — the homescreen concept, which has no
+  replacement.
 
 The mixin assumes its host class supplies the attributes every OVOSSkill
 has: ``res_dir``, ``lang``, ``skill_id``, ``log``, and ``_voc_cache``. It
@@ -32,12 +36,20 @@ reused by every method below.
 """
 from __future__ import annotations
 
+import os
+import re
+import shutil
 import warnings
+from os.path import join
 from typing import Callable, Dict, List, Optional
 
-from ovos_spec_tools import LocaleResources
+from ovos_bus_client.message import Message
+from ovos_config.locations import get_xdg_cache_save_path
+from ovos_spec_tools import LocaleResources, iter_locale_dirs
 from ovos_utils import classproperty
+from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG, deprecated, log_deprecation
+from ovos_utils.skills import get_non_properties
 from ovos_utils.process_utils import RuntimeRequirements
 from ovos_workshop.version import VERSION_MAJOR
 
@@ -289,28 +301,159 @@ class _LegacyResourcesMixin:
                     "will be removed in ovos-core 0.0.8")
         return self.runtime_requirements
 
-    # ----- homescreen concept (deprecated entirely, no replacement) -----
-    # The framework calls _register_homescreen_app / _register_resting_screen
-    # during _startup; these public shims keep external callers + subclass
-    # call-sites working and emit both a DeprecationWarning and a log line.
-    @deprecated("register_homescreen_app is deprecated; the homescreen "
-                "concept is being removed. No replacement is planned.",
-                _REMOVAL_VERSION)
-    def register_homescreen_app(self, icon: str, name: str, event: str):
-        """.. deprecated:: homescreen concept is being removed."""
-        warnings.warn(
-            "register_homescreen_app is deprecated; the homescreen concept "
-            "is being removed. No replacement is planned.",
-            DeprecationWarning, stacklevel=2)
-        return self._register_homescreen_app(icon, name, event)
+    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
+        """Load and register ``.rx`` regex files for adapt-style intents.
 
-    @deprecated("register_resting_screen is deprecated; the resting-screen "
-                "/ homescreen concept is being removed. No replacement is "
-                "planned.", _REMOVAL_VERSION)
+        Walks ``<root>/locale/<lang>/`` for ``.rx`` files; each non-blank,
+        non-``#``-comment line is one regex pattern. ``(?P<name>...)`` named
+        groups are prefixed with the skill's alphanumeric id so they don't
+        collide across skills. Each pattern is then registered with the adapt
+        intent service.
+
+        Self-contained — does NOT go through the deprecated
+        ``ovos_workshop.resource_files`` module. A ``DeprecationWarning`` is
+        emitted **only when a ``.rx`` file is actually loaded**, so skills that
+        ship none stay quiet.
+
+        .. deprecated::
+            For new intents that need pattern matching, prefer
+            **padatious-style template intents** with named ``{slots}`` — they
+            generalize, localize, and are part of the OVOS formal
+            specifications. ``.rx`` regex support remains for legacy adapt
+            skills; its deprecation is independent of (and outlives) the
+            broader ``resource_files`` deprecation, and its removal is not
+            yet scheduled.
+        """
+        root_directory = root_directory or self.res_dir
+        loaded_any = False
+        # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
+        # native_langs via closest_lang — so an `en-US/` tree is picked up for
+        # a skill that declares `en` (or `en-GB`) as native.
+        for lang_norm, locale_dir in iter_locale_dirs(
+                root_directory, native_langs=self.native_langs):
+            for directory, _, files in os.walk(locale_dir):
+                for file_name in files:
+                    if not file_name.endswith(".rx"):
+                        continue
+                    rx_path = join(directory, file_name)
+                    self.log.info(
+                        f"loading regex file {rx_path!r} for lang "
+                        f"{lang_norm!r}")
+                    with open(rx_path, "r", encoding="utf-8-sig") as f:
+                        for line in f:
+                            pattern = line.strip()
+                            if not pattern or pattern.startswith("#"):
+                                continue
+                            re.compile(pattern)  # validate before handing off
+                            # register_adapt_regex (IntentServiceInterface)
+                            # already prefixes "(?P<" group names with the
+                            # skill's alphanumeric id via munge_regex — do
+                            # not pre-munge here, it would double-prefix and
+                            # mismatch the keyword Adapt intents require()
+                            self.intent_service.register_adapt_regex(
+                                pattern, lang_norm)
+                            loaded_any = True
+        if loaded_any:
+            msg = ("OVOSSkill.load_regex_files: .rx regex resources are "
+                   "deprecated. Prefer padatious-style template intents with "
+                   "named {slots} — they generalize, localize, and are part "
+                   "of the OVOS formal specifications. The .rx loader is kept "
+                   "for legacy adapt skills; consider migrating.")
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
+            LOG.warning(f"DEPRECATION: {msg}")
+
+    def _register_app_launcher(self):
+        # register app launcher if registered via decorator
+        for attr_name in get_non_properties(self):
+            method = getattr(self, attr_name)
+            if hasattr(method, 'homescreen_app_icon'):
+                name = getattr(method, 'homescreen_app_name')
+                event = f"{self.skill_id}.{name or method.__name__}.homescreen.app"
+                icon = getattr(method, 'homescreen_app_icon')
+                name = name or self.__skill_id2name
+                LOG.debug(f"homescreen app registered: {name} - '{event}'")
+                self.register_homescreen_app(icon=icon,
+                                              name=name or self.skill_id,
+                                              event=event)
+                self.add_event(event, method, speak_errors=False)
+
+    @property
+    def __skill_id2name(self) -> str:
+        """helper to make a nice string out of a skill_id"""
+        return (self.skill_id.split(".")[0].replace("_", " ").
+                replace("-", " ").replace("skill", "").title().strip())
+
+    def register_homescreen_app(self, icon: str, name: str, event: str):
+        """Register a homescreen app entry.
+
+        .. deprecated:: the homescreen concept is being removed.
+        """
+        msg = ("homescreen apps are deprecated; the homescreen concept is "
+               "being removed and @homescreen_app / register_homescreen_app "
+               "will be dropped. No replacement is planned.")
+        warnings.warn(msg, DeprecationWarning, stacklevel=2)
+        LOG.warning(f"DEPRECATION: {msg}")
+        # this path is hardcoded in ovos_gui.constants and follows XDG spec
+        # we use it to ensure resource availability between containers
+        # it is the only path assured to be accessible both by skills and GUI
+        GUI_CACHE_PATH = get_xdg_cache_save_path('ovos_gui')
+
+        full_icon_path = f"{self.res_dir}/gui/{icon}"
+        if not os.path.isfile(full_icon_path):
+            self.log.error(f"failed to register homescreen app, icon does not exist: {full_icon_path}")
+            return
+        os.makedirs(f"{GUI_CACHE_PATH}/{self.skill_id}", exist_ok=True)
+        shared_path = f"{GUI_CACHE_PATH}/{self.skill_id}/{icon}"
+        shutil.copy(full_icon_path, shared_path)
+
+        self.bus.emit(Message("homescreen.register.app",
+                              {"skill_id": self.skill_id,
+                               "icon": shared_path,
+                               "name": name,
+                               "event": event}))
+
     def register_resting_screen(self):
-        """.. deprecated:: resting-screen concept is being removed."""
-        warnings.warn(
-            "register_resting_screen is deprecated; the resting-screen / "
-            "homescreen concept is being removed. No replacement is planned.",
-            DeprecationWarning, stacklevel=2)
-        return self._register_resting_screen()
+        """Register the ``@resting_screen_handler`` methods of the skill.
+
+        ``_startup`` calls this for every skill, so the deprecation warning
+        fires only for a skill that has such a handler.
+
+        .. deprecated:: the resting-screen concept is being removed.
+        """
+        for attr_name in get_non_properties(self):
+            handler = getattr(self, attr_name)
+            if hasattr(handler, 'resting_handler'):
+                msg = ("resting screens are deprecated; the homescreen "
+                       "concept is being removed and @resting_screen_handler "
+                       "/ register_resting_screen will be dropped. No "
+                       "replacement is planned.")
+                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+                LOG.warning(f"DEPRECATION: {msg}")
+                resting_name = handler.resting_handler
+                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
+
+                def register(message=None, name=resting_name):
+                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
+                    self.bus.emit(Message("homescreen.manager.add",
+                                          {"name": name, "id": self.skill_id}))
+
+                register()  # initial registering
+
+                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
+
+                def wrapper(message, cb=handler):
+                    if message.data["homescreen_id"] == self.skill_id:
+                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
+                        cb(message)
+
+                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
+
+                def shutdown_handler(message):
+                    if message.data["id"] == self.skill_id:
+                        msg = message.forward("homescreen.manager.remove",
+                                              {"id": self.skill_id})
+                        self.bus.emit(msg)
+
+                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
+                break  # TODO - if multiple decorators are used what do? this is not deterministic
+

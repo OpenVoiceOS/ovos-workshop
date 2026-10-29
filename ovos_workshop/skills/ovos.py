@@ -17,13 +17,11 @@ import json
 import os
 import random
 import re
-import shutil
 import string
 import sys
 import time
 import traceback
 import unicodedata
-import warnings
 from copy import copy
 from inspect import signature
 from os.path import join, abspath, dirname, basename, isfile
@@ -61,13 +59,11 @@ from ovos_spec_tools import (REGISTERED_TYPES, SpecMessage,
 from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
 from ovos_config.locale import get_config_tz
-from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
 from ovos_config.locations import get_xdg_data_save_path
 from ovos_spec_tools import (LocaleResources, MalformedResource,
                               MalformedTemplate, UnfilledSlot, find_lang_dir,
-                              render,
-                              iter_locale_dirs, strip_samples,
+                              render, strip_samples,
                               utterance_contains)
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
@@ -482,8 +478,8 @@ class OVOSSkill(_LegacyResourcesMixin):
         Render a random phrase from a ``.dialog`` file for the skill's current
         language, filling ``{name}`` slots from ``data``.
 
-        A dialog the specification rejects is rendered by the legacy
-        renderer, which renders the real sentence.
+        When the specification rejects some phrases of the dialog, the
+        phrases that are valid for `data` are spoken.
 
         Args:
             name: a dialog file name (no extension)
@@ -497,7 +493,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         """
         lang = self._resource_lang
         try:
-            phrases = self._locale_resources.load_dialog(name, lang)
+            phrases = self.load_lang().load_dialog(name, lang)
         except FileNotFoundError:
             raise DialogNotFound(name, lang, self._dialog_dirs()) from None
         except MalformedResource as err:
@@ -505,7 +501,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             raise DialogNotFound(name, lang, self._dialog_dirs(),
                                  reason=str(err)) from None
         vocabularies = self._guarded(
-            self._locale_resources.vocabularies, lang, default={})
+            self.load_lang().vocabularies, lang, default={})
         try:
             return render(phrases, slots=data, vocabularies=vocabularies)
         except MalformedTemplate as err:
@@ -521,7 +517,7 @@ class OVOSSkill(_LegacyResourcesMixin):
                 rejected.append(f"{phrase!r}: {err}")
             except UnfilledSlot:
                 rejected.append(f"{phrase!r}: slot not filled")
-        found = self._guarded(self._locale_resources.find, name, ".dialog",
+        found = self._guarded(self.load_lang().find, name, ".dialog",
                               lang, default=None)
         self._report_malformed(MalformedTemplate(
             f"dialog {found or name} is rejected as a whole ({whole})"
@@ -545,17 +541,14 @@ class OVOSSkill(_LegacyResourcesMixin):
         try:
             return self.render_dialog(dialog, data)
         except DialogNotFound as err:
-            if err.reason or self._ships_dialog(dialog):
+            target = f"{dialog}.dialog".lower()
+            ships_dialog = any(file.lower() == target
+                               for directory in self._dialog_dirs()
+                               for _, _, files in os.walk(directory)
+                               for file in files)
+            if err.reason or ships_dialog:
                 raise
             return dialog
-
-    def _ships_dialog(self, name: str) -> bool:
-        """Whether any locale of any language ships a ``name.dialog`` file."""
-        target = f"{name}.dialog".lower()
-        return any(file.lower() == target
-                   for directory in self._dialog_dirs()
-                   for _, _, files in os.walk(directory)
-                   for file in files)
 
     def _dialog_dirs(self) -> List[str]:
         """The locale directories a dialog is looked up in, user first."""
@@ -649,22 +642,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         if message:
             lang = get_message_lang(message)
         return standardize_lang(lang)
-
-    @property
-    def _locale_resources(self) -> LocaleResources:
-        """Workshop-internal :class:`~ovos_spec_tools.LocaleResources` for
-        ``self.res_dir`` — the language-agnostic loader that backs every
-        per-language resource lookup on this skill.
-
-        Delegates to :meth:`load_lang` (which caches per root_directory)
-        so post-init changes to ``self.res_dir`` are picked up on the
-        next access. Workshop-internal code (``render_dialog``,
-        ``voc_match``, ``_locate_lang_file`` etc.) goes through this
-        attribute; the public, deprecated :attr:`resources` shim lives
-        on :class:`_LegacyResourcesMixin` and still hands back the
-        legacy :class:`SkillResources`.
-        """
-        return self.load_lang(self.res_dir)
 
     @property
     def _resource_lang(self) -> str:
@@ -790,112 +767,18 @@ class OVOSSkill(_LegacyResourcesMixin):
                 self.intent_service.register_keyword(
                     vocab_type, entity, aliases, lang)
 
-    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
-        """Load and register ``.rx`` regex files for adapt-style intents.
-
-        Walks ``<root>/locale/<lang>/`` for ``.rx`` files; each non-blank,
-        non-``#``-comment line is one regex pattern. ``(?P<name>...)`` named
-        groups are prefixed with the skill's alphanumeric id so they don't
-        collide across skills. Each pattern is then registered with the adapt
-        intent service.
-
-        Self-contained — does NOT go through the deprecated
-        ``ovos_workshop.resource_files`` module. A ``DeprecationWarning`` is
-        emitted **only when a ``.rx`` file is actually loaded**, so skills that
-        ship none stay quiet.
-
-        .. deprecated::
-            For new intents that need pattern matching, prefer
-            **padatious-style template intents** with named ``{slots}`` — they
-            generalize, localize, and are part of the OVOS formal
-            specifications. ``.rx`` regex support remains for legacy adapt
-            skills; its deprecation is independent of (and outlives) the
-            broader ``resource_files`` deprecation, and its removal is not
-            yet scheduled.
-        """
-        root_directory = root_directory or self.res_dir
-        loaded_any = False
-        # iter_locale_dirs walks `<root>/locale/` and filters subdirs against
-        # native_langs via closest_lang — so an `en-US/` tree is picked up for
-        # a skill that declares `en` (or `en-GB`) as native.
-        for lang_norm, locale_dir in iter_locale_dirs(
-                root_directory, native_langs=self.native_langs):
-            for directory, _, files in os.walk(locale_dir):
-                for file_name in files:
-                    if not file_name.endswith(".rx"):
-                        continue
-                    rx_path = join(directory, file_name)
-                    self.log.info(
-                        f"loading regex file {rx_path!r} for lang "
-                        f"{lang_norm!r}")
-                    with open(rx_path, "r", encoding="utf-8-sig") as f:
-                        for line in f:
-                            pattern = line.strip()
-                            if not pattern or pattern.startswith("#"):
-                                continue
-                            re.compile(pattern)  # validate before handing off
-                            # register_adapt_regex (IntentServiceInterface)
-                            # already prefixes "(?P<" group names with the
-                            # skill's alphanumeric id via munge_regex — do
-                            # not pre-munge here, it would double-prefix and
-                            # mismatch the keyword Adapt intents require()
-                            self.intent_service.register_adapt_regex(
-                                pattern, lang_norm)
-                            loaded_any = True
-        if loaded_any:
-            msg = ("OVOSSkill.load_regex_files: .rx regex resources are "
-                   "deprecated. Prefer padatious-style template intents with "
-                   "named {slots} — they generalize, localize, and are part "
-                   "of the OVOS formal specifications. The .rx loader is kept "
-                   "for legacy adapt skills; consider migrating.")
-            warnings.warn(msg, DeprecationWarning, stacklevel=2)
-            LOG.warning(f"DEPRECATION: {msg}")
-
     def _locate_lang_file(self, name: str, ext: str,
                           lang: str) -> Optional[str]:
         """Resolve the on-disk path of a spec resource file.
 
-        Delegates to :meth:`ovos_spec_tools.LocaleResources.find` — the same
-        override-precedence + closest-language walk that backs every loader
-        call on this skill.
+        A resource that OVOS-INTENT-2 §2 calls malformed, such as two files
+        that share a base name, is reported and resolves to None.
         """
         if name.endswith(ext):
             name = name[:-len(ext)]
-        try:
-            path = self._locale_resources.find(name, ext, lang)
-        except MalformedResource as err:
-            path = self._pick_duplicate(name, ext, lang, err)
+        path = self._guarded(self.load_lang().find, name, ext, lang,
+                             default=None)
         return str(path) if path is not None else None
-
-    @staticmethod
-    def _shallowest(paths: List[Path], lang_dir: Path) -> Path:
-        """The shallowest of several same-named files; a tie goes to the last
-        path in sorted order."""
-        depth = min(len(p.relative_to(lang_dir).parts) for p in paths)
-        return sorted(p for p in paths
-                      if len(p.relative_to(lang_dir).parts) == depth)[-1]
-
-    def _pick_duplicate(self, name: str, ext: str, lang: str,
-                        err: MalformedResource) -> Optional[Path]:
-        """Choose one of several files that share a base name.
-
-        OVOS-INTENT-2 §2 makes such a skill malformed and does not name a
-        winner. Released skills ship duplicates, so the shallowest file wins
-        and a tie goes to the last path in sorted order. The result does not
-        depend on the order the file system lists directories in.
-        """
-        lang_dir = find_lang_dir(join(self.res_dir, "locale"), lang)
-        found = sorted(p for p in lang_dir.rglob(f"{name}{ext}")
-                       if p.is_file()) if lang_dir else []
-        if len(found) < 2:
-            self._report_malformed(err)
-            return None
-        winner = self._shallowest(found, lang_dir)
-        others = ", ".join(str(p) for p in found if p != winner)
-        self._report_malformed(MalformedResource(
-            f"duplicate resource {name + ext!r}: using {winner}, "
-            f"ignoring {others}"))
-        return winner
 
     # skill object setup
     def _handle_first_run(self) -> None:
@@ -992,7 +875,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             self._register_skill_json()
             self._register_decorated()
             self._register_app_launcher()
-            self._register_resting_screen()
+            self.register_resting_screen()
 
             self.status.set_started()
             # run skill developer initialization code
@@ -1025,27 +908,6 @@ class OVOSSkill(_LegacyResourcesMixin):
                     self.log.info(f"Registering example utterances with homescreen for lang: {lang} - {utts}")
                     self.bus.emit(Message("homescreen.register.examples",
                                           {"skill_id": self.skill_id, "utterances": utts, "lang": lang}))
-
-    def _register_app_launcher(self):
-        # register app launcher if registered via decorator
-        for attr_name in get_non_properties(self):
-            method = getattr(self, attr_name)
-            if hasattr(method, 'homescreen_app_icon'):
-                name = getattr(method, 'homescreen_app_name')
-                event = f"{self.skill_id}.{name or method.__name__}.homescreen.app"
-                icon = getattr(method, 'homescreen_app_icon')
-                name = name or self.__skill_id2name
-                LOG.debug(f"homescreen app registered: {name} - '{event}'")
-                self._register_homescreen_app(icon=icon,
-                                              name=name or self.skill_id,
-                                              event=event)
-                self.add_event(event, method, speak_errors=False)
-
-    @property
-    def __skill_id2name(self) -> str:
-        """helper to make a nice string out of a skill_id"""
-        return (self.skill_id.split(".")[0].replace("_", " ").
-                replace("-", " ").replace("skill", "").title().strip())
 
     def _init_settings(self):
         """
@@ -1093,84 +955,6 @@ class OVOSSkill(_LegacyResourcesMixin):
         """
         self.gui = SkillGUI(self)
         self.gui.setup_default_handlers()
-
-    def _register_homescreen_app(self, icon: str, name: str, event: str):
-        """Internal: register a homescreen app entry. Public-name shim
-        :meth:`register_homescreen_app` lives in :class:`_LegacyResourcesMixin`.
-        Reached only when a ``@homescreen_app``-tagged handler exists, so the
-        deprecation signal fires only for skills actually using the feature.
-        """
-        msg = ("homescreen apps are deprecated; the homescreen concept is "
-               "being removed and @homescreen_app / register_homescreen_app "
-               "will be dropped. No replacement is planned.")
-        warnings.warn(msg, DeprecationWarning, stacklevel=2)
-        LOG.warning(f"DEPRECATION: {msg}")
-        # this path is hardcoded in ovos_gui.constants and follows XDG spec
-        # we use it to ensure resource availability between containers
-        # it is the only path assured to be accessible both by skills and GUI
-        GUI_CACHE_PATH = get_xdg_cache_save_path('ovos_gui')
-
-        full_icon_path = f"{self.res_dir}/gui/{icon}"
-        if not os.path.isfile(full_icon_path):
-            self.log.error(f"failed to register homescreen app, icon does not exist: {full_icon_path}")
-            return
-        os.makedirs(f"{GUI_CACHE_PATH}/{self.skill_id}", exist_ok=True)
-        shared_path = f"{GUI_CACHE_PATH}/{self.skill_id}/{icon}"
-        shutil.copy(full_icon_path, shared_path)
-
-        self.bus.emit(Message("homescreen.register.app",
-                              {"skill_id": self.skill_id,
-                               "icon": shared_path,
-                               "name": name,
-                               "event": event}))
-
-    def _register_resting_screen(self):
-        """Internal: scan for ``@resting_screen_handler``-tagged methods and
-        wire them up. Public-name shim :meth:`register_resting_screen` lives
-        in :class:`_LegacyResourcesMixin` and warns; this implementation
-        stays here because the framework calls it during ``_startup`` for
-        every skill — emitting on the internal path would flood the logs
-        of every skill, not just those using a resting screen.
-
-        Only emits the per-handler log line when a tagged handler is found,
-        so skills not using the feature stay silent.
-        """
-        for attr_name in get_non_properties(self):
-            handler = getattr(self, attr_name)
-            if hasattr(handler, 'resting_handler'):
-                msg = ("resting screens are deprecated; the homescreen "
-                       "concept is being removed and @resting_screen_handler "
-                       "/ register_resting_screen will be dropped. No "
-                       "replacement is planned.")
-                warnings.warn(msg, DeprecationWarning, stacklevel=2)
-                LOG.warning(f"DEPRECATION: {msg}")
-                resting_name = handler.resting_handler
-                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
-
-                def register(message=None, name=resting_name):
-                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
-                    self.bus.emit(Message("homescreen.manager.add",
-                                          {"name": name, "id": self.skill_id}))
-
-                register()  # initial registering
-
-                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
-
-                def wrapper(message, cb=handler):
-                    if message.data["homescreen_id"] == self.skill_id:
-                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
-                        cb(message)
-
-                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
-
-                def shutdown_handler(message):
-                    if message.data["id"] == self.skill_id:
-                        msg = message.forward("homescreen.manager.remove",
-                                              {"id": self.skill_id})
-                        self.bus.emit(msg)
-
-                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
-                break  # TODO - if multiple decorators are used what do? this is not deterministic
 
     def _start_filewatcher(self):
         """
@@ -1788,7 +1572,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             blacklist_name = intent_file.rsplit(".", 1)[0]
             try:
                 disallowed_strings += self._guarded(
-                    self._locale_resources.load_blacklist, blacklist_name,
+                    self.load_lang().load_blacklist, blacklist_name,
                     lang, default=[])
             except FileNotFoundError:
                 pass  # no sibling ".blacklist" file -> nothing to suppress
@@ -1797,7 +1581,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             # lists keywords of which one must occur for this intent to match
             try:
                 required_keywords = self._guarded(
-                    self._locale_resources.load_required_keywords,
+                    self.load_lang().load_required_keywords,
                     blacklist_name, lang, default=[])
             except FileNotFoundError:
                 required_keywords = []  # no sibling ".required" file
@@ -1813,7 +1597,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             for slot in declared_slots(samples):
                 try:
                     phrases = self._guarded(
-                        self._locale_resources.load_blacklist, slot, lang,
+                        self.load_lang().load_blacklist, slot, lang,
                         default=[])
                 except FileNotFoundError:
                     phrases = []
@@ -1828,7 +1612,7 @@ class OVOSSkill(_LegacyResourcesMixin):
                 blacklisted_words=disallowed_strings,
                 slot_blacklist=slot_blacklist,
                 required_keywords=required_keywords,
-                vocabs=self._guarded(self._locale_resources.vocabularies,
+                vocabs=self._guarded(self.load_lang().vocabularies,
                                      lang, default={}),
                 requires_context=requires_context,
                 excludes_context=excludes_context,
@@ -1881,7 +1665,7 @@ class OVOSSkill(_LegacyResourcesMixin):
             entity_file = entity_file.replace('.entity', '')
         for lang in self.native_langs:
             self._register_entity_file_for_lang(
-                entity_file, lang, self._locale_resources)
+                entity_file, lang, self.load_lang())
 
     def _register_entity_file_for_lang(self, entity_file: str, lang: str,
                                        resources: LocaleResources,
@@ -2022,12 +1806,12 @@ class OVOSSkill(_LegacyResourcesMixin):
         for path in sorted(lang_dir.rglob("*.entity")):
             by_name.setdefault(path.name, []).append(path)
         for paths in by_name.values():
-            path = self._shallowest(paths, lang_dir)
             if len(paths) > 1:
                 self._report_malformed(MalformedResource(
-                    f"duplicate resource {path.name!r}: using {path}, "
-                    f"ignoring "
-                    f"{', '.join(str(p) for p in paths if p != path)}"))
+                    f"duplicate resource {paths[0].name!r}: "
+                    f"{', '.join(str(p) for p in paths)}"))
+                continue
+            path = paths[0]
             # name relative to the language directory, extension stripped,
             # so entities in subfolders keep a stable/readable name
             # (e.g. "sub/foo" for "<lang_dir>/sub/foo.entity")
@@ -2904,7 +2688,7 @@ class OVOSSkill(_LegacyResourcesMixin):
         lang = standardize_lang(lang or self._resource_lang)
         cache_key = (self.res_dir, lang, voc_filename)
         if cache_key not in self._voc_cache:
-            vocab = self._guarded(self._locale_resources.voc_list,
+            vocab = self._guarded(self.load_lang().voc_list,
                                   voc_filename, lang, default=[])
             if vocab:
                 self._voc_cache[cache_key] = [v.lower() for v in vocab]
