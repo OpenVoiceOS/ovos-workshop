@@ -1,4 +1,0 @@
-ovos-core>=0.0.8a50
-pytest
-pytest-cov
-ovos-translate-server-plugin
