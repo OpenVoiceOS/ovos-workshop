@@ -58,10 +58,9 @@ class KeywordRegistrationTest(unittest.TestCase):
     def test_register_keyword(self):
         intent_service = self.intent_service = IntentServiceInterface(self.emitter)
         intent_service.register_adapt_keyword('test_intent', 'test', lang='en-US')
-        entity_data = {'entity_value': 'test', 'entity_type': 'test_intent', 'lang': 'en-US'}
-        compatibility_data = {'start': 'test', 'end': 'test_intent'}
-        expected_data = {**entity_data, **compatibility_data}
-        self.check_emitter([expected_data])
+        # without an alias the keyword registration carries the whole entry,
+        # so no legacy register_vocab repeats it
+        self.check_emitter([])
 
     def test_register_keyword_with_aliases(self):
         # TODO 22.02: Remove compatibility data
@@ -196,7 +195,8 @@ class UtteranceIntentRegistrationTest(unittest.TestCase):
         intent_service.register_padatious_intent('test', filename, lang='en-US')
         expected_data = {'file_name': '/tmp/test.intent', 'lang': 'en-US', 'name': 'test',
                          'samples': ['this is a test', 'test the intent'], 'blacklisted_words': None,
-                         'slot_blacklist': {}, 'requires_context': [], 'excludes_context': []}
+                         'slot_blacklist': {}, 'required_keywords': [], 'required_slots': [],
+                         'requires_context': [], 'excludes_context': []}
         self.check_emitter([expected_data])
 
     def test_register_intent_with_context_gating(self):
@@ -212,6 +212,8 @@ class UtteranceIntentRegistrationTest(unittest.TestCase):
         expected_data = {'file_name': '', 'lang': 'en-US', 'name': 'test',
                          'samples': ['this is a test', 'test the intent'],
                          'blacklisted_words': None, 'slot_blacklist': {},
+                         'required_keywords': [],
+                         'required_slots': [],
                          'requires_context': ["confirming"],
                          'excludes_context': [{"key": "active_room", "scope": "shared"}]}
         self.check_emitter([expected_data])

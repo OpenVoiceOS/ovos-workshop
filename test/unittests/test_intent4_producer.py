@@ -505,7 +505,8 @@ class LegacyVocabProducerIdentityTest(unittest.TestCase):
         # registration; disagreeing between them splits it across two owners.
         with patch("ovos_workshop.intents.dig_for_message",
                    return_value=self.foreign):
-            self.iface.register_adapt_keyword("setKW", "set", lang="en-US")
+            # an alias keeps the legacy register_vocab: only it carries alias_of
+            self.iface.register_adapt_keyword("setKW", "set", ["put"], lang="en-US")
             parser = IntentBuilder("set_it").require("setKW").build()
             self.iface.register_adapt_intent("set_it", parser)
         spec = self.bus.of_type(SpecMessage.INTENT_REGISTER_KEYWORD)

@@ -3,7 +3,7 @@ import time
 from os.path import exists
 from pathlib import Path
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 import re
 import warnings
 from ovos_bus_client.message import Message, dig_for_message
@@ -15,12 +15,12 @@ from ovos_utils.log import LOG, log_deprecation
 # OVOS-INTENT-4 keyword-intent definition primitives, re-exported from ovos-spec-tools.
 from ovos_spec_tools import (Intent, IntentBuilder, open_intent_envelope,
                              SpecMessage, INTENT_FILE_SUFFIX,
-                             declared_slot_types, inline_keywords, expand,
-                             MalformedTemplate)
+                             declared_slot_types, declared_slots,
+                             inline_keywords, expand, MalformedTemplate)
 from ovos_spec_tools.expansion import strip_type_prefixes
 from ovos_spec_tools.resources import read_resource_file
 
-from ovos_workshop.decorators import ContextGate
+from ovos_workshop.decorators import ContextGate, check_required_slots
 from ovos_workshop.version import VERSION_MAJOR
 
 # Deprecated adapt/padatious shims are removed in the next MAJOR release.
@@ -173,7 +173,22 @@ class _AdaptIntentApi:
                 (msg, vocab_type, entity, list(aliases) if aliases else [], lang))
 
     def _flush_legacy_vocab(self, intent_parser: object) -> None:
-        """Send the queued vocabulary an adapt intent is about to reference."""
+        """Send the queued vocabulary an adapt intent is about to reference.
+
+        The languages this intent's ``ovos.intent.register.keyword``
+        registration goes out in (``_spec_keyword_langs``, the only other
+        consumer of that computation) are carried here directly rather than
+        threaded in as an argument. That payload lists every sample of every
+        vocabulary the intent names, and the adapt engine registers each one
+        as it registers a legacy ``register_vocab`` that has no alias. Such a
+        queued entry is dropped instead of sent a second time: a skill that
+        names a few hundred stations in eleven languages otherwise sends
+        thousands of messages to say what one registration per language
+        already says. An entry with aliases still goes out, because only the
+        legacy topic carries ``alias_of``.
+        """
+        carried_langs = self._iface._spec_keyword_langs(intent_parser.name,
+                                                         intent_parser)
         referenced = [r[0] for r in intent_parser.requires] + \
             [o[0] for o in intent_parser.optional] + \
             [n for group in intent_parser.at_least_one for n in group] + \
@@ -182,6 +197,9 @@ class _AdaptIntentApi:
             key = self._iface._unmunge_vocab_name(vocab_type)
             self._vocab_in_use.add(key)
             for queued in self._pending_vocab.pop(key, []):
+                _msg, _vocab_type, _entity, aliases, lang = queued
+                if lang in carried_langs and not aliases:
+                    continue
                 self._send_legacy_register_vocab(*queued)
 
     def _send_legacy_register_vocab(self, msg: Message, vocab_type: str,
@@ -430,7 +448,9 @@ class _PadatiousIntentApi:
                                        file_name: str = '',
                                        slot_blacklist: Optional[Dict[str, List[str]]] = None,
                                        requires_context: Optional[List[ContextGate]] = None,
-                                       excludes_context: Optional[List[ContextGate]] = None):
+                                       excludes_context: Optional[List[ContextGate]] = None,
+                                       required_keywords: Optional[List[str]] = None,
+                                       required_slots: Optional[List[str]] = None):
         """Emit the legacy ``padatious:register_intent`` topic.
 
         TODO: drop once the padatious pipeline consumes ovos.intent.register.template (INTENT-4 §6) directly.
@@ -442,6 +462,8 @@ class _PadatiousIntentApi:
                                    'lang': lang,
                                    'blacklisted_words': blacklisted_words,
                                    'slot_blacklist': slot_blacklist or {},
+                                   'required_keywords': required_keywords or [],
+                                   'required_slots': required_slots or [],
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
                                    # extensions per INTENT-4 §5.3
@@ -498,7 +520,9 @@ class IntentServiceInterface:
         self.registered_intents: List[tuple] = []
         self.detached_intents: List[tuple] = []
         self._iterator_lock = RLock()
-        self._adapt_keyword_samples: dict = {}
+        # (vocab_type, lang) -> samples, a dict used as an ordered set:
+        # membership is O(1) and the payload keeps registration order
+        self._adapt_keyword_samples: Dict[tuple, Dict[str, None]] = {}
         self._adapt = _AdaptIntentApi(self)
         self._padatious = _PadatiousIntentApi(self)
 
@@ -541,10 +565,10 @@ class IntentServiceInterface:
         msg.context["skill_id"] = self.skill_id
         aliases = aliases or []
 
-        samples = self._adapt_keyword_samples.setdefault((vocab_type, lang), [])
+        samples = self._adapt_keyword_samples.setdefault((vocab_type, lang), {})
         for value in [entity, *aliases]:
-            if value and value not in samples:
-                samples.append(value)
+            if value:
+                samples[value] = None
 
         # TODO: drop once _AdaptIntentApi.emit_legacy_register_vocab is removed.
         self._adapt.emit_legacy_register_vocab(msg, vocab_type, entity,
@@ -557,7 +581,7 @@ class IntentServiceInterface:
         return vocab_type
 
     def _get_keyword_samples(self, vocab_type: str, lang: str
-                             ) -> Optional[List[str]]:
+                             ) -> Optional[Dict[str, None]]:
         """Look up cached samples for a (possibly munged) vocab type."""
         samples = self._adapt_keyword_samples.get((vocab_type, lang))
         if samples is None:
@@ -576,10 +600,11 @@ class IntentServiceInterface:
                                 "samples": list(samples)})
         return descriptors
 
-    def _emit_spec_keyword_intent(self, msg: Message, name: str,
-                                  intent_parser: object,
-                                  requires_context: Optional[List[ContextGate]] = None,
-                                  excludes_context: Optional[List[ContextGate]] = None):
+    def _spec_keyword_langs(self, name: str, intent_parser: object,
+                            warn: bool = False) -> Set[str]:
+        """The languages an ``ovos.intent.register.keyword`` registration of
+        this adapt intent goes out in: those where every vocabulary it names
+        has cached samples."""
         required_names = [r[0] for r in intent_parser.requires]
         optional_names = [o[0] for o in intent_parser.optional]
         one_of_groups = [list(g) for g in intent_parser.at_least_one]
@@ -589,15 +614,16 @@ class IntentServiceInterface:
                      set(excluded_names)
         for group in one_of_groups:
             referenced |= set(group)
+        carried: Set[str] = set()
         langs = {l for vt in referenced
                  for l in {l for (cvt, l) in self._adapt_keyword_samples
                           if cvt == vt or cvt == self._unmunge_vocab_name(vt)}}
         if not langs:
-            LOG.debug(f"no cached adapt vocab samples for intent {name}; "
-                      f"skipping {SpecMessage.INTENT_REGISTER_KEYWORD} emit")
-            return
+            if warn:
+                LOG.debug(f"no cached adapt vocab samples for intent {name}; "
+                          f"skipping {SpecMessage.INTENT_REGISTER_KEYWORD} emit")
+            return carried
 
-        intent_name = name.split(":")[-1] if name else name
         for lang in langs:
             # A vocabulary with no cached samples cannot be described in the
             # INTENT-4 payload. Dropping it from `required` / `optional` /
@@ -612,12 +638,27 @@ class IntentServiceInterface:
                 required_names + optional_names + excluded_names +
                 [n for group in one_of_groups for n in group], lang)
             if missing:
-                LOG.warning(
-                    f"not emitting {SpecMessage.INTENT_REGISTER_KEYWORD} for "
-                    f"intent {name} (lang={lang}): no vocabulary samples for "
-                    f"{sorted(missing)}; emitting would register the intent "
-                    f"without those constraints")
+                if warn:
+                    LOG.warning(
+                        f"not emitting {SpecMessage.INTENT_REGISTER_KEYWORD} for "
+                        f"intent {name} (lang={lang}): no vocabulary samples for "
+                        f"{sorted(missing)}; emitting would register the intent "
+                        f"without those constraints")
                 continue
+            carried.add(lang)
+        return carried
+
+    def _emit_spec_keyword_intent(self, msg: Message, name: str,
+                                  intent_parser: object,
+                                  requires_context: Optional[List[ContextGate]] = None,
+                                  excludes_context: Optional[List[ContextGate]] = None):
+        required_names = [r[0] for r in intent_parser.requires]
+        optional_names = [o[0] for o in intent_parser.optional]
+        one_of_groups = [list(g) for g in intent_parser.at_least_one]
+        excluded_names = list(intent_parser.excludes)
+
+        intent_name = name.split(":")[-1] if name else name
+        for lang in self._spec_keyword_langs(name, intent_parser, warn=True):
             payload = {
                 "skill_id": self.skill_id,
                 "intent_name": intent_name,
@@ -663,9 +704,10 @@ class IntentServiceInterface:
                 break
         if slot is not None and self.registered_intents[slot] == (name, intent_parser):
             return
-        self._adapt.emit_legacy_register_intent(msg, intent_parser,
-                                                 requires_context=requires_context,
-                                                 excludes_context=excludes_context)
+        self._adapt.emit_legacy_register_intent(
+            msg, intent_parser,
+            requires_context=requires_context,
+            excludes_context=excludes_context)
         self._emit_spec_keyword_intent(msg, name, intent_parser,
                                        requires_context=requires_context,
                                        excludes_context=excludes_context)
@@ -729,7 +771,10 @@ class IntentServiceInterface:
                           slot_blacklist: Optional[Dict[str, List[str]]] = None,
                           vocabs: Optional[Dict[str, List[str]]] = None,
                           requires_context: Optional[List[ContextGate]] = None,
-                          excludes_context: Optional[List[ContextGate]] = None):
+                          excludes_context: Optional[List[ContextGate]] = None,
+                          required_keywords: Optional[List[str]] = None,
+                          required_slots: Optional[List[str]] = None):
+        required_slots = check_required_slots(required_slots)
         # INTENT-4 §6.3: skip empty and non-string entries, don't abort.
         samples = [s for s in samples or [] if isinstance(s, str) and s.strip()]
         if not samples:
@@ -763,12 +808,24 @@ class IntentServiceInterface:
             LOG.warning(f"{self.skill_id}: not registering template "
                         f"'{intent_name}' ({lang}), it has no valid samples")
             return
+        # INTENT-3 §5.3 / INTENT-4 §6.3: a required slot that no valid
+        # template of this language declares can never be extracted, so the
+        # registration is malformed. Other languages register independently.
+        available = declared_slots(samples)
+        missing = [slot for slot in required_slots if slot not in available]
+        if missing:
+            LOG.warning(f"{self.skill_id}: not registering template "
+                        f"'{intent_name}' ({lang}), no template declares "
+                        f"required slot(s) {missing}")
+            return
         name = intent_name.split(':')[-1]
         data = {'file_name': file_name,
                 "samples": samples,
                 'name': intent_name,
                 'lang': lang,
                 'blacklisted_words': blacklisted_words,
+                'required_keywords': required_keywords or [],
+                'required_slots': required_slots,
                 # kept so a skill can resolve a slot's declared type when it
                 # reads OVOS-INTENT-1 §5.6 entries off a dispatch message
                 'slot_types': slot_types}
@@ -796,7 +853,9 @@ class IntentServiceInterface:
                                                        file_name,
                                                        slot_blacklist=slot_blacklist,
                                                        requires_context=requires_context,
-                                                       excludes_context=excludes_context)
+                                                       excludes_context=excludes_context,
+                                                       required_keywords=required_keywords,
+                                                       required_slots=required_slots)
         self.bus.emit(msg.forward(SpecMessage.INTENT_REGISTER_TEMPLATE,
                                   {"skill_id": self.skill_id,
                                    "intent_name": self._clean_padatious_name(intent_name),
@@ -804,6 +863,8 @@ class IntentServiceInterface:
                                    "samples": samples,
                                    "blacklist": blacklisted_words or [],
                                    "slot_blacklist": slot_blacklist or {},
+                                   "required_keywords": required_keywords or [],
+                                   "required_slots": required_slots,
                                    # OVOS-CONTEXT-1 §6/§6.1 gating
                                    # declarations, riding as unknown-field
                                    # extensions per INTENT-4 §5.3

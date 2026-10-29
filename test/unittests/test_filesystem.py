@@ -1,3 +1,4 @@
+import os
 import unittest
 import shutil
 from os import environ
@@ -36,3 +37,20 @@ class TestFilesystem(unittest.TestCase):
         self.assertIsNotNone(file)
         file.close()
         self.assertTrue(fs.exists("test.txt"))
+
+
+class TestFilesystemDirectoryRace(unittest.TestCase):
+    def test_existing_directory_when_isdir_reports_missing(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as base, \
+                patch.dict(environ, {"XDG_DATA_HOME": base}):
+            marker = join(base, "mycroft", "filesystem", "race", "kept.txt")
+            os.makedirs(dirname(marker))
+            with open(marker, "w") as f:
+                f.write("kept")
+            with patch("ovos_workshop.filesystem.isdir", return_value=False):
+                fs = FileSystemAccess("race")
+            self.assertEqual(fs.path, dirname(marker))
+            with fs.open("kept.txt", "r") as f:
+                self.assertEqual(f.read(), "kept")

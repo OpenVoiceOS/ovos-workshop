@@ -33,6 +33,8 @@ Resources live under `locale/<lang>/` (OVOS-INTENT-2 §2). The legacy `dialog/<l
 | `.intent` | Intent | Padatious training examples |
 | `.voc` | Vocabulary | Adapt keyword definitions (one keyword per line, first is canonical) |
 | `.entity` | Entity | Adapt entity examples |
+| `.blacklist` | Blacklist | Phrases that suppress the `.intent` of the same base name |
+| `.required` | Required keywords | Keywords of which one must occur for the `.intent` of the same base name to match |
 | `.rx` | Regex | Adapt regex patterns |
 | `.list` | List | A flat list resource |
 | `.word` | Word | A single word |
@@ -116,6 +118,29 @@ entries directly instead: `typed_slots(message, "date")` returns every date
 the engine found, in span order. The `typed_slots` map carries only types
 with at least one entry, so an empty list means no date is available,
 whatever the cause.
+
+## Required Keywords
+
+A `.required` file anchors an intent to words the utterance must contain
+(OVOS-INTENT-2 §4.5). It pairs by base name with one `.intent` and uses the
+slot-free format of a `.blacklist`: expansion `(a|b)` / `[x]` and inline
+`<name>` vocabulary references, no `{slot}`. The skill expands every line and
+sends the union as `required_keywords` on the intent's registration
+(OVOS-INTENT-4 §6.1). An engine rejects the intent for an utterance in which no
+keyword occurs as a contiguous run of whole words (OVOS-INTENT-3 §5.6).
+
+Use it when an engine that scores by meaning would match the same question
+about something else. An intent about one named person lists that person's
+name forms, so the same question about another person does not match:
+
+```
+# confucius_lifespan.required
+confucius
+(kong fuzi|kongzi)
+```
+
+Each locale lists its own name forms. A locale without the file has no
+keyword requirement.
 
 ## Entity Files (Padatious)
 

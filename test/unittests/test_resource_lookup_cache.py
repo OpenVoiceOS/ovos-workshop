@@ -16,6 +16,13 @@ def _touch(path: Path, text: str = "x\n"):
     path.write_text(text)
 
 
+def _bump_mtime(directory: Path):
+    """Move a directory's mtime a second forward, so a change is seen even
+    on a filesystem whose timestamps are too coarse to tell two writes apart."""
+    st = directory.stat()
+    os.utime(directory, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+
+
 class TestResourceLookupCache(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -63,6 +70,24 @@ class TestResourceLookupCache(unittest.TestCase):
 
     def test_missing_directory(self):
         self.assertEqual(match_lang_directories("en-US", [self.skill / "absent"]), [])
+
+    def test_exact_match_skips_distance_for_every_other_name(self):
+        """A skill whose locale tree ships far more languages than the hub
+        serves (ovos-skill-date-time: 65 directories vs. a typical skill's
+        handful) paid ovos_spec_tools' lang_matches/lang_distance once per
+        unmatched name per lookup -- measured 7-9s of an 11-language boot's
+        skill-load phase. An exact (case-insensitive) directory match is
+        the nearest any name can be, so it must not cost a distance call
+        for the other 64."""
+        for lang in (f"xx-{n:02d}" for n in range(60)):
+            _touch(self.skill / "locale" / lang / "intents" / "hello.intent")
+        resource_files._subdir_cache.clear()
+        with mock.patch.object(resource_files, "_lang_dir_distance",
+                               side_effect=AssertionError(
+                                   "distance scored for a name an exact "
+                                   "match already made unnecessary")):
+            result = locate_lang_directories("en-US", str(self.skill))
+        self.assertEqual(result, [self.skill / "locale" / "en-US"])
 
 
 if __name__ == "__main__":
@@ -136,8 +161,8 @@ class TestCachesSeeChangesDeepInTheTree(unittest.TestCase):
 
     def test_vocabulary_added_in_a_subdirectory_is_seen(self):
         self.assertNotIn("size", self.resources._locale_vocabularies())
-        time.sleep(0.01)
         _touch(self.skill / "locale" / "en-US" / "vocab" / "size.voc", "big\n")
+        _bump_mtime(self.skill / "locale" / "en-US" / "vocab")
         self.assertEqual(self.resources._locale_vocabularies()["size"], ["big"])
 
     def test_vocabulary_edited_in_place_is_reread(self):
@@ -185,8 +210,8 @@ class TestRevalidationWindow(unittest.TestCase):
 
     def test_change_seen_once_the_window_has_passed(self):
         self.assertNotIn("size", self.resources._locale_vocabularies())
-        time.sleep(0.01)
         _touch(self.skill / "locale" / "en-US" / "vocab" / "size.voc", "big\n")
+        _bump_mtime(self.skill / "locale" / "en-US" / "vocab")
         self.now[0] += resource_files._REVALIDATE_AFTER_S + 0.1
         self.assertEqual(self.resources._locale_vocabularies()["size"], ["big"])
         rt = ResourceType("intent", ".intent", "en-US")

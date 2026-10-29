@@ -86,7 +86,7 @@ from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
-from ovos_workshop.decorators import ContextGate
+from ovos_workshop.decorators import ContextGate, check_required_slots
 from ovos_workshop.exceptions import DialogNotFound
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
@@ -1190,9 +1190,12 @@ class OVOSSkill(_LegacyResourcesMixin):
                     voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
                     requires_context = method.requires_context if hasattr(method, 'requires_context') else []
                     excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
+                    required_slots = method.required_slots.get(intent) \
+                        if hasattr(method, 'required_slots') and isinstance(intent, str) else None
                     self.register_intent(intent, method, voc_blacklist=voc_blacklist,
                                          requires_context=requires_context,
-                                         excludes_context=excludes_context)
+                                         excludes_context=excludes_context,
+                                         required_slots=required_slots)
 
             if hasattr(method, 'intent_files'):
                 requires_context = method.requires_context if hasattr(method, 'requires_context') else []
@@ -1384,6 +1387,20 @@ class OVOSSkill(_LegacyResourcesMixin):
             self.add_event(f'{self.skill_id}.public_api',
                            self._send_public_api, speak_errors=False)
 
+    def _decline_converse(self, message: Message):
+        """Per-skill converse ping (pre-broadcast cores): a plain skill never converses."""
+        self.bus.emit(message.reply("skill.converse.pong",
+                                    data={"skill_id": self.skill_id, "can_handle": False},
+                                    context={"skill_id": self.skill_id}))
+
+    def _decline_converse_broadcast(self, message: Message):
+        """OVOS-CONVERSE-1 §4.2 broadcast ping: answer "no" when this skill is a candidate this round (§9.3)."""
+        session = SessionManager.get(message)
+        if any(h.get("skill_id") == self.skill_id for h in session.converse_handlers):
+            self.bus.emit(message.reply("ovos.converse.pong",
+                                        data={"skill_id": self.skill_id, "result": False},
+                                        context={"skill_id": self.skill_id}))
+
     def _register_system_event_handlers(self):
         """
         Register default messagebus event handlers
@@ -1407,6 +1424,12 @@ class OVOSSkill(_LegacyResourcesMixin):
         # Pre-spec cores emit only the per-skill twin; they get the same answer.
         self.add_event(f"{self.skill_id}.stop.ping", self._handle_stop_ack, speak_errors=False)
         self.add_event(f"{self.skill_id}.converse.get_response", self.__handle_get_response, speak_errors=False)
+        # A plain skill cannot converse, but ovos-core polls every dispatched skill and waits for ALL of them (up
+        # to 0.5 s per utterance). Until ovos-workshop #339 every skill answered "no"; restore that so the round
+        # closes at once. ConversationalSkill binds these topics with real answers, so bind only without it.
+        if not callable(getattr(self, "can_converse", None)):
+            self.add_event("ovos.converse.ping", self._decline_converse_broadcast, speak_errors=False)
+            self.add_event(f"{self.skill_id}.converse.ping", self._decline_converse, speak_errors=False)
 
         self.add_event('mycroft.skill.enable_intent', self.handle_enable_intent, speak_errors=False)
         self.add_event('mycroft.skill.disable_intent', self.handle_disable_intent, speak_errors=False)
@@ -1653,7 +1676,8 @@ class OVOSSkill(_LegacyResourcesMixin):
     def register_intent(self, intent_parser: Union[IntentBuilder, Intent, str],
                         handler: callable, voc_blacklist: Optional[List[str]] = None,
                         requires_context: Optional[List[ContextGate]] = None,
-                        excludes_context: Optional[List[ContextGate]] = None):
+                        excludes_context: Optional[List[ContextGate]] = None,
+                        required_slots: Optional[List[str]] = None):
         """
         Register an Intent with the intent service.
 
@@ -1673,13 +1697,19 @@ class OVOSSkill(_LegacyResourcesMixin):
             excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
                               entry shape and carry-through as
                               requires_context
+            required_slots: OVOS-INTENT-3 §5.3 required slot names, for a
+                            padatious intent file only
         """
         if isinstance(intent_parser, str):
             if not intent_parser.endswith('.intent'):
                 raise ValueError
             return self.register_intent_file(intent_parser, handler, voc_blacklist,
                                              requires_context=requires_context,
-                                             excludes_context=excludes_context)
+                                             excludes_context=excludes_context,
+                                             required_slots=required_slots)
+        if required_slots:
+            raise ValueError("required_slots applies to a template (.intent) "
+                             f"intent, not to {intent_parser!r}")
         return self._register_adapt_intent(intent_parser, handler,
                                            requires_context=requires_context,
                                            excludes_context=excludes_context)
@@ -1687,7 +1717,8 @@ class OVOSSkill(_LegacyResourcesMixin):
     def register_intent_file(self, intent_file: str, handler: callable,
                              voc_blacklist: Optional[List[str]] = None,
                              requires_context: Optional[List[ContextGate]] = None,
-                             excludes_context: Optional[List[ContextGate]] = None):
+                             excludes_context: Optional[List[ContextGate]] = None,
+                             required_slots: Optional[List[str]] = None):
         """Register an Intent file with the intent service.
 
         For example:
@@ -1716,7 +1747,12 @@ class OVOSSkill(_LegacyResourcesMixin):
                               {"key":..., "scope":...} mapping
             excludes_context: OVOS-CONTEXT-1 §6.1 gating declaration, same
                               entry shape as requires_context
+            required_slots: OVOS-INTENT-3 §5.3 bare slot names the engine
+                            MUST extract for a match. A locale whose
+                            templates do not declare each of them is not
+                            registered.
         """
+        required_slots = check_required_slots(required_slots)
         # OVOS-MSG-1 §2.1.1: the dispatch topic is `<skill_id>:<intent_name>`.
         # The intent NAME is the author's label for the intent, not the name of
         # the file the samples came from, so the `.intent` authoring extension
@@ -1748,6 +1784,15 @@ class OVOSSkill(_LegacyResourcesMixin):
             except FileNotFoundError:
                 pass  # no sibling ".blacklist" file -> nothing to suppress
 
+            # OVOS-INTENT-2 §4.5: a sibling "<intent>.required" locale file
+            # lists keywords of which one must occur for this intent to match
+            try:
+                required_keywords = self._guarded(
+                    self._locale_resources.load_required_keywords,
+                    blacklist_name, lang, default=[])
+            except FileNotFoundError:
+                required_keywords = []  # no sibling ".required" file
+
             # OVOS-INTENT-2 §4.3: for each "{slot}" the template declares, a
             # sibling "<slot>.blacklist" locale file lists slot-value
             # exclusions — values that MUST NOT bind to that slot (the
@@ -1773,10 +1818,12 @@ class OVOSSkill(_LegacyResourcesMixin):
                 name, samples, lang,
                 blacklisted_words=disallowed_strings,
                 slot_blacklist=slot_blacklist,
+                required_keywords=required_keywords,
                 vocabs=self._guarded(self._locale_resources.vocabularies,
                                      lang, default={}),
                 requires_context=requires_context,
-                excludes_context=excludes_context)
+                excludes_context=excludes_context,
+                required_slots=required_slots)
         if handler:
             # keyed canonically (bare, no "<skill_id>:" prefix, no ".intent"
             # suffix) so enable_intent()/disable_intent() can look the
@@ -3473,7 +3520,10 @@ class OVOSSkill(_LegacyResourcesMixin):
             # spelling -- a caller may legitimately ask for the canonical
             # name of a padatious (".intent"-authored) intent.
             if isinstance(intent, dict):
-                self.register_intent_file(f'{canonical}.intent', handler)
+                # OVOS-INTENT-3 §5.3: the declaration travels on every
+                # registration of the intent
+                self.register_intent_file(f'{canonical}.intent', handler,
+                                          required_slots=intent.get('required_slots'))
             else:
                 intent.name = intent_name
                 self.register_intent(intent, handler)

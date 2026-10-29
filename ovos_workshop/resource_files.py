@@ -102,6 +102,7 @@ SkillResourceTypes = namedtuple(
         "vocabulary",
         "word",
         "blacklist",
+        "required",
         "qml",
         "json"
     ]
@@ -168,7 +169,22 @@ def match_lang_directories(lang: str, base_dirs: List[Path]) -> List[Path]:
     """
     candidates = []
     for directory in base_dirs:
-        for name in _subdirectory_names(directory):
+        names = _subdirectory_names(directory)
+        # An exact (case-insensitive) directory match is the nearest any
+        # name can be, so trust it and skip every other name in this
+        # directory rather than scoring all of them. A skill that ships one
+        # locale directory per served language costs little either way, but
+        # one that ships far more than the hub serves (a skill with its own
+        # large multi-language locale tree, shared with skills that serve
+        # only a handful) paid ovos_spec_tools' lang_matches/lang_distance
+        # once per unmatched name per lookup -- measured 7-9s of an 11-
+        # language boot's skill-load phase on the skill with the fleet's
+        # largest locale tree (65 directories, ~130 files each).
+        exact = [name for name in names if name.lower() == lang.lower()]
+        if exact:
+            candidates += [(Path(directory, name), 0.0) for name in exact]
+            continue
+        for name in names:
             # ovos_spec_tools owns the language-distance policy and its
             # threshold; a directory whose name is not a usable match for
             # `lang` scores beyond it and is skipped.
@@ -256,7 +272,8 @@ def _tree_still_matches(signature) -> bool:
 #: every .voc the cached result was built from: about a quarter of a skill's
 #: load time on a hub serving 11 languages, more where the package lives on a
 #: network volume. A file added to an installed package is still seen, at most
-#: this many seconds later.
+#: this many seconds later. A file deleted or renamed in that window is still
+#: returned until then, so a read of it fails with FileNotFoundError.
 _REVALIDATE_AFTER_S = 2.0
 
 
@@ -502,6 +519,7 @@ class ResourceType:
             vocab="vocab",
             word="dialog",
             blacklist="vocab",
+            required="vocab",
             qml="gui"
         )
 
@@ -1020,7 +1038,8 @@ class BlacklistFile(ResourceFile):
         for phrase in phrases:
             if any(c in phrase for c in "(|[<"):
                 LOG.warning(
-                    f"blacklist entry {phrase!r} still carries unexpanded "
+                    f"{self.resource_type.file_extension} entry {phrase!r} "
+                    f"still carries unexpanded "
                     f"template syntax and will never match; fix the source "
                     f"line in {self.file_path}")
         return phrases
@@ -1040,6 +1059,13 @@ class _StrictDialogRenderer(MustacheDialogRenderer):
             raise DialogNotFound(template_name, self._language,
                                  self._searched)
         return super().render(template_name, context, index)
+
+
+class RequiredFile(BlacklistFile):
+    """Defines a required-keywords file (OVOS-INTENT-2 §4.5): a slot-free
+    list of keywords of which at least one must occur in an utterance for
+    the sibling intent (same base name) to match. It loads exactly as a
+    blacklist file does."""
 
 
 class SkillResources:
@@ -1063,6 +1089,9 @@ class SkillResources:
         self.types = self._define_resource_types()
         self._dialog_renderer = dialog_renderer
         self.static = dict()
+        # (directories, file signature, vocabularies, last check) of the last
+        # _locale_vocabularies() call, see there
+        self._vocabularies_memo: Optional[tuple] = None
 
     @property
     @deprecated("dialog_renderer is deprecated; dialog rendering is handled by "
@@ -1151,6 +1180,7 @@ class SkillResources:
             vocabulary=ResourceType("vocab", ".voc", self.language),
             word=ResourceType("word", ".word", self.language),
             blacklist=ResourceType("blacklist", ".blacklist", self.language),
+            required=ResourceType("required", ".required", self.language),
             qml=ResourceType("qml", ".qml"),
             json=ResourceType("json", ".json", self.language)
         )
@@ -1225,7 +1255,7 @@ class SkillResources:
         vocab_type = self.types.vocabulary
         cacheable = not vocab_type.user_directory
         if cacheable:
-            memo = getattr(self, "_vocabularies_memo", None)
+            memo = self._vocabularies_memo
             if memo is not None and memo[0] == (vocab_type.base_directory,
                                                 vocab_type.workshop_directory) \
                     and _still_fresh(memo[1], memo[3]):
@@ -1297,6 +1327,24 @@ class SkillResources:
         blacklist_file.skill_id = self.skill_id
         blacklist_file.vocabularies = self._locale_vocabularies()
         return blacklist_file.load()
+
+    def load_required_file(self, name: str) -> List[str]:
+        """
+        Loads the keywords contained in a required-keywords file.
+
+        A required-keywords file lists slot-free keywords, and the sibling
+        intent (the ``.intent`` sharing its base name) matches only when one
+        of them occurs in the utterance.
+
+        Args:
+            name: name of the required-keywords file (no extension needed)
+        Returns:
+            A list of required keywords, empty when the file does not exist
+        """
+        required_file = RequiredFile(self.types.required, name)
+        required_file.skill_id = self.skill_id
+        required_file.vocabularies = self._locale_vocabularies()
+        return required_file.load()
 
     def locate_qml_file(self, name: str) -> str:
         qml_file = QmlFile(self.types.qml, name)

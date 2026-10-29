@@ -1,12 +1,111 @@
 # Changelog
 
-## [9.8.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a1) (2026-10-08)
+## [9.10.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.10.0a1) (2026-10-29)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.15a1...9.8.16a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.9.0a1...9.10.0a1)
 
 **Merged pull requests:**
 
-- fix: common query answers reply on question:query.response [\#606](https://github.com/OpenVoiceOS/ovos-workshop/pull/606) ([JarbasAl](https://github.com/JarbasAl))
+- feat: send an intent's .required keywords on its registration [\#703](https://github.com/OpenVoiceOS/ovos-workshop/pull/703) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.9.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.9.0a1) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a7...9.9.0a1)
+
+**Merged pull requests:**
+
+- feat: declare an intent's required slots with its handler [\#734](https://github.com/OpenVoiceOS/ovos-workshop/pull/734) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.8.20a7](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a7) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a6...9.8.20a7)
+
+## [9.8.20a6](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a6) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a5...9.8.20a6)
+
+## [9.8.20a5](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a5) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a4...9.8.20a5)
+
+## [9.8.20a4](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a4) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a3...9.8.20a4)
+
+**Merged pull requests:**
+
+- translate\(gl-ES\): update cant\_load\_game.dialog [\#724](https://github.com/OpenVoiceOS/ovos-workshop/pull/724) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(gl-ES\): update skill.error.dialog [\#723](https://github.com/OpenVoiceOS/ovos-workshop/pull/723) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(gl-ES\): update cancel.voc [\#722](https://github.com/OpenVoiceOS/ovos-workshop/pull/722) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
+## [9.8.20a3](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a3) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a2...9.8.20a3)
+
+**Merged pull requests:**
+
+- translate\(gl-ES\): update cant\_save\_game.dialog [\#725](https://github.com/OpenVoiceOS/ovos-workshop/pull/725) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
+## [9.8.20a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a2) (2026-10-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.20a1...9.8.20a2)
+
+**Merged pull requests:**
+
+- translate\(gl-ES\): update game\_unpause.dialog [\#727](https://github.com/OpenVoiceOS/ovos-workshop/pull/727) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+- translate\(gl-ES\): update game\_pause.dialog [\#726](https://github.com/OpenVoiceOS/ovos-workshop/pull/726) ([ovos-localize[bot]](https://github.com/apps/ovos-localize))
+
+## [9.8.20a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.20a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.19a1...9.8.20a1)
+
+**Merged pull requests:**
+
+- fix: allow ovos-plugin-manager 3 [\#718](https://github.com/OpenVoiceOS/ovos-workshop/pull/718) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.8.19a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.19a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.18a1...9.8.19a1)
+
+**Merged pull requests:**
+
+- fix: create directories with exist\_ok [\#719](https://github.com/OpenVoiceOS/ovos-workshop/pull/719) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.8.18a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.18a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.17a1...9.8.18a1)
+
+**Merged pull requests:**
+
+- fix: make pyproject.toml parse again [\#716](https://github.com/OpenVoiceOS/ovos-workshop/pull/716) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.8.17a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.17a1) (2026-10-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.16a2...9.8.17a1)
+
+**Merged pull requests:**
+
+- fix: plain skills decline the converse poll again \(regression from \#339\) [\#714](https://github.com/OpenVoiceOS/ovos-workshop/pull/714) ([mikejgray](https://github.com/mikejgray))
+- fix: ship locale JSON resources in the built wheel [\#691](https://github.com/OpenVoiceOS/ovos-workshop/pull/691) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [9.8.16a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a2) (2026-10-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.16a1...9.8.16a2)
+
+**Merged pull requests:**
+
+- perf: an exact language-directory match skips scoring every other name [\#711](https://github.com/OpenVoiceOS/ovos-workshop/pull/711) ([goldyfruit](https://github.com/goldyfruit))
+- perf: dedupe a vocabulary's keyword samples with a set [\#710](https://github.com/OpenVoiceOS/ovos-workshop/pull/710) ([goldyfruit](https://github.com/goldyfruit))
+- docs: a file deleted inside the revalidation window is still returned [\#709](https://github.com/OpenVoiceOS/ovos-workshop/pull/709) ([goldyfruit](https://github.com/goldyfruit))
+- refactor: initialise the vocabulary memo in \_\_init\_\_, no getattr [\#708](https://github.com/OpenVoiceOS/ovos-workshop/pull/708) ([goldyfruit](https://github.com/goldyfruit))
+- perf: send a vocabulary entry once when the keyword registration carries it [\#707](https://github.com/OpenVoiceOS/ovos-workshop/pull/707) ([goldyfruit](https://github.com/goldyfruit))
+- perf: re-check a cached resource tree at most every 2 seconds [\#706](https://github.com/OpenVoiceOS/ovos-workshop/pull/706) ([goldyfruit](https://github.com/goldyfruit))
+- perf: bulk-loaded vocabulary reaches adapt only for the intents that use it [\#705](https://github.com/OpenVoiceOS/ovos-workshop/pull/705) ([goldyfruit](https://github.com/goldyfruit))
+- perf: memoize locale directory listings, resource file lookups and vocabularies [\#704](https://github.com/OpenVoiceOS/ovos-workshop/pull/704) ([goldyfruit](https://github.com/goldyfruit))
+
+## [9.8.16a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.16a1) (2026-10-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.15a1...9.8.16a1)
 
 ## [9.8.15a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.15a1) (2026-10-08)
 
@@ -83,10 +182,6 @@
 ## [9.8.8a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.8a1) (2026-09-24)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.7a1...9.8.8a1)
-
-**Merged pull requests:**
-
-- fix: cross-skill context writes go to the session; the legacy topics stay as compat [\#629](https://github.com/OpenVoiceOS/ovos-workshop/pull/629) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
 ## [9.8.7a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.7a1) (2026-09-23)
 
@@ -215,41 +310,21 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a2...9.8.5a1)
 
-**Merged pull requests:**
-
-- fix: say that a naive schedule time is read in the configured timezone [\#630](https://github.com/OpenVoiceOS/ovos-workshop/pull/630) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-
 ## [9.8.4a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a2) (2026-09-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.4a1...9.8.4a2)
-
-**Merged pull requests:**
-
-- docs: point manual links at OpenVoiceOS/beta-technical-manual [\#598](https://github.com/OpenVoiceOS/ovos-workshop/pull/598) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.8.4a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.4a1) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.3a1...9.8.4a1)
 
-**Merged pull requests:**
-
-- fix: scheduler delegation test reads skill\_id, not owner [\#608](https://github.com/OpenVoiceOS/ovos-workshop/pull/608) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.8.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.3a1) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.2a2...9.8.3a1)
 
-**Merged pull requests:**
-
-- fix: the legacy register\_vocab names the registering skill [\#622](https://github.com/OpenVoiceOS/ovos-workshop/pull/622) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.8.2a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.2a2) (2026-09-16)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.2a1...9.8.2a2)
-
-**Merged pull requests:**
-
-- test: the canonical fallback pong needs the spec-tools mapping floor [\#624](https://github.com/OpenVoiceOS/ovos-workshop/pull/624) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.8.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.2a1) (2026-09-16)
 
@@ -263,30 +338,13 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.1a1...9.8.1a2)
 
-**Closed issues:**
-
-- OVOSSkill.voc\_list ignores its lang argument [\#610](https://github.com/OpenVoiceOS/ovos-workshop/issues/610)
-
-**Merged pull requests:**
-
-- ci: coverage installs the pyproject test extra; drop requirements/test.txt [\#631](https://github.com/OpenVoiceOS/ovos-workshop/pull/631) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-
 ## [9.8.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.1a1) (2026-09-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.8.0a1...9.8.1a1)
 
-**Merged pull requests:**
-
-- fix: honour the requested lang in OVOSSkill.voc\_list [\#627](https://github.com/OpenVoiceOS/ovos-workshop/pull/627) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
-- translate\(da-DK\): add missing locale files [\#616](https://github.com/OpenVoiceOS/ovos-workshop/pull/616) ([andlo](https://github.com/andlo))
-
 ## [9.8.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.8.0a1) (2026-09-09)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.3a1...9.8.0a1)
-
-**Merged pull requests:**
-
-- feat: emit ovos.skill.loaded with derived capabilities [\#623](https://github.com/OpenVoiceOS/ovos-workshop/pull/623) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.7.3a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.3a1) (2026-09-08)
 
@@ -296,43 +354,21 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.2a1...9.7.4a1)
 
-**Merged pull requests:**
-
-- fix: stamp the registering skill on every INTENT-4 registration [\#617](https://github.com/OpenVoiceOS/ovos-workshop/pull/617) ([JarbasAl](https://github.com/JarbasAl))
-- fix: answer the STOP-1 broadcast ovos.stop.ping [\#612](https://github.com/OpenVoiceOS/ovos-workshop/pull/612) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.7.2a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.2a1) (2026-09-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.1a1...9.7.2a1)
-
-**Merged pull requests:**
-
-- fix: key resource caches by resource directory [\#613](https://github.com/OpenVoiceOS/ovos-workshop/pull/613) ([JarbasAl](https://github.com/JarbasAl))
-- fix: stamp the calling skill on ovos.intent.deregister context [\#609](https://github.com/OpenVoiceOS/ovos-workshop/pull/609) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.7.1a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.1a1) (2026-09-08)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.0a2...9.7.1a1)
 
-**Merged pull requests:**
-
-- fix: assert the scheduler record's skill\_id, not the retired owner [\#614](https://github.com/OpenVoiceOS/ovos-workshop/pull/614) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.7.0a2](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.0a2) (2026-09-06)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.7.0a1...9.7.0a2)
 
-**Merged pull requests:**
-
-- docs: typed slots carry only types with entries [\#601](https://github.com/OpenVoiceOS/ovos-workshop/pull/601) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [9.7.0a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.7.0a1) (2026-09-06)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-workshop/compare/9.6.9a1...9.7.0a1)
-
-**Merged pull requests:**
-
-- feat: typed slots — slot\_types on registration and a typed value helper \(INTENT-4 §6.1, INTENT-1 §5.6\) [\#599](https://github.com/OpenVoiceOS/ovos-workshop/pull/599) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [9.6.9a1](https://github.com/OpenVoiceOS/ovos-workshop/tree/9.6.9a1) (2026-09-05)
 

@@ -17,7 +17,9 @@ were revalidated on every lookup by stat'ing every directory walked and every
 hub serving 11 languages that was about a quarter of each skill's load time.
 A cached result whose tree was found unchanged less than 2 seconds ago is now
 reused without checking it again. A file added to or edited in an installed
-skill is still seen, at most 2 seconds later.
+skill is still seen, at most 2 seconds later. A file deleted or renamed in
+that window can still be returned by a lookup until then, and reading it
+raises `FileNotFoundError`.
 
 ## 9.6.2a4 — `intent_files` decorator registrations now carry context gates
 

@@ -85,8 +85,11 @@ class TestIntent4ProducerE2E:
         assert len(kw) == 1, "spec keyword topic did not flow on the real bus"
         # legacy register_intent dual-emitted (NOT bridged: not in MIGRATION_MAP)
         assert len(_of_type(self.mc, "register_intent")) >= 1
-        # legacy register_vocab also went out for the adapt vocab
-        assert len(_of_type(self.mc, "register_vocab")) >= 1
+        # every entity the fixture skill registers goes in without an alias,
+        # and the one keyword registration above already carries all of them
+        # in en-US: the legacy register_vocab for each is suppressed instead
+        # of being sent a second time (workshop#707).
+        assert len(_of_type(self.mc, "register_vocab")) == 0
 
     def test_keyword_identity_and_descriptors(self):
         """§3.2 identity + §5.1/§5.2 inlined ``{name, samples}`` descriptors,
