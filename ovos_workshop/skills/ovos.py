@@ -13,9 +13,10 @@
 # limitations under the License.
 import binascii
 import datetime
+import json
 import os
+import random
 import re
-import shutil
 import string
 import sys
 import time
@@ -23,7 +24,6 @@ import traceback
 import unicodedata
 from copy import copy
 from inspect import signature
-from itertools import chain
 from os.path import join, abspath, dirname, basename, isfile
 from pathlib import Path
 from queue import Queue
@@ -59,33 +59,38 @@ from ovos_spec_tools import (REGISTERED_TYPES, SpecMessage,
 from ovos_spec_tools.resources import read_resource_file
 from ovos_config.config import Configuration
 from ovos_config.locale import get_config_tz
-from ovos_config.locations import get_xdg_cache_save_path
 from ovos_config.locations import get_xdg_config_save_path
+from ovos_config.locations import get_xdg_data_save_path
+from ovos_spec_tools import (LocaleResources, MalformedResource,
+                              MalformedTemplate, UnfilledSlot, find_lang_dir,
+                              render, strip_samples,
+                              utterance_contains)
 from ovos_number_parser import pronounce_number
 from ovos_option_matcher_fuzzy import FuzzyOptionMatcherPlugin
 from ovos_plugin_manager.agents import load_yesno_plugin, load_option_matcher_plugin
 from ovos_plugin_manager.language import OVOSLangTranslationFactory, OVOSLangDetectionFactory
 from ovos_plugin_manager.templates.agents import YesNoEngine, OptionMatcherEngine
-from ovos_utils import camel_case_split, classproperty
-from ovos_utils.dialog import MustacheDialogRenderer
+from ovos_utils import camel_case_split
 from ovos_utils.events import EventContainer, get_handler_name, create_wrapper
 from ovos_utils.time import now_local
 from ovos_utils.file_utils import FileWatcher
 from ovos_utils.gui import get_ui_directories
 from ovos_utils.json_helper import merge_dict
 from ovos_utils.log import LOG, log_deprecation
-from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap, RuntimeRequirements
+from ovos_utils.process_utils import ProcessStatus, StatusCallbackMap
 from ovos_utils.skills import get_non_properties
 from ovos_utils.text_utils import remove_accents_and_punct
 from ovos_yes_no import HeuristicYesNoEngine
 
 from ovos_workshop.decorators import ContextGate, check_required_slots
+from ovos_workshop.exceptions import DialogNotFound
 from ovos_workshop.decorators.killable import AbortEvent, killable_event, AbortQuestion
 from ovos_workshop.decorators.layers import IntentLayers
 from ovos_workshop.filesystem import FileSystemAccess
-from ovos_workshop.intents import IntentBuilder, Intent, IntentServiceInterface
-from ovos_workshop.resource_files import ResourceFile, find_resource, SkillResources
+from ovos_workshop.intents import IntentBuilder, Intent, munge_intent_parser, IntentServiceInterface
 from ovos_workshop.settings import PrivateSettings
+from ovos_workshop.skills._legacy_resources import (
+    _LegacyLocaleResources, _LegacyResourcesMixin)
 from ovos_workshop.skills.capabilities import get_skill_capabilities
 from ovos_workshop.skills.util import join_word_list, simple_trace
 from ovos_workshop.version import VERSION_MAJOR
@@ -114,7 +119,7 @@ def _is_typed_entry(entry: Any) -> bool:
 _NAIVE_WHEN_WARNED = False
 
 
-class OVOSSkill:
+class OVOSSkill(_LegacyResourcesMixin):
     """
     Base class for OpenVoiceOS skills providing common behaviour and parameters
     to all Skill implementations.
@@ -161,6 +166,13 @@ class OVOSSkill:
         self.root_dir = dirname(abspath(sys.modules[self.__module__].__file__))
         self.res_dir = resources_dir or self.root_dir
 
+        # per-root LocaleResources cache, lazily populated by load_lang
+        # so post-init res_dir mutations (legitimate for fixture-driven
+        # tests and live-reload skills) take effect on the next access.
+        self._lang_resources = {}
+        # resource files already reported as malformed
+        self._malformed_reported: Set[str] = set()
+
         self.gui = gui
         self._bus = bus
         self._enclosure = EnclosureAPI()
@@ -197,9 +209,6 @@ class OVOSSkill:
         # remembers the handler bound to each intent name so that
         # enable_intent() can rebind it after disable_intent() detaches it
         self._intent_handlers: Dict[str, callable] = {}
-
-        # loaded lang file resources
-        self._lang_resources = {}
 
         # OVOS-INTENT-3 §auto-entity: tracks which (resource directory,
         # lang) pairs already had their locale .entity files auto-discovered
@@ -279,43 +288,6 @@ class OVOSSkill:
         pass
 
     # skill class properties
-    @classproperty
-    def runtime_requirements(self) -> RuntimeRequirements:
-        """
-        Override to specify what a skill expects to be available at init and at
-        runtime. Default will assume network and internet are required and GUI
-        is not required for backwards-compat.
-
-        some examples:
-
-        IOT skill that controls skills via LAN could return:
-        scans_on_init = True
-        RuntimeRequirements(internet_before_load=False,
-                            network_before_load=scans_on_init,
-                            requires_internet=False,
-                            requires_network=True,
-                            no_internet_fallback=True,
-                            no_network_fallback=False)
-
-        online search skill with a local cache:
-        has_cache = False
-        RuntimeRequirements(internet_before_load=not has_cache,
-                            network_before_load=not has_cache,
-                            requires_internet=True,
-                            requires_network=True,
-                            no_internet_fallback=True,
-                            no_network_fallback=True)
-
-        a fully offline skill:
-        RuntimeRequirements(internet_before_load=False,
-                            network_before_load=False,
-                            requires_internet=False,
-                            requires_network=False,
-                            no_internet_fallback=True,
-                            no_network_fallback=True)
-        """
-        return RuntimeRequirements()
-
     @property
     def is_fully_initialized(self) -> bool:
         """
@@ -501,14 +473,109 @@ class OVOSSkill:
             raise TypeError(f"Expected a MessageBusClient, got: {type(value)}")
 
     # magic properties -> depend on message.context / Session
-    @property
-    def dialog_renderer(self) -> Optional[MustacheDialogRenderer]:
+    def render_dialog(self, name: str, data: Optional[dict] = None,
+                      lang: Optional[str] = None) -> str:
         """
-        Get a dialog renderer for this skill. Language will be determined by
-        message history to match the language associated with the current
-        session or else from Configuration.
+        Render a random phrase from a ``.dialog`` file for the skill's current
+        language, filling ``{name}`` slots from ``data``.
+
+        When the specification rejects some phrases of the dialog, the
+        phrases that are valid for `data` are spoken.
+
+        Args:
+            name: a dialog file name (no extension)
+            data: values used to fill the dialog's named slots
+            lang: language of the dialog (default self.lang)
+        Returns:
+            A rendered phrase ready for text-to-speech.
+        Raises:
+            DialogNotFound: no ``.dialog`` file for `name` exists in the
+                current language, or no renderer can produce a sentence
+                from it.
         """
-        return self.resources.dialog_renderer
+        lang = standardize_lang(lang or self.lang)
+        try:
+            phrases = self.load_lang().load_dialog(name, lang)
+        except FileNotFoundError:
+            raise DialogNotFound(name, lang, self._dialog_dirs()) from None
+        except MalformedResource as err:
+            self._report_malformed(err)
+            raise DialogNotFound(name, lang, self._dialog_dirs(),
+                                 reason=str(err)) from None
+        vocabularies = self._guarded(
+            self.load_lang().vocabularies, lang, default={})
+        try:
+            return render(phrases, slots=data, vocabularies=vocabularies)
+        except MalformedTemplate as err:
+            whole = str(err)
+        # the specification rejects part of the dialog: speak the phrases that
+        # are valid for this data
+        valid, rejected = [], []
+        for phrase in phrases:
+            try:
+                valid.append(render([phrase], slots=data,
+                                    vocabularies=vocabularies))
+            except MalformedTemplate as err:
+                rejected.append(f"{phrase!r}: {err}")
+            except UnfilledSlot:
+                rejected.append(f"{phrase!r}: slot not filled")
+        found = self._guarded(self.load_lang().find, name, ".dialog",
+                              lang, default=None)
+        self._report_malformed(MalformedTemplate(
+            f"dialog {found or name} is rejected as a whole ({whole})"
+            f"{': ' + '; '.join(rejected) if rejected else ''}"))
+        if not valid:
+            raise DialogNotFound(name, lang, self._dialog_dirs(),
+                                 reason=f"no phrase of {found} renders ({whole}): "
+                                        f"{'; '.join(rejected)}")
+        return random.choice(valid)
+
+    def _dialog_or_text(self, dialog: str, data: Optional[dict]) -> str:
+        """Render a prompt that is a dialog name or the text itself.
+
+        `get_response`, `ask_yesno` and `ask_selection` take "a dialog
+        resource or string". A skill builds a prompt at runtime, for example
+        from a generated sentence or a search result, so no dialog file can
+        exist for it: when no locale ships a file with that name, the text is
+        the prompt. A dialog that exists but cannot render in the current
+        language still raises.
+        """
+        try:
+            return self.render_dialog(dialog, data)
+        except DialogNotFound as err:
+            target = f"{dialog}.dialog".lower()
+            ships_dialog = any(file.lower() == target
+                               for directory in self._dialog_dirs()
+                               for _, _, files in os.walk(directory)
+                               for file in files)
+            if err.reason or ships_dialog:
+                raise
+            return dialog
+
+    def _dialog_dirs(self) -> List[str]:
+        """The locale directories a dialog is looked up in, user first."""
+        dirs = [join(self.res_dir, "locale"),
+                join(dirname(dirname(abspath(__file__))), "locale")]
+        if self.skill_id:
+            dirs.insert(0, join(get_xdg_data_save_path(), "resources",
+                                self.skill_id))
+        return dirs
+
+    def _report_malformed(self, err: Exception):
+        """Log a malformed resource once; the resource is then skipped."""
+        reason = str(err)
+        if reason not in self._malformed_reported:
+            self._malformed_reported.add(reason)
+            self.log.warning(f"malformed resource: {reason}")
+
+    def _guarded(self, loader: Callable, *args, default):
+        """Call a resource loader; a malformed resource is reported and
+        `default` is returned in its place."""
+        try:
+            return loader(*args)
+        except (MalformedResource, MalformedTemplate) as err:
+            self._report_malformed(err)
+            return default
 
     @property
     def system_unit(self) -> str:
@@ -607,127 +674,99 @@ class OVOSSkill:
                      if lang != self.core_lang] + [self.core_lang])
         return list(valid)
 
-    @property
-    def resources(self) -> SkillResources:
-        """
-        Get a SkillResources object for the current language. Objects are
-        initialized for the current language as needed.
-        """
-        return self.load_lang(self.res_dir, self.lang)
-
     # resource file loading
     def load_lang(self, root_directory: Optional[str] = None,
-                  lang: Optional[str] = None) -> SkillResources:
+                  lang: Optional[str] = None) -> LocaleResources:
         """
-        Get a SkillResources object for this skill in the requested `lang` for
-        resource files in the requested `root_directory`.
-        @param root_directory: root path to find resources (default res_dir)
-        @param lang: language to get resources for (default self.lang)
-        @return: SkillResources object
+        Get a :class:`~ovos_spec_tools.LocaleResources` object for this skill.
+
+        The first load of a (resource directory, language) pair also registers
+        every shipped ``.entity`` file for that language, so it reaches the
+        matcher before any ``.intent`` template that references it.
+
+        @param root_directory: skill root path containing ``locale/``
+            (default res_dir)
+        @param lang: language whose ``.entity`` files are auto-registered
+            (default every native language); the returned object serves every
+            language
+        @return: LocaleResources object
         """
-        lang = standardize_lang(lang or self.lang)
         root_directory = root_directory or self.res_dir
+        lang = standardize_lang(lang) if lang else None
         key = (root_directory, lang)
         if key not in self._lang_resources:
-            self._lang_resources[key] = SkillResources(root_directory, lang,
-                                                       skill_id=self.skill_id)
-            # OVOS-INTENT-3 §auto-entity: register every shipped .entity file
-            # for this lang the first time its resources are loaded, so it
-            # reaches the matcher in the same batch as (and strictly before)
-            # any .intent template that references it. register_intent_file
-            # calls load_lang() before building/emitting its own template,
-            # so hooking the cache-miss path here guarantees ordering without
-            # requiring skill authors to call register_entity_file() at all.
-            self._auto_register_entity_files(lang, self._lang_resources[key])
-        return self._lang_resources[key]
-
-    def load_dialog_files(self, root_directory: Optional[str] = None):
-        """
-        Load dialog files for all configured languages
-        @param root_directory: Directory to locate resources in
-            (default self.res_dir)
-        """
-        root_directory = root_directory or self.res_dir
-        # If "<skill>/dialog/<lang>" exists, load from there. Otherwise,
-        # load dialog from "<skill>/locale/<lang>"
-        for lang in self.native_langs:
-            resources = self.load_lang(root_directory, lang)
-            if resources.types.dialog.base_directory is None:
-                self.log.debug(f'No dialog loaded for {lang}')
+            workshop_locale = join(dirname(dirname(abspath(__file__))),
+                                   "locale")
+            user_locale = join(get_xdg_data_save_path(), "resources",
+                               self.skill_id) if self.skill_id else None
+            self._lang_resources[key] = _LegacyLocaleResources(
+                skill_locale=join(root_directory, "locale"),
+                core_locale=workshop_locale,
+                user_locale=user_locale,
+                skill_directory=root_directory, skill_id=self.skill_id,
+                default_lang=lambda: self.lang, lang=lang)
+        resources = self._lang_resources[key]
+        for entity_lang in [standardize_lang(lang)] if lang \
+                else self.native_langs:
+            self._auto_register_entity_files(entity_lang, resources,
+                                             root_directory)
+        return resources
 
     def load_data_files(self, root_directory: Optional[str] = None):
         """
-        Called by the skill loader to load intents, dialogs, etc.
+        Called by the skill loader to load file-based vocabulary.
+
+        ``.dialog``/``.intent``/``.entity`` resources are loaded lazily by
+        :class:`~ovos_spec_tools.LocaleResources`; only ``.voc`` resources need
+        eager registration with the adapt intent service.
 
         Args:
             root_directory (str): root folder to use when loading files.
         """
         root_directory = root_directory or self.res_dir
-        self.load_dialog_files(root_directory)
         self.load_vocab_files(root_directory)
+        # legacy adapt-style regex resources; silent unless a .rx exists
         self.load_regex_files(root_directory)
 
     def load_vocab_files(self, root_directory: Optional[str] = None):
-        """ Load vocab files found under skill's root directory."""
-        root_directory = root_directory or self.res_dir
+        """Load ``.voc`` files under the skill's ``locale/`` directory and
+        register each template line as a single keyword with adapt — the
+        canonical entity comes first, aliases canonicalize to it
+        (OVOS-INTENT-2 §4.3 / :func:`ovos_spec_tools.keyword_form`)."""
+        resources = self.load_lang(root_directory or self.res_dir)
+        workshop_locale = Path(dirname(dirname(abspath(__file__))), "locale")
         for lang in self.native_langs:
-            resources = self.load_lang(root_directory, lang)
-            if resources.types.vocabulary.base_directory is None:
-                self.log.debug(f'No vocab loaded for {lang}')
-            else:
-                skill_vocabulary = resources.load_skill_vocabulary(
-                    self.alphanumeric_skill_id
-                )
-                # For each found intent register the default along with any aliases
-                for vocab_type in skill_vocabulary:
-                    for line in skill_vocabulary[vocab_type]:
-                        entity = line[0]
-                        aliases = line[1:]
-                        self.intent_service.register_keyword(
-                            vocab_type, entity, aliases, lang)
+            keywords = self._guarded(
+                lambda: list(resources.vocabulary_keywords(lang)),
+                default=[])
+            for voc_name, entity, aliases in keywords:
+                try:
+                    path = resources.find(voc_name, ".voc", lang)
+                except MalformedResource:
+                    continue  # reported where the vocabulary is used
+                # the workshop's own .voc files (cancel.voc) serve voc_match;
+                # they are not keywords of the skill
+                if path is None or workshop_locale in path.parents:
+                    continue
+                # keep exact filename case: str.title() lowercases multi-word
+                # CamelCase names ("HelloWorldKeyword" -> "Helloworldkeyword"),
+                # breaking IntentBuilder.require() lookups (#485/#491)
+                vocab_type = self.alphanumeric_skill_id + voc_name
+                self.intent_service.register_keyword(
+                    vocab_type, entity, aliases, lang)
 
-    def load_regex_files(self, root_directory: Optional[str] = None) -> None:
-        """ Load regex files found under the skill directory."""
-        root_directory = root_directory or self.res_dir
-        for lang in self.native_langs:
-            resources = self.load_lang(root_directory, lang)
-            if resources.types.regex.base_directory is not None:
-                regexes = resources.load_skill_regex(self.alphanumeric_skill_id)
-                for regex in regexes:
-                    self.intent_service.register_adapt_regex(regex, lang)
+    def _locate_lang_file(self, name: str, ext: str,
+                          lang: str) -> Optional[str]:
+        """Resolve the on-disk path of a spec resource file.
 
-    def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
-                      lang: Optional[str] = None) -> Optional[str]:
+        A resource that OVOS-INTENT-2 §2 calls malformed, such as two files
+        that share a base name, is reported and resolves to None.
         """
-        Find a resource file.
-
-        Searches for the given filename using this scheme:
-            1. Search the resource lang directory:
-                <skill>/<res_dirname>/<lang>/<res_name>
-            2. Search the resource directory:
-                <skill>/<res_dirname>/<res_name>
-
-            3. Search the locale lang directory or other subdirectory:
-                <skill>/locale/<lang>/<res_name> or
-                <skill>/locale/<lang>/.../<res_name>
-
-        Args:
-            res_name (string): The resource name to be found
-            res_dirname (string, optional): A skill resource directory, such
-                                            'dialog', 'vocab', 'regex' or 'ui'.
-                                            Defaults to None.
-            lang (string, optional): language folder to be used.
-                                     Defaults to self.lang.
-
-        Returns:
-            string: The full path to the resource file or None if not found
-        """
-        lang = standardize_lang(lang or self.lang)
-        x = find_resource(res_name, self.res_dir, res_dirname, lang)
-        if x:
-            return str(x)
-        self.log.error(f"Skill {self.skill_id} resource '{res_name}' for lang "
-                       f"'{lang}' not found in skill")
+        if name.endswith(ext):
+            name = name[:-len(ext)]
+        path = self._guarded(self.load_lang().find, name, ext, lang,
+                             default=None)
+        return str(path) if path is not None else None
 
     # skill object setup
     def _handle_first_run(self) -> None:
@@ -737,9 +776,14 @@ class OVOSSkill:
         intro = self.get_intro_message()
         if intro:
             # supports .dialog files for easy localization
-            # when .dialog does not exist, the text is spoken
-            # it is backwards compatible
-            self.speak_dialog(intro)
+            # the intro may be text built at runtime; with no .dialog file
+            # the text itself is spoken, a dialog that cannot render raises
+            try:
+                self.speak_dialog(intro)
+            except DialogNotFound as err:
+                if err.reason:
+                    raise
+                self.speak(intro)
 
     def _check_for_first_run(self) -> None:
         """
@@ -840,37 +884,18 @@ class OVOSSkill:
         """Load skill.json metadata found under locale folder and register with homescreen"""
         root_directory = root_directory or self.res_dir
         for lang in self.native_langs:
-            resources = self.load_lang(root_directory, lang)
-            if resources.types.json.base_directory is None:
+            lang_dir = find_lang_dir(join(root_directory, "locale"), lang)
+            json_path = join(lang_dir, "skill.json") if lang_dir else None
+            if not json_path or not isfile(json_path):
                 self.log.debug(f'No skill.json loaded for {lang}')
             else:
-                skill_meta = resources.load_json_file("skill.json")
+                with open(json_path) as f:
+                    skill_meta = json.load(f)
                 utts = skill_meta.get("examples", [])
                 if utts:
                     self.log.info(f"Registering example utterances with homescreen for lang: {lang} - {utts}")
                     self.bus.emit(Message("homescreen.register.examples",
                                           {"skill_id": self.skill_id, "utterances": utts, "lang": lang}))
-
-    def _register_app_launcher(self):
-        # register app launcher if registered via decorator
-        for attr_name in get_non_properties(self):
-            method = getattr(self, attr_name)
-            if hasattr(method, 'homescreen_app_icon'):
-                name = getattr(method, 'homescreen_app_name')
-                event = f"{self.skill_id}.{name or method.__name__}.homescreen.app"
-                icon = getattr(method, 'homescreen_app_icon')
-                name = name or self.__skill_id2name
-                LOG.debug(f"homescreen app registered: {name} - '{event}'")
-                self.register_homescreen_app(icon=icon,
-                                             name=name or self.skill_id,
-                                             event=event)
-                self.add_event(event, method, speak_errors=False)
-
-    @property
-    def __skill_id2name(self) -> str:
-        """helper to make a nice string out of a skill_id"""
-        return (self.skill_id.split(".")[0].replace("_", " ").
-                replace("-", " ").replace("skill", "").title().strip())
 
     def _init_settings(self):
         """
@@ -918,65 +943,6 @@ class OVOSSkill:
         """
         self.gui = SkillGUI(self)
         self.gui.setup_default_handlers()
-
-    def register_homescreen_app(self, icon: str, name: str, event: str):
-        """the icon file MUST be located under 'gui' subfolder"""
-        # this path is hardcoded in ovos_gui.constants and follows XDG spec
-        # we use it to ensure resource availability between containers
-        # it is the only path assured to be accessible both by skills and GUI
-        GUI_CACHE_PATH = get_xdg_cache_save_path('ovos_gui')
-
-        full_icon_path = f"{self.res_dir}/gui/{icon}"
-        if not os.path.isfile(full_icon_path):
-            self.log.error(f"failed to register homescreen app, icon does not exist: {full_icon_path}")
-            return
-        os.makedirs(f"{GUI_CACHE_PATH}/{self.skill_id}", exist_ok=True)
-        shared_path = f"{GUI_CACHE_PATH}/{self.skill_id}/{icon}"
-        shutil.copy(full_icon_path, shared_path)
-
-        self.bus.emit(Message("homescreen.register.app",
-                              {"skill_id": self.skill_id,
-                               "icon": shared_path,
-                               "name": name,
-                               "event": event}))
-
-    def register_resting_screen(self):
-        """
-        Registers resting screen from the resting_screen_handler decorator.
-
-        This only allows one screen and if two is registered only one
-        will be used.
-        """
-        for attr_name in get_non_properties(self):
-            handler = getattr(self, attr_name)
-            if hasattr(handler, 'resting_handler'):
-                resting_name = handler.resting_handler
-                LOG.debug(f"{get_handler_name(handler)} is a resting screen, name: {resting_name}")
-
-                def register(message=None, name=resting_name):
-                    self.log.info(f'Registering resting screen {name} for {self.skill_id}.')
-                    self.bus.emit(Message("homescreen.manager.add",
-                                          {"name": name, "id": self.skill_id}))
-
-                register()  # initial registering
-
-                self.add_event("homescreen.manager.reload.list", register, speak_errors=False)
-
-                def wrapper(message, cb=handler):
-                    if message.data["homescreen_id"] == self.skill_id:
-                        LOG.debug(f"triggering resting_handler: {get_handler_name(cb)}")
-                        cb(message)
-
-                self.add_event("homescreen.manager.activate.display", wrapper, speak_errors=False)
-
-                def shutdown_handler(message):
-                    if message.data["id"] == self.skill_id:
-                        msg = message.forward("homescreen.manager.remove",
-                                              {"id": self.skill_id})
-                        self.bus.emit(msg)
-
-                self.add_event("mycroft.skills.shutdown", shutdown_handler, speak_errors=False)
-                break  # TODO - if multiple decorators are used what do? this is not deterministic
 
     def _start_filewatcher(self):
         """
@@ -1574,14 +1540,15 @@ class OVOSSkill:
         # never reaches the wire.
         name = canonical_intent_topic(f'{self.skill_id}:{intent_file}')
         for lang in self.native_langs:
-            resources = self.load_lang(self.res_dir, lang)
-            resource_file = ResourceFile(resources.types.intent, intent_file)
-            if resource_file.file_path is None:
+            filename = self._locate_lang_file(intent_file, ".intent", lang)
+            if filename is None:
                 self.log.error(f'Unable to find "{intent_file}"')
                 continue
-            filename = str(resource_file.file_path)
 
-            samples = read_resource_file(Path(filename))
+            samples = self._guarded(read_resource_file, Path(filename),
+                                    default=None)
+            if samples is None:
+                continue
 
             disallowed_strings = []
             for enty in voc_blacklist or []:
@@ -1589,13 +1556,23 @@ class OVOSSkill:
 
             # OVOS-INTENT-2 §4.3: a sibling "<intent>.blacklist" locale file
             # lists slot-free phrases that should suppress this intent from
-            # matching
+            # matching. The file is optional — skip when absent.
             blacklist_name = intent_file.rsplit(".", 1)[0]
-            disallowed_strings += resources.load_blacklist_file(blacklist_name)
+            try:
+                disallowed_strings += self._guarded(
+                    self.load_lang().load_blacklist, blacklist_name,
+                    lang, default=[])
+            except FileNotFoundError:
+                pass  # no sibling ".blacklist" file -> nothing to suppress
 
             # OVOS-INTENT-2 §4.5: a sibling "<intent>.required" locale file
             # lists keywords of which one must occur for this intent to match
-            required_keywords = resources.load_required_file(blacklist_name)
+            try:
+                required_keywords = self._guarded(
+                    self.load_lang().load_required_keywords,
+                    blacklist_name, lang, default=[])
+            except FileNotFoundError:
+                required_keywords = []  # no sibling ".required" file
 
             # OVOS-INTENT-2 §4.3: for each "{slot}" the template declares, a
             # sibling "<slot>.blacklist" locale file lists slot-value
@@ -1606,7 +1583,12 @@ class OVOSSkill:
             # bare name, the prefix is not part of it.
             slot_blacklist = {}
             for slot in declared_slots(samples):
-                phrases = resources.load_blacklist_file(slot)
+                try:
+                    phrases = self._guarded(
+                        self.load_lang().load_blacklist, slot, lang,
+                        default=[])
+                except FileNotFoundError:
+                    phrases = []
                 if phrases:
                     slot_blacklist[slot] = phrases
 
@@ -1618,7 +1600,8 @@ class OVOSSkill:
                 blacklisted_words=disallowed_strings,
                 slot_blacklist=slot_blacklist,
                 required_keywords=required_keywords,
-                vocabs=resources.vocabularies(),
+                vocabs=self._guarded(self.load_lang().vocabularies,
+                                     lang, default={}),
                 requires_context=requires_context,
                 excludes_context=excludes_context,
                 required_slots=required_slots)
@@ -1669,11 +1652,11 @@ class OVOSSkill:
         if entity_file.endswith('.entity'):
             entity_file = entity_file.replace('.entity', '')
         for lang in self.native_langs:
-            resources = self.load_lang(self.res_dir, lang)
-            self._register_entity_file_for_lang(entity_file, lang, resources)
+            self._register_entity_file_for_lang(
+                entity_file, lang, self.load_lang())
 
     def _register_entity_file_for_lang(self, entity_file: str, lang: str,
-                                       resources: SkillResources,
+                                       resources: LocaleResources,
                                        resolved_path: Optional[Path] = None):
         """
         Register a single Entity file with the intent service for a single
@@ -1683,28 +1666,28 @@ class OVOSSkill:
         @param entity_file: name of file that contains examples of an
                             entity, without the ".entity" extension.
         @param lang: language code the `resources` object was loaded for.
-        @param resources: SkillResources for `lang`, as returned by
+        @param resources: LocaleResources serving `lang`, as returned by
                           `load_lang`.
         @param resolved_path: when the caller already holds the resolved
                               file path (auto-discovery via `Path.rglob`),
                               pass it directly instead of re-deriving it.
-                              `ResourceFile._locate()` (resource_files.py)
-                              matches by BASENAME against `os.walk` results,
-                              so re-searching by a subfolder-qualified name
+                              `LocaleResources.find` matches a BASE NAME, so
+                              re-searching by a subfolder-qualified name
                               like "sub/pet" (from a discovered
                               "sub/pet.entity") never matches anything and
                               silently fails to register. Auto-discovery
                               already resolved the real path while walking
-                              the entity directory, so skip the lookup.
+                              the language directory, so skip the lookup.
         """
         if resolved_path is not None:
             filename = str(resolved_path)
         else:
-            entity = ResourceFile(resources.types.entity, entity_file)
-            if entity.file_path is None:
+            found = self._guarded(resources.find, entity_file, ".entity",
+                                  lang, default=None)
+            if found is None:
                 self.log.error(f'Unable to find "{entity_file}"')
                 return
-            filename = str(entity.file_path)
+            filename = str(found)
         # IDEMPOTENCY: keyed by the resolved file path (not the caller's
         # spelling of `entity_file`) so auto-discovery and an explicit
         # register_entity_file() call for the same file - or two auto
@@ -1723,7 +1706,10 @@ class OVOSSkill:
         # namespaces the entity and the hash was taken over the file name
         # that is already part of the key.
         name = f"{self.skill_id}:{basename(entity_file)}"
-        samples = read_resource_file(Path(filename))
+        samples = self._guarded(read_resource_file, Path(filename),
+                                default=None)
+        if samples is None:
+            return
         # A bare '#' line is a mycroft-core-era convention some authors used
         # to mean "any digit sequence goes here" (see e.g. old date-time
         # skill forks). `read_resource_file` treats any line starting with
@@ -1750,12 +1736,17 @@ class OVOSSkill:
         # lists slot-free phrases that MUST NOT fill the {slot} this entity
         # supplies (e.g. a "person.blacklist" of pronouns keeps "he" out of
         # the {person} slot)
-        blacklist = resources.load_blacklist_file(entity_file)
+        try:
+            blacklist = self._guarded(resources.load_blacklist,
+                                      basename(entity_file), lang, default=[])
+        except FileNotFoundError:
+            blacklist = []
         self.intent_service.register_entity(name, samples, lang,
                                             blacklisted_words=blacklist)
 
     def _auto_register_entity_files(self, lang: str,
-                                    resources: Optional[SkillResources] = None):
+                                    resources: Optional[LocaleResources] = None,
+                                    root_directory: Optional[str] = None):
         """
         Auto-discover and register every ".entity" file shipped in this
         skill's locale resources for `lang`.
@@ -1768,26 +1759,24 @@ class OVOSSkill:
         so every discovered file is registered unconditionally - no
         filtering by declared slot names.
 
-        Ordering: this is called from `load_lang` on first (cache-miss)
-        load for `lang`, and `register_intent_file` always calls
+        Ordering: this is called from `load_lang` on the first load for
+        `lang`, and `register_intent_file` always calls
         `load_lang` before it builds/emits its own template for that lang.
         That means every auto-registered entity for a lang reaches the bus
         strictly before (never after) the first intent template for that
         same lang - the same batch/ordering guarantee `register_intent_file`
         already relies on for manually-registered entities.
 
-        Idempotency: guarded twice - `load_lang` only calls this on a
-        cache-miss (one call per lang per skill instance in normal use),
-        and `_auto_registered_entity_dirs` guards direct/repeated calls
-        (e.g. tests, or a future reload path) from double-emitting. The
-        guard is per (resource directory, lang): a skill pointed at a new
-        `res_dir` registers that directory's entity files.
+        Idempotency: `_auto_registered_entity_dirs` guards repeated calls
+        (every `load_lang`, tests, or a future reload path) from
+        double-emitting. The guard is per (resource directory, lang): a skill
+        pointed at a new `res_dir` registers that directory's entity files.
 
         Can be disabled entirely via the "skills" section of mycroft.conf:
             {"skills": {"auto_register_entity_files": false}}
         """
-        resources = resources or self.load_lang(lang=lang)
-        key = (resources.skill_directory, lang)
+        root_directory = root_directory or self.res_dir
+        key = (root_directory, lang)
         if key in self._auto_registered_entity_dirs:
             return
         self._auto_registered_entity_dirs.add(key)
@@ -1796,21 +1785,29 @@ class OVOSSkill:
                 "auto_register_entity_files", True):
             return
 
-        entity_dir = resources.types.entity.base_directory
-        if not entity_dir or not Path(entity_dir).is_dir():
+        lang_dir = find_lang_dir(join(root_directory, "locale"), lang)
+        if lang_dir is None:
             return
 
-        entity_paths = sorted(Path(entity_dir).rglob(f"*{resources.types.entity.file_extension}"))
-        for path in entity_paths:
-            # name relative to the entity base directory, extension
-            # stripped, so entities in subfolders keep a stable/readable
-            # name (e.g. "sub/foo" for "<entity_dir>/sub/foo.entity")
-            rel = path.relative_to(entity_dir)
-            entity_file = str(rel.with_suffix(''))
+        resources = resources or self.load_lang(root_directory, lang)
+        by_name: Dict[str, List[Path]] = {}
+        for path in sorted(lang_dir.rglob("*.entity")):
+            by_name.setdefault(path.name, []).append(path)
+        for paths in by_name.values():
+            if len(paths) > 1:
+                self._report_malformed(MalformedResource(
+                    f"duplicate resource {paths[0].name!r}: "
+                    f"{', '.join(str(p) for p in paths)}"))
+                continue
+            path = paths[0]
+            # name relative to the language directory, extension stripped,
+            # so entities in subfolders keep a stable/readable name
+            # (e.g. "sub/foo" for "<lang_dir>/sub/foo.entity")
+            entity_file = str(path.relative_to(lang_dir).with_suffix(''))
             try:
                 self._register_entity_file_for_lang(entity_file, lang,
-                                                     resources,
-                                                     resolved_path=path)
+                                                    resources,
+                                                    resolved_path=path)
             except Exception as e:
                 self.log.exception(
                     f'{self.skill_id}: failed to auto-register entity file '
@@ -1986,9 +1983,13 @@ class OVOSSkill:
         # Convert "MyFancySkill" to "My Fancy Skill" for speaking
         handler_name = camel_case_split(self.name)
         msg_data = {'skill': handler_name}
-        lines = self.resources.load_dialog_file('skill_error', data=msg_data)
-        speech = lines[0] if lines else 'skill_error'
-        if speak_errors:
+        try:
+            speech = self.render_dialog('skill_error', msg_data)
+        except DialogNotFound as err:
+            # no error dialog in this language: log it, speak nothing
+            self.log.error(err)
+            speech = None
+        if speak_errors and speech:
             self.speak(speech)
         self.log.exception(error)
         if handler_info:
@@ -2128,21 +2129,18 @@ class OVOSSkill:
                                                            modified string. 
                                                            Defaults to None.
         """
-        if self.dialog_renderer:
-            data = data or {}
-            utterance = self.dialog_renderer.render(key, data)
-            if render_callback is not None:
-                utterance = render_callback(utterance, self.lang)
-            self.speak(
-                utterance,
-                expect_response, wait, meta={'dialog': key, 'data': data}
-            )
-        else:
-            # TODO - change this behaviour, speaking the dialog file name isn't that helpful!
-            self.log.error(
-                'dialog_render is None, does the locale/dialog folder exist?'
-            )
-            self.speak(key, expect_response, wait, {})
+        data = data or {}
+        # render_dialog renders a phrase via ovos_spec_tools.render; `key` may
+        # also be a literal utterance — if no .dialog file matches it, it is
+        # spoken verbatim.
+        # TODO - change this behaviour, speaking the dialog file name isn't that helpful!
+        utterance = self.render_dialog(key, data)
+        if render_callback is not None:
+            utterance = render_callback(utterance, self.lang)
+        self.speak(
+            utterance,
+            expect_response, wait, meta={'dialog': key, 'data': data}
+        )
 
     def play_audio(self, filename: str, instant: bool = False,
                    wait: Union[bool, int] = False):
@@ -2286,13 +2284,9 @@ class OVOSSkill:
             fail_data = data.copy()
             fail_data['utterance'] = utterance
             if on_fail:
-                if self.dialog_renderer:
-                    return self.dialog_renderer.render(on_fail, fail_data)
-                return on_fail
+                return self._dialog_or_text(on_fail, fail_data)
             else:
-                if self.dialog_renderer:
-                    return self.dialog_renderer.render(dialog, data)
-                return dialog
+                return self._dialog_or_text(dialog, data)
 
         def is_cancel(utterance):
             return self.voc_match(utterance, 'cancel', lang=session.lang)
@@ -2306,7 +2300,8 @@ class OVOSSkill:
 
         # Speak query and wait for user response
         if dialog:
-            self.speak_dialog(dialog, data, expect_response=True, wait=wait)
+            self.speak(self._dialog_or_text(dialog, data), True, wait,
+                       meta={'dialog': dialog, 'data': data})
         else:
             self.bus.emit(message.forward('mycroft.mic.listen'))
 
@@ -2671,72 +2666,39 @@ class OVOSSkill:
 
     def voc_list(self, voc_filename: str,
                  lang: Optional[str] = None) -> List[str]:
-        """
-        Get list of vocab options for the requested resource and cache the
-        results for future references.
-        @param voc_filename: Name of vocab resource to get options for
-        @param lang: language to get vocab for (default self.lang)
-        @return: list of string vocab options
+        """Cached per-skill view of a ``.voc`` phrase set.
+
+        Delegates the lookup to :meth:`LocaleResources.voc_list` (which
+        returns ``[]`` for a missing resource) and caches the result on
+        this skill instance so subsequent ``voc_match`` / ``remove_voc``
+        calls do not re-walk the locale tree.
         """
         lang = standardize_lang(lang or self.lang)
         cache_key = (self.res_dir, lang, voc_filename)
-
         if cache_key not in self._voc_cache:
-            vocab = self.load_lang(lang=lang).load_vocabulary_file(voc_filename)
+            vocab = self._guarded(self.load_lang().voc_list,
+                                  voc_filename, lang, default=[])
             if vocab:
-                self._voc_cache[cache_key] = list(chain(*vocab))
-
+                self._voc_cache[cache_key] = [v.lower() for v in vocab]
         return self._voc_cache.get(cache_key) or []
 
     def voc_match(self, utt: str, voc_filename: str, lang: Optional[str] = None,
                   exact: bool = False, ensure_ascii=True):
+        """Determine if ``utt`` matches any phrase from a ``.voc``.
+
+        By default (``exact=False``) a sample matches when it appears in the
+        utterance as a whole-word substring — so ``"yes, please"`` matches a
+        ``yes.voc`` of just ``yes``. With ``exact=True`` the utterance must
+        equal a sample after normalization.
+
+        ``ensure_ascii`` bundles the normalization knobs — it drops
+        diacritics and ASCII punctuation together; for finer control call
+        :func:`ovos_spec_tools.utterance_contains` directly with
+        ``strip_diacritics`` / ``strip_punct``.
         """
-        Determine if the given utterance contains the vocabulary provided.
-
-        By default the method checks if the utterance contains the given vocab
-        thereby allowing the user to say things like "yes, please" and still
-        match against "Yes.voc" containing only "yes". An exact match can be
-        requested.
-
-        The method first checks in the current Skill's .voc files and secondly
-        in the "locale" folder of ovos-workshop. The result is cached to
-        avoid hitting the disk each time the method is called.
-
-        Args:
-            utt (str): Utterance to be tested
-            voc_filename (str): Name of vocabulary file (e.g. 'cancel' for
-                                'locale/en-us/cancel.voc')
-            lang (str): Language code, defaults to self.lang
-            exact (bool): Whether the vocab must exactly match the utterance
-            ensure_ascii (bool): Whether to ignore accents and punctuation
-
-        Returns:
-            bool: True if the utterance has the given vocabulary it
-        """
-        lang = lang or self.lang
-        match = False
-        try:
-            _vocs = self.voc_list(voc_filename, lang)
-        except FileNotFoundError:
-            LOG.warning(
-                f"{self.skill_id} failed to find voc file '{voc_filename}' for lang '{lang}' in `{self.res_dir}'")
-            return False
-
-        if utt and _vocs:
-            if ensure_ascii:
-                utt = remove_accents_and_punct(utt)
-                _vocs = [remove_accents_and_punct(v) for v in _vocs]
-
-            if exact:
-                # Check for exact match
-                match = any(i.strip().lower() == utt.lower()
-                            for i in _vocs)
-            else:
-                # Check for matches against complete words
-                match = any([re.match(r'.*\b' + re.escape(i) + r'\b.*', utt, re.IGNORECASE)
-                             for i in _vocs])
-
-        return match
+        return utterance_contains(
+            utt, self.voc_list(voc_filename, lang), exact=exact,
+            strip_diacritics=ensure_ascii, strip_punct=ensure_ascii)
 
     @staticmethod
     def _normalize_with_offsets(utt: str) -> Tuple[str, List[int]]:
@@ -2866,21 +2828,12 @@ class OVOSSkill:
 
     def remove_voc(self, utt: str, voc_filename: str,
                    lang: Optional[str] = None) -> str:
-        """
-        Removes any vocab match from the utterance.
-        @param utt: Utterance to evaluate
-        @param voc_filename: vocab resource to remove from utt
-        @param lang: Optional language associated with vocab and utterance
-        @return: string with vocab removed
-        """
-        if utt:
-            # Check for matches against complete words
-            voc_list = self.voc_list(voc_filename, lang)
-            # From longest to shortest to replace composite terms first
-            for i in sorted(voc_list, key=len, reverse=True):
-                # Substitute only whole words matching the token
-                utt = re.sub(r'\b' + i + r'\b', '', utt)
-        return utt
+        """Return ``utt`` with every whole-word occurrence of any phrase from
+        a ``.voc`` removed (longest first so composite phrases consume their
+        parts)."""
+        if not utt:
+            return utt
+        return strip_samples(utt, self.voc_list(voc_filename, lang))
 
     # event related skill developer facing utils
     def add_event(self, name: str, handler: callable,
@@ -3570,27 +3523,6 @@ class OVOSSkill:
         # TODO: register TTS events to track state instead of guessing
         waiter.wait(0.5)  # if TTS had not yet started
         self.bus.emit(msg.forward("mycroft.audio.speech.stop"))
-
-    @classproperty
-    def network_requirements(self) -> RuntimeRequirements:
-        LOG.warning("network_requirements renamed to runtime_requirements, "
-                    "will be removed in ovos-core 0.0.8")
-        return self.runtime_requirements
-
-    @property
-    def voc_match_cache(self) -> Dict[str, List[str]]:
-        """
-        Backwards-compatible accessor method for vocab cache
-        @return: dict vocab resources to parsed resources
-        """
-        return self._voc_cache
-
-    @voc_match_cache.setter
-    def voc_match_cache(self, val):
-        self.log.warning("self._voc_cache should not be modified externally. This"
-                         "functionality will be deprecated in a future release")
-        if isinstance(val, dict):
-            self._voc_cache = val
 
 
 class SkillGUI(GUIInterface):

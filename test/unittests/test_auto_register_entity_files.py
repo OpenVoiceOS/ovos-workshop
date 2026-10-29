@@ -138,14 +138,13 @@ class TestAutoEntityResourceDirectory(unittest.TestCase):
             f"{[d['entity_name'] for d in self._entity_regs()]}")
         self.assertEqual(set(data["samples"]), {"go", "shogi"})
 
-    def test_discovery_scans_the_resources_it_is_given(self):
-        """The `resources` argument selects what is scanned; it is not a
+    def test_discovery_scans_the_root_directory_it_is_given(self):
+        """The `root_directory` argument selects what is scanned; it is not a
         hint that a lookup by language may override."""
-        from ovos_workshop.resource_files import SkillResources
+        from ovos_spec_tools import LocaleResources
         other = self._other_res_dir()
-        resources = SkillResources(other, "en-US",
-                                   skill_id=self.skill.skill_id)
-        self.skill._auto_register_entity_files("en-US", resources)
+        resources = LocaleResources(skill_locale=join(other, "locale"))
+        self.skill._auto_register_entity_files("en-US", resources, other)
 
         names = {d["entity_name"] for d in self._entity_regs()}
         self.assertIn("boardgame", names)

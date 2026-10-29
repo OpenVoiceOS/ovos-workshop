@@ -23,7 +23,7 @@ my-skill/
     └── my_page.qml
 ```
 
-Legacy skills may use separate `dialog/`, `vocab/`, `regex/` subdirectories: these are still supported.
+Resources live under `locale/<lang>/` (OVOS-INTENT-2 §2). The legacy `dialog/<lang>/`, `vocab/<lang>/` and `regex/<lang>/` layouts, and flat layouts without a language folder, are not supported.
 
 ## Resource Types
 
@@ -179,9 +179,9 @@ When a resource is not found for the exact `lang`, the skill falls back to diale
 ## Loading Resources Manually
 
 ```python
-# Get SkillResources for current lang
-resources = self.resources                         # current self.lang
-resources = self.load_lang(self.res_dir, "es-ES")  # specific lang
+# Get the LocaleResources of this skill (serves every language)
+resources = self.load_lang()
+resources.load_vocabulary("hello", "es-ES")        # language per call
 
 # Find a specific file
 path = self.find_resource("my.dialog", "dialog")
@@ -190,7 +190,7 @@ path = self.find_resource("hello.mp3", "snd")
 
 ## SkillResources API
 
-`SkillResources` is returned by `self.resources` and `self.load_lang()`:
+The deprecated `SkillResources` is returned by `self.resources`; `self.load_lang()` returns a `LocaleResources`:
 
 ```python
 # Render a dialog (returns a string, does not speak)
@@ -222,6 +222,25 @@ Optional file for homescreen integration. Placed at `locale/<lang>/skill.json`:
 ```
 
 These examples are emitted to the homescreen as `homescreen.register.examples` on skill startup.
+
+## Spec conformance — OVOS-INTENT-2
+
+Skill locale resource loading is delegated to `ovos_spec_tools.LocaleResources`.
+`OVOSSkill` builds one `LocaleResources` per resource root (cached on
+`_locale_resources` / `load_lang`) and uses it for dialog rendering
+(`render_dialog` → `ovos_spec_tools.render`), vocab lookup (`voc_match`,
+`voc_list` → `LocaleResources.voc_list`), and resource discovery
+(`find_resource` → `LocaleResources.find`). Language matching and template
+expansion come from the spec primitives (`closest_lang` / `standardize_lang`,
+`expand`).
+
+The legacy `SkillResources`, `ResourceFile`, `ResourceType`, and the related
+module-level helpers in `ovos_workshop/resource_files.py` are kept only as
+deprecated shims. The legacy `OVOSSkill` resource surface (`resources`,
+`dialog_renderer`, `find_resource`, …) is preserved on the
+`_LegacyResourcesMixin` deprecation mixin, which emits `@deprecated` warnings and
+forwards to the spec API. New code should construct `ovos_spec_tools.LocaleResources`
+directly.
 
 ---
 [← filesystem](filesystem.md) · [Home](index.md) · [settings →](settings.md)

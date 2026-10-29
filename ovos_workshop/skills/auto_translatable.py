@@ -1,9 +1,10 @@
+from typing import List, Optional
+
 from ovos_config import Configuration
 
 from ovos_bus_client import Message
 from ovos_utils.events import get_handler_name
 from ovos_utils.log import LOG
-from ovos_workshop.resource_files import SkillResources
 from ovos_workshop.skills.fallback import FallbackSkill
 from ovos_workshop.skills.ovos import OVOSSkill
 
@@ -60,21 +61,24 @@ class UniversalSkill(OVOSSkill):
                         f"internal_language, casting to {lang}")
             self.internal_language = lang
 
-    def _load_lang(self, root_directory=None, lang=None):
-        """
-        unlike base skill class all resources are in self.internal_language by
-        default instead of self.lang (which comes from message)
-        this ensures things like self.dialog_render reflect self.internal_lang
-        """
-        lang = lang or self.internal_language  # self.lang in base class
-        root_directory = root_directory or self.res_dir
-        key = (root_directory, lang)
-        if key not in self._lang_resources:
-            self._lang_resources[key] = SkillResources(root_directory, lang,
-                                                       skill_id=self.skill_id)
-            # see OVOSSkill.load_lang - same auto entity-file discovery
-            self._auto_register_entity_files(lang, self._lang_resources[key])
-        return self._lang_resources[key]
+    # dialogs and vocabulary are written in internal_language, while
+    # self.lang stays the query language that speak() translates into
+    def render_dialog(self, name: str, data: Optional[dict] = None,
+                      lang: Optional[str] = None) -> str:
+        return super().render_dialog(name, data,
+                                     lang or self.internal_language)
+
+    def voc_list(self, voc_filename: str,
+                 lang: Optional[str] = None) -> List[str]:
+        return super().voc_list(voc_filename, lang or self.internal_language)
+
+    def register_vocabulary(self, entity: str, entity_type: str,
+                            lang: Optional[str] = None):
+        super().register_vocabulary(entity, entity_type,
+                                    lang or self.internal_language)
+
+    def register_regex(self, regex_str: str, lang: Optional[str] = None):
+        super().register_regex(regex_str, lang or self.internal_language)
 
     def detect_language(self, utterance: str):
         """
@@ -176,8 +180,9 @@ class UniversalSkill(OVOSSkill):
                 translation_data["translated"][key] = message.data[key] = \
                     _do_tx(message.data[key])
 
-        # special case
-        if self.translate_tags:
+        # special case — adapt entity captures land under ``__tags__``;
+        # other intent pipelines (padacioso, padatious, ...) do not
+        if self.translate_tags and "__tags__" in message.data:
             translation_data["original"]["__tags__"] = message.data["__tags__"]
             for idx, token in enumerate(message.data["__tags__"]):
                 message.data["__tags__"][idx] = \
@@ -301,7 +306,9 @@ class UniversalSkill(OVOSSkill):
                 "internal_lang": self.internal_language,
                 "target_lang": out_lang
             }
-            utterance = self.translate_utterance(utterance, sauce_lang, out_lang)
+            # translate_utterance(text, target_lang, sauce_lang): the
+            # outbound speak goes FROM internal TO user
+            utterance = self.translate_utterance(utterance, target_lang=out_lang, sauce_lang=sauce_lang)
             meta["translation_data"]["translated"] = utterance
             kwargs["meta"] = meta
         super().speak(utterance, *args, **kwargs)
