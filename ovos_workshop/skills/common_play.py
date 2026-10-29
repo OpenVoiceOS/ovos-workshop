@@ -649,7 +649,7 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
                 LOG.error(e)
 
         if not results:
-            self.speak_dialog("no.media.available")
+            self.speak_dialog("no_media_available")
         else:
             # inject skill id in individual results
             for idx, r in enumerate(results):

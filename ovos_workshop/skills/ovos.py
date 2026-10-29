@@ -1986,8 +1986,8 @@ class OVOSSkill:
         # Convert "MyFancySkill" to "My Fancy Skill" for speaking
         handler_name = camel_case_split(self.name)
         msg_data = {'skill': handler_name}
-        lines = self.resources.load_dialog_file('skill.error', data=msg_data)
-        speech = lines[0] if lines else 'skill.error'
+        lines = self.resources.load_dialog_file('skill_error', data=msg_data)
+        speech = lines[0] if lines else 'skill_error'
         if speak_errors:
             self.speak(speech)
         self.log.exception(error)
