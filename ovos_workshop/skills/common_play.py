@@ -105,6 +105,15 @@ class OVOSCommonPlaybackSkill(OVOSSkill):
          
         Initializes internal state for OCP entity recognition, playback control, and skill aliases.
         """
+        log_deprecation(
+            "OVOSCommonPlaybackSkill (and the @ocp_search / @ocp_featured_media "
+            "decorators) are superseded by the MediaProvider plugin type "
+            "('opm.media.provider'). New media catalogs should ship as "
+            "'ovos-media-provider-*' plugins that return mediavocab.Release objects "
+            "and are loaded in-process by the OCP pipeline, instead of media-provider "
+            "skills queried over the bus. See OVOS-OCP-1: "
+            "https://github.com/OpenVoiceOS/architecture/blob/dev/ovos-ocp-1.md",
+            "2.0.0")
         self.supported_media = supported_media or [MediaType.GENERIC]
         self.skill_aliases = []
         self.skill_voc_filename = skill_voc_filename
