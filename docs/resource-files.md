@@ -71,6 +71,13 @@ good morning
 
 Loaded automatically as `HelloKeyword` (file name without extension, CamelCase from `alphanumeric_skill_id`).
 
+A line that does not parse as a template, such as an unbalanced `(a|b` or a
+bare `a|b` outside a group (OVOS-INTENT-1 §3.6), is skipped with a warning
+that names the file, the skill and the language. The file's other lines still
+load. This holds wherever the vocabulary is read: as a keyword list, and when
+`.intent` and `.blacklist` files resolve inline `<name>` references from every
+`.voc` in the locale (§3.7).
+
 ## Intent Files (Padatious)
 
 One example utterance per line. Supports entity slots `{entity}` and alternation `(a | b)`:

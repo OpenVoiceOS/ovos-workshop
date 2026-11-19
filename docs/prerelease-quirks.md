@@ -9,6 +9,17 @@ This file resets at the next stable release. At that point its contents
 become upgrade notes for the `8.0.0 -> next-stable` jump, and a new, empty
 quirks log starts.
 
+## 9.10.2a1 — a malformed `.voc` line no longer stops a skill from loading
+
+Every `.intent` and `.blacklist` file a skill loads resolves inline `<name>`
+references from a table of every `.voc` in the locale. Building that table
+expanded each `.voc` line without catching `MalformedTemplate`, so one line
+`ovos-spec-tools` refuses aborted `register_intent_file`. The whole skill then
+failed to load, even when the bad file had nothing to do with the intent. A
+legacy `a|b` alias line, which newer `ovos-spec-tools` reject as a pipe outside
+a group, is the common case. The line is now skipped with the same warning
+`VocabularyFile.load` logs for it, and the file's other lines stay in the table.
+
 ## 9.8.17a1 — resource caches re-check their tree at most every 2 seconds
 
 The directory listings, file indexes and locale vocabularies memoized in 9.8.6
