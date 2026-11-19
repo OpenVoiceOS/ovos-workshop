@@ -77,7 +77,7 @@ else:
 ### How it works internally
 
 1. `get_response(dialog=prompt, data=data)`: speaks the prompt, records user reply.
-2. `_get_yesno_engine()`: resolves the plugin name (settings → mycroft.conf → `ovos-solver-yes-no-plugin`), loads it once, and caches it. Falls back to `HeuristicYesNoEngine` if loading fails. `OVOSSkill._get_yesno_engine`: `ovos_workshop/skills/ovos.py:1932`
+2. `_get_yesno_engine()`: resolves the plugin name (settings → mycroft.conf → `ovos-yes-no-plugin`), loads it once, and caches it. Falls back to `HeuristicYesNoEngine` if loading fails. `OVOSSkill._get_yesno_engine`: `ovos_workshop/skills/ovos.py:1932`
 3. `engine.yes_or_no(question=prompt, response=resp, lang=self.lang)` → `True`, `False`, or `None`.
 4. `True` → `"yes"`, `False` → `"no"`, `None`/unmatched → raw response. `OVOSSkill.ask_yesno`: `ovos_workshop/skills/ovos.py:1970`
 
@@ -183,10 +183,8 @@ Both methods are backed by pluggable agent engines discovered and loaded via [ov
 
 **Plugin type**: `YesNoEngine` (`opm.agents.yesno`)
 **Config key**: `ask_yesno_plugin`
-**Default plugin name looked up**: `ovos-solver-yes-no-plugin` — no shipped `opm.agents.yesno` entry point
-registers under that name, so this lookup always fails and the code falls back to the bundled
-`HeuristicYesNoEngine`. The plugin this repo actually ships and depends on registers as
-`ovos-yes-no-plugin` (see `ovos_workshop/skills/ovos.py`'s `_get_yesno_engine` and `pyproject.toml`).
+**Default plugin**: `ovos-yes-no-plugin`, the `opm.agents.yesno` entry point of the
+`ovos-yes-no-plugin` package this repo depends on (`HeuristicYesNoEngine`).
 See the manual's [Prompts](https://openvoiceos.github.io/beta-technical-manual/prompts/) page for details.
 **Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load,
 which in practice is always, given the mismatch above)
@@ -234,15 +232,13 @@ def match_option(self, utterance: str, options: List[str], lang: Optional[str] =
 ```json
 {
   "skills": {
-    "ask_yesno_plugin": "ovos-solver-yes-no-plugin",
+    "ask_yesno_plugin": "ovos-yes-no-plugin",
     "ask_selection_plugin": "ovos-option-matcher-fuzzy-plugin"
   }
 }
 ```
 
-The code's default lookup name for `ask_yesno_plugin` is `ovos-solver-yes-no-plugin`, but no registered
-`opm.agents.yesno` plugin uses that name, so the lookup always falls back to the bundled
-`HeuristicYesNoEngine` from `ovos-yes-no-plugin`. `ask_selection_plugin` defaults to
+`ask_yesno_plugin` defaults to `ovos-yes-no-plugin`. `ask_selection_plugin` defaults to
 `ovos-option-matcher-fuzzy-plugin` and resolves correctly. Both packages are installed as runtime
 dependencies of `ovos-workshop`.
 
@@ -352,7 +348,7 @@ Activate system-wide:
 | User response unclassifiable | raw transcript string | `None` |
 | Plugin fails to load | falls back to `HeuristicYesNoEngine` | falls back to `FuzzyOptionMatcherPlugin` |
 | Plugin raises at runtime | falls back to `HeuristicYesNoEngine` | `None` |
-| No plugin configured | `ovos-solver-yes-no-plugin` used | `ovos-option-matcher-fuzzy-plugin` used |
+| No plugin configured | `ovos-yes-no-plugin` used | `ovos-option-matcher-fuzzy-plugin` used |
 
 `ask_selection` is intentionally strict: any failure returns `None` rather than guessing. Always handle the `None` case in your skill.
 
@@ -360,7 +356,7 @@ Activate system-wide:
 
 ## See also
 
-- [`ovos-solver-yes-no-plugin`](https://github.com/OpenVoiceOS/ovos-solver-YesNo-plugin): built-in yes/no classifier
+- [`ovos-yes-no-plugin`](https://github.com/OpenVoiceOS/ovos-solver-YesNo-plugin): built-in yes/no classifier
 - [`ovos-option-matcher-fuzzy-plugin`](https://github.com/OpenVoiceOS/ovos-option-matcher-fuzzy-plugin): default selection plugin, with [full docs](https://github.com/OpenVoiceOS/ovos-option-matcher-fuzzy-plugin/tree/master/docs)
 - `OVOSSkill.get_response`: lower-level method used internally by both
 - [OPM agent templates](https://github.com/OpenVoiceOS/ovos-plugin-manager/blob/dev/ovos_plugin_manager/templates/agents.py): `YesNoEngine`, `OptionMatcherEngine` base classes

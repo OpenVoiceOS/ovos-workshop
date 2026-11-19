@@ -41,7 +41,7 @@ Key settings a skill can accept in its `settings.json`:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ask_yesno_plugin` | `ovos-solver-yes-no-plugin` | YesNoEngine plugin used by `ask_yesno()` |
+| `ask_yesno_plugin` | `ovos-yes-no-plugin` | YesNoEngine plugin used by `ask_yesno()` |
 | `ask_selection_plugin` | `ovos-option-matcher-fuzzy-plugin` | OptionMatcherEngine plugin used by `ask_selection()` |
 
 Both keys can also be set system-wide under the `skills` block in `mycroft.conf`.
