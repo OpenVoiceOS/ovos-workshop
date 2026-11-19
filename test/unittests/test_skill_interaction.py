@@ -42,6 +42,18 @@ class TestGetYesnoEngine(unittest.TestCase):
         engine = skill._get_yesno_engine()
         self.assertIsInstance(engine, HeuristicYesNoEngine)
 
+    def test_default_plugin_is_the_installed_one(self):
+        """The default name is the entry point ovos-yes-no-plugin registers,
+        so it loads without the "Failed to load YesNo plugin" error."""
+        from ovos_plugin_manager.agents import load_yesno_plugin
+        from ovos_yes_no import HeuristicYesNoEngine
+        self.assertIs(load_yesno_plugin("ovos-yes-no-plugin"), HeuristicYesNoEngine)
+        skill = _make_skill()
+        with patch("ovos_workshop.skills.ovos.LOG") as log:
+            engine = skill._get_yesno_engine()
+        self.assertIsInstance(engine, HeuristicYesNoEngine)
+        log.error.assert_not_called()
+
     def test_config_core_plugin_loaded(self):
         skill = _make_skill(config_skills={"ask_yesno_plugin": "fake-yesno-plugin"})
         mock_cls = MagicMock()
