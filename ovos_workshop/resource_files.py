@@ -1020,7 +1020,19 @@ class SkillResources:
                             if line and not line.startswith("#"):
                                 # a .voc line MAY hold comma/parenthesis
                                 # alternates; every phrasing is a member
-                                members.extend(flatten_list(expand(line)))
+                                try:
+                                    members.extend(flatten_list(expand(line)))
+                                except MalformedTemplate as err:
+                                    # Skipped as VocabularyFile.load skips
+                                    # it: this table is built for every
+                                    # .intent and .blacklist, so one bad
+                                    # line in any .voc must not abort them.
+                                    LOG.warning(
+                                        f"Skipping malformed template line "
+                                        f"in {voc_path} (skill_id="
+                                        f"{self.skill_id}, resource={name}, "
+                                        f"lang={self.language}): {line!r} "
+                                        f"({err})")
                     if members:
                         vocabularies[name] = members
         return vocabularies

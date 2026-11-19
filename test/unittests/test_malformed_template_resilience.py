@@ -23,6 +23,16 @@ pytestmark = pytest.mark.filterwarnings(
 )
 
 
+def _accepts_bare_pipe() -> bool:
+    """Whether the installed ovos-spec-tools reads `a|b` outside a group as text."""
+    from ovos_spec_tools import MalformedTemplate, expand
+    try:
+        expand("a|b")
+    except MalformedTemplate:
+        return False
+    return True
+
+
 class MockEmitter:
     def __init__(self):
         self.messages = []
@@ -70,6 +80,49 @@ class TestResourceLoadResilience(unittest.TestCase):
         with patch("ovos_workshop.resource_files.LOG.warning"):
             intents = self._resources().load_intent_file("play")
         self.assertEqual(intents, [])
+
+    # Loading any .intent or .blacklist builds the inline-reference table
+    # from every .voc in the locale (OVOS-INTENT-1 §3.7). A line the
+    # vocabulary loader skips must be skipped there too, not abort the
+    # resource. An unbalanced group is malformed for every supported
+    # ovos-spec-tools, so these fixtures reach the skip path on all of them.
+
+    def test_malformed_vocabulary_does_not_block_intent_files(self):
+        self._write("condition.voc", ["(sonnig|bewölkt"])
+        self._write("play.intent", ["spiele {media}"])
+        with patch("ovos_workshop.resource_files.LOG.warning") as warn:
+            intents = self._resources().load_intent_file("play")
+        self.assertEqual(intents, ["spiele {media}"])
+        logged = " ".join(str(c) for c in warn.call_args_list)
+        self.assertIn("condition.voc", logged)
+        self.assertIn("test.skill", logged)
+
+    def test_malformed_vocabulary_does_not_block_blacklist_files(self):
+        self._write("condition.voc", ["(sonnig|bewölkt"])
+        self._write("play.blacklist", ["stopp"])
+        with patch("ovos_workshop.resource_files.LOG.warning") as warn:
+            phrases = self._resources().load_blacklist_file("play")
+        self.assertEqual(phrases, ["stopp"])
+        self.assertIn("condition.voc", " ".join(str(c) for c in warn.call_args_list))
+
+    def test_vocabulary_table_keeps_valid_lines_of_a_malformed_file(self):
+        self._write("media.voc", ["musik", "(radio|fernsehen", "(film|serie)"])
+        self._write("play.intent", ["spiele <media>"])
+        with patch("ovos_workshop.resource_files.LOG.warning") as warn:
+            intents = self._resources().load_intent_file("play")
+        self.assertEqual(sorted(intents), ["spiele film", "spiele musik", "spiele serie"])
+        self.assertEqual(warn.call_count, 1)
+
+    @unittest.skipIf(_accepts_bare_pipe(), "this ovos-spec-tools reads a bare | as literal text")
+    def test_bare_pipe_vocabulary_does_not_block_intent_files(self):
+        # The case seen in the field: a legacy `a|b` alias line, which
+        # OVOS-INTENT-1 §3.6 makes malformed from the ovos-spec-tools that
+        # enforce it on.
+        self._write("condition.voc", ["condition|condition|conditions"])
+        self._write("play.intent", ["spiele {media}"])
+        with patch("ovos_workshop.resource_files.LOG.warning"):
+            intents = self._resources().load_intent_file("play")
+        self.assertEqual(intents, ["spiele {media}"])
 
     def test_vocabulary_file_skips_malformed_lines(self):
         self._write("media.voc", ["musik", "(radio|fernsehen", "film"])
