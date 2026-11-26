@@ -8,9 +8,14 @@ from pathlib import Path
 from ovos_workshop.resource_files import locate_lang_directories
 from ovos_workshop.skills.converse import ConversationalSkill
 
-MACROLANGUAGE_PAIRS = [("arz", "ar"), ("wuu", "zh")]
+MACROLANGUAGE_PAIRS = [("arz", "ar"), ("lzh", "zh-Hant-CN")]
 REGIONAL_PAIRS = [("ar-SA", "ar"), ("en-AU", "en-GB"), ("pt-BR", "pt-PT")]
-UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl")]
+# Wu (wuu) is an individual language of the zho macrolanguage (SIL ISO 639-3
+# macrolanguage mappings, row "zho wuu A"), but linguatag measures the spoken
+# non-Mandarin members against Simplified zh as a different language: they are
+# not mutually intelligible with Mandarin.
+UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl"),
+                   ("wuu", "zh")]
 
 
 class TestLocaleDirectoryBoundary(unittest.TestCase):
