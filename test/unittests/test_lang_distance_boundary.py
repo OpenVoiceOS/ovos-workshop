@@ -8,9 +8,9 @@ from pathlib import Path
 from ovos_workshop.resource_files import locate_lang_directories
 from ovos_workshop.skills.converse import ConversationalSkill
 
-MACROLANGUAGE_PAIRS = [("arz", "ar"), ("wuu", "zh")]
+MACROLANGUAGE_PAIRS = [("arz", "ar"), ("cmn", "zh")]
 REGIONAL_PAIRS = [("ar-SA", "ar"), ("en-AU", "en-GB"), ("pt-BR", "pt-PT")]
-UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl")]
+UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl"), ("wuu", "zh")]
 
 
 class TestLocaleDirectoryBoundary(unittest.TestCase):
