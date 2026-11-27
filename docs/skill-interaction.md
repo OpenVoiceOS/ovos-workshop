@@ -186,8 +186,7 @@ Both methods are backed by pluggable agent engines discovered and loaded via [ov
 **Default plugin**: `ovos-yes-no-plugin`, the `opm.agents.yesno` entry point of the
 `ovos-yes-no-plugin` package this repo depends on (`HeuristicYesNoEngine`).
 See the manual's [Prompts](https://openvoiceos.github.io/beta-technical-manual/prompts/) page for details.
-**Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load,
-which in practice is always, given the mismatch above)
+**Hard fallback**: `HeuristicYesNoEngine` from `ovos-yes-no-plugin` (used when the named plugin fails to load)
 
 `YesNoEngine` plugins implement:
 
