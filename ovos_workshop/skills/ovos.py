@@ -898,13 +898,9 @@ class OVOSSkill:
         # all settings.json files are monitored for changes in ovos-core
         self.add_event("ovos.skills.settings_changed", self._handle_settings_changed, speak_errors=False)
 
-        if self._monitor_own_settings:
+        # isolated setups where the skill does not share a filesystem with core
+        if self.settings.get("monitor_own_settings", False):
             self._start_filewatcher()
-
-    @property
-    def _monitor_own_settings(self):
-        # account for isolated setups where skills might not share a filesystem with core
-        return self.settings.get("monitor_own_settings", False)
 
     def _handle_settings_changed(self, message: Message) -> None:
         """external signal to reload skill settings"""
@@ -1000,11 +996,11 @@ class OVOSSkill:
         """
         for attr_name in get_non_properties(self):
             method = getattr(self, attr_name)
+            requires_context = getattr(method, 'requires_context', [])
+            excludes_context = getattr(method, 'excludes_context', [])
             if hasattr(method, 'intents'):
-                for intent in getattr(method, 'intents'):
-                    voc_blacklist = method.voc_blacklist if hasattr(method, 'voc_blacklist') else []
-                    requires_context = method.requires_context if hasattr(method, 'requires_context') else []
-                    excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
+                voc_blacklist = getattr(method, 'voc_blacklist', [])
+                for intent in method.intents:
                     required_slots = method.required_slots.get(intent) \
                         if hasattr(method, 'required_slots') and isinstance(intent, str) else None
                     self.register_intent(intent, method, voc_blacklist=voc_blacklist,
@@ -1013,16 +1009,13 @@ class OVOSSkill:
                                          required_slots=required_slots)
 
             if hasattr(method, 'intent_files'):
-                requires_context = method.requires_context if hasattr(method, 'requires_context') else []
-                excludes_context = method.excludes_context if hasattr(method, 'excludes_context') else []
-                for intent_file in getattr(method, 'intent_files'):
+                for intent_file in method.intent_files:
                     self.register_intent_file(intent_file, method,
                                               requires_context=requires_context,
                                               excludes_context=excludes_context)
 
             if hasattr(method, 'intent_layers'):
-                for layer_name, intent_files in \
-                        getattr(method, 'intent_layers').items():
+                for layer_name, intent_files in method.intent_layers.items():
                     self.register_intent_layer(layer_name, intent_files)
 
             # TODO support for multiple common query handlers (?)
@@ -1100,22 +1093,12 @@ class OVOSSkill:
             self._cq_callback(message.data["phrase"], answer, lang)
 
     def _emit_common_query_response(self, message: Message, data: dict):
-        """
-        Emit a Common Query answer.
+        """Emit a Common Query answer on `question:query.response`.
 
-        `question:query` (the dispatch topic this handler is bound to)
-        contains a ':' and therefore has no `.response` counterpart.
-        The OVOS-MSG-1 §5.3 `response()` shorthand is undefined on it, so
-        the answer names `question:query.response` and derives it with
-        `reply()`. That is the topic ovos-common-query-pipeline-plugin
-        subscribes to.
-        COMMON-QUERY-1's spec topic (`ovos.common_query.response`) uses
-        an `utterance` payload key, not the `phrase` key this handler
-        produces, so it is not emitted here; full adoption of the spec
-        topic and payload shape lands together with the plugin.
-
-        @param message: the `question:query` Message being answered
-        @param data: the answer payload (searching/answer/no-answer leg)
+        `question:query` contains a ':', so OVOS-MSG-1 `response()` is
+        undefined on it; ovos-common-query-pipeline-plugin listens on this
+        topic. The COMMON-QUERY-1 topic is not emitted: it uses an
+        `utterance` key, not `phrase`.
         """
         self.bus.emit(message.reply("question:query.response", data))
 
