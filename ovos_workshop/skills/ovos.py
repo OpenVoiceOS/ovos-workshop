@@ -2497,7 +2497,7 @@ class OVOSSkill:
         """
         plugin_name = (self.settings.get("ask_yesno_plugin") or
                        self.config_core.get("skills", {}).get("ask_yesno_plugin") or
-                       "ovos-solver-yes-no-plugin")
+                       "ovos-yes-no-plugin")
         cache_key = f"__yesno_engine_{plugin_name}"
         if not hasattr(self, cache_key):
             try:
