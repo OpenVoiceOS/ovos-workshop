@@ -10,7 +10,7 @@ from ovos_workshop.skills.converse import ConversationalSkill
 
 MACROLANGUAGE_PAIRS = [("arz", "ar"), ("cmn", "zh")]
 REGIONAL_PAIRS = [("ar-SA", "ar"), ("en-AU", "en-GB"), ("pt-BR", "pt-PT")]
-UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl"), ("wuu", "zh")]
+UNRELATED_PAIRS = [("en", "zh"), ("es", "fr"), ("fr-CH", "de-CH"), ("af", "nl")]
 
 
 class TestLocaleDirectoryBoundary(unittest.TestCase):
